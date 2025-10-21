@@ -1,0 +1,895 @@
+﻿<%@ Page Language="vb" AutoEventWireup="false" CodeBehind="otbRemaining.aspx.vb" Inherits="BMS.otbRemaining" %>
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>KBMS - OTB Remaining</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
+    <style>
+        :root {
+            --primary-blue: #0B56A4;
+            --sidebar-bg: #2c3e50;
+            --sidebar-hover: #34495e;
+            --orange-header: #D2691E;
+            --light-blue-bg: #E6F2FF;
+            --table-header: #4A90E2;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #f5f5f5;
+            overflow-x: hidden;
+        }
+
+        /* Sidebar Styles */
+        .sidebar {
+            position: fixed;
+            top: 0;
+            left: -280px;
+            height: 100vh;
+            width: 280px;
+            background: var(--sidebar-bg);
+            transition: left 0.3s ease;
+            z-index: 2000;
+            overflow-y: auto;
+            box-shadow: 2px 0 10px rgba(0,0,0,0.3);
+        }
+
+        .sidebar.active {
+            left: 0;
+        }
+
+        .sidebar-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.5);
+            z-index: 1500;
+            display: none;
+        }
+
+        .sidebar-overlay.active {
+            display: block;
+        }
+
+        .sidebar-header {
+            padding: 25px 20px;
+            background: #1a252f;
+            color: white;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            border-bottom: 2px solid #34495e;
+        }
+
+        .sidebar-header h3 {
+            margin: 0;
+            font-size: 1.8rem;
+            font-weight: 700;
+        }
+
+        .close-sidebar {
+            background: transparent;
+            border: none;
+            color: white;
+            font-size: 1.8rem;
+            cursor: pointer;
+            padding: 0;
+            width: 35px;
+            height: 35px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 4px;
+            transition: background 0.3s;
+        }
+
+        .close-sidebar:hover {
+            background: rgba(255,255,255,0.1);
+        }
+
+        .sidebar-menu {
+            list-style: none;
+            padding: 15px 0;
+            margin: 0;
+        }
+
+        .menu-item {
+            margin: 0;
+        }
+
+        .menu-link {
+            display: flex;
+            align-items: center;
+            padding: 14px 20px;
+            color: #ecf0f1;
+            text-decoration: none;
+            transition: all 0.3s ease;
+            font-size: 0.95rem;
+        }
+
+        .menu-link:hover {
+            background: var(--sidebar-hover);
+            color: white;
+            padding-left: 25px;
+        }
+
+        .menu-link.active {
+            background: var(--orange-header);
+            color: white;
+            border-left: 4px solid #fff;
+        }
+
+        .menu-link i {
+            font-size: 1.2rem;
+            min-width: 35px;
+        }
+
+        .menu-link .bi-chevron-down {
+            margin-left: auto;
+            font-size: 1rem;
+            transition: transform 0.3s;
+        }
+
+        .menu-link.expanded .bi-chevron-down {
+            transform: rotate(180deg);
+        }
+
+        .submenu {
+            list-style: none;
+            padding-left: 0;
+            max-height: 0;
+            overflow: hidden;
+            transition: max-height 0.4s ease;
+            background: rgba(0,0,0,0.2);
+        }
+
+        .submenu.show {
+            max-height: 600px;
+        }
+
+        .submenu .menu-link {
+            padding-left: 55px;
+            font-size: 0.9rem;
+            padding-top: 12px;
+            padding-bottom: 12px;
+        }
+
+        .submenu .menu-link:hover {
+            padding-left: 60px;
+        }
+
+        /* Main Wrapper */
+        .main-wrapper {
+            width: 100%;
+            min-height: 100vh;
+        }
+
+        /* Top Navigation */
+        .top-navbar {
+            background: white;
+            padding: 15px 30px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            position: sticky;
+            top: 0;
+            z-index: 1000;
+        }
+
+        .menu-toggle {
+            background: var(--primary-blue);
+            border: none;
+            color: white;
+            font-size: 1.5rem;
+            cursor: pointer;
+            padding: 8px 15px;
+            border-radius: 6px;
+            transition: all 0.3s;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .menu-toggle:hover {
+            background: #094580;
+            transform: scale(1.05);
+        }
+
+        .page-title {
+            color: #2c3e50;
+            margin: 0;
+            font-size: 1.6rem;
+            font-weight: 600;
+        }
+
+        .user-info {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+
+        .user-avatar {
+            background: var(--primary-blue);
+            color: white;
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.2rem;
+            cursor: pointer;
+        }
+
+        /* Content Area */
+        .content-area {
+            padding: 30px;
+        }
+
+        /* Page Header */
+        .page-header {
+            background: var(--orange-header);
+            color: white;
+            padding: 15px 25px;
+            border-radius: 8px 8px 0 0;
+            font-size: 1.2rem;
+            font-weight: 600;
+            margin-bottom: 0;
+        }
+
+        /* Filter Box */
+        .filter-box {
+            background: white;
+            border-radius: 0 0 8px 8px;
+            padding: 25px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+            margin-bottom: 25px;
+        }
+
+        .filter-title {
+            font-size: 1rem;
+            font-weight: 700;
+            color: #2c3e50;
+            margin-bottom: 20px;
+            padding-bottom: 10px;
+            border-bottom: 2px solid var(--primary-blue);
+        }
+
+        .form-label {
+            font-weight: 600;
+            color: #495057;
+            margin-bottom: 8px;
+            font-size: 0.9rem;
+        }
+
+        .info-display {
+            background: var(--light-blue-bg);
+            border: 2px solid #b8d4f1;
+            padding: 10px 14px;
+            border-radius: 6px;
+            font-size: 0.95rem;
+            color: #2c3e50;
+            min-height: 42px;
+            display: flex;
+            align-items: center;
+            font-weight: 500;
+        }
+
+        /* Buttons */
+        .btn-custom {
+            padding: 10px 25px;
+            border-radius: 6px;
+            font-weight: 600;
+            transition: all 0.3s ease;
+            border: none;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 0.95rem;
+        }
+
+        .btn-clear {
+            background: #17a2b8;
+            color: white;
+        }
+
+        .btn-clear:hover {
+            background: #138496;
+            transform: translateY(-2px);
+        }
+
+        .btn-view {
+            background: var(--primary-blue);
+            color: white;
+        }
+
+        .btn-view:hover {
+            background: #094580;
+            transform: translateY(-2px);
+        }
+
+        .btn-export {
+            background: var(--primary-blue);
+            color: white;
+        }
+
+        .btn-export:hover {
+            background: #094580;
+            transform: translateY(-2px);
+        }
+
+        /* Detail Summary Box */
+        .detail-box {
+            background: white;
+            border-radius: 8px;
+            padding: 25px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+            margin-bottom: 25px;
+        }
+
+        .detail-title {
+            font-size: 1rem;
+            font-weight: 700;
+            color: #2c3e50;
+            margin-bottom: 20px;
+            padding-bottom: 10px;
+            border-bottom: 2px solid var(--primary-blue);
+        }
+
+        .detail-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px 0;
+            border-bottom: 1px solid #e9ecef;
+        }
+
+        .detail-row:last-child {
+            border-bottom: none;
+        }
+
+        .detail-label {
+            font-weight: 600;
+            color: #495057;
+        }
+
+        .detail-value {
+            font-weight: 600;
+            color: #2c3e50;
+            text-align: right;
+        }
+
+        .detail-link {
+            color: var(--primary-blue);
+            text-decoration: none;
+            cursor: pointer;
+        }
+
+        .detail-link:hover {
+            text-decoration: underline;
+        }
+
+        /* Data Table */
+        .table-container {
+            background: white;
+            border-radius: 10px;
+            overflow: hidden;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+            margin-bottom: 25px;
+        }
+
+        .section-title {
+            background: #f8f9fa;
+            padding: 15px 20px;
+            font-weight: 700;
+            color: #2c3e50;
+            border-bottom: 2px solid #dee2e6;
+        }
+
+        .table {
+            margin: 0;
+            font-size: 0.85rem;
+        }
+
+        .table thead {
+            background: linear-gradient(135deg, var(--primary-blue), #0b5ed7);
+            color: white;
+        }
+
+        .table thead th {
+            padding: 12px 10px;
+            font-weight: 600;
+            border: none;
+            white-space: nowrap;
+            vertical-align: middle;
+            font-size: 0.85rem;
+        }
+
+        .table tbody td {
+            padding: 10px;
+            vertical-align: middle;
+            border-bottom: 1px solid #e9ecef;
+            font-size: 0.85rem;
+        }
+
+        .table tbody tr:hover {
+            background: #f8f9fa;
+        }
+
+        /* Export Section */
+        .export-section {
+            display: flex;
+            justify-content: center;
+            margin: 20px 0;
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .content-area {
+                padding: 15px;
+            }
+
+            .table {
+                font-size: 0.75rem;
+            }
+
+            .filter-box, .detail-box {
+                padding: 15px;
+            }
+        }
+
+        /* Scrollbar */
+        .sidebar::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        .sidebar::-webkit-scrollbar-track {
+            background: #1a252f;
+        }
+
+        .sidebar::-webkit-scrollbar-thumb {
+            background: #34495e;
+            border-radius: 3px;
+        }
+
+        .table-responsive::-webkit-scrollbar {
+            height: 8px;
+        }
+
+        .table-responsive::-webkit-scrollbar-track {
+            background: #f1f1f1;
+        }
+
+        .table-responsive::-webkit-scrollbar-thumb {
+            background: #888;
+            border-radius: 4px;
+        }
+    </style>
+</head>
+<body>
+    <!-- Sidebar Overlay -->
+    <div class="sidebar-overlay" id="sidebarOverlay" onclick="toggleSidebar()"></div>
+
+    <!-- Sidebar -->
+    <div class="sidebar" id="sidebar">
+        <div class="sidebar-header">
+            <h3><i class="bi bi-building"></i> KBMS</h3>
+            <button class="close-sidebar" onclick="toggleSidebar()">
+                <i class="bi bi-x-lg"></i>
+            </button>
+        </div>
+        <ul class="sidebar-menu">
+            <li class="menu-item">
+                <a href="#" class="menu-link" onclick="toggleSubmenu(event, 'otbPlan')">
+                    <i class="bi bi-clipboard-data"></i>
+                    <span>OTB Plan</span>
+                    <i class="bi bi-chevron-down"></i>
+                </a>
+                <ul class="submenu" id="otbPlan">
+                    <li><a href="draftOTB.aspx" class="menu-link">Draft OTB Plan</a></li>
+                    <li><a href="approvedOTB.aspx" class="menu-link">Approved OTB Plan</a></li>
+                </ul>
+            </li>
+            <li class="menu-item">
+                <a href="#" class="menu-link" onclick="toggleSubmenu(event, 'otbSwitching')">
+                    <i class="bi bi-arrow-left-right"></i>
+                    <span>OTB Switching</span>
+                    <i class="bi bi-chevron-down"></i>
+                </a>
+                <ul class="submenu" id="otbSwitching">
+                    <li><a href="createOTBswitching.aspx" class="menu-link">Create OTB Switching</a></li>
+                    <li><a href="transactionOTBSwitching.aspx" class="menu-link">Switching Transaction</a></li>
+                </ul>
+            </li>
+            <li class="menu-item">
+                <a href="#" class="menu-link" onclick="toggleSubmenu(event, 'po')">
+                    <i class="bi bi-file-earmark-text"></i>
+                    <span>PO</span>
+                    <i class="bi bi-chevron-down"></i>
+                </a>
+                <ul class="submenu" id="po">
+                    <li><a href="createDraftPO.aspx" class="menu-link">Create Draft PO</a></li>
+                    <li><a href="draftPO.aspx" class="menu-link">Draft PO</a></li>
+                    <li><a href="matchActualPO.aspx" class="menu-link">Match Actual PO</a></li>
+                    <li><a href="actualPO.aspx" class="menu-link">Actual PO</a></li>
+                </ul>
+            </li>
+            <li class="menu-item">
+                <a href="otbRemaining.aspx" class="menu-link active">
+                    <i class="bi bi-bar-chart-line"></i>
+                    <span>OTB Remaining</span>
+                </a>
+            </li>
+            <li class="menu-item">
+                <a href="#" class="menu-link" onclick="toggleSubmenu(event, 'master')">
+                    <i class="bi bi-database"></i>
+                    <span>Master File</span>
+                    <i class="bi bi-chevron-down"></i>
+                </a>
+                <ul class="submenu" id="master">
+                    <li><a href="master_vendor.aspx" class="menu-link">Master Vendor</a></li>
+                    <li><a href="master_brand.aspx" class="menu-link">Master Brand</a></li>
+                    <li><a href="master_category.aspx" class="menu-link">Master Category</a></li>
+                </ul>
+            </li>
+        </ul>
+    </div>
+
+    <!-- Main Wrapper -->
+    <div class="main-wrapper">
+        <!-- Top Navigation -->
+        <div class="top-navbar">
+            <div class="d-flex align-items-center gap-3">
+                <button class="menu-toggle" onclick="toggleSidebar()">
+                    <i class="bi bi-list"></i>
+                </button>
+                <h1 class="page-title" id="pageTitle">KBMS</h1>
+            </div>
+            <div class="user-info">
+                <span class="d-none d-md-inline">Welcome, Admin</span>
+                <div class="user-avatar">
+                    <i class="bi bi-person-circle"></i>
+                </div>
+            </div>
+        </div>
+
+        <!-- Content Area -->
+        <div class="content-area">
+            <!-- Page Header -->
+            <div class="page-header">
+                OTB Remaining
+            </div>
+
+            <!-- Filter Box -->
+            <div class="filter-box">
+                <div class="filter-title">
+                    OTB Remaining
+                </div>
+
+                <div class="row g-3 mb-3">
+                    <div class="col-md-3">
+                        <label class="form-label">Year</label>
+                        <select class="form-select">
+                            <option>2024</option>
+                            <option selected>2025</option>
+                        </select>
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label">Month</label>
+                        <select class="form-select">
+                            <option>Jan</option>
+                            <option>Feb</option>
+                            <option>Mar</option>
+                            <option>Apr</option>
+                            <option>May</option>
+                            <option selected>Jun</option>
+                            <option>Jul</option>
+                            <option>Aug</option>
+                            <option>Sep</option>
+                            <option>Oct</option>
+                            <option>Nov</option>
+                            <option>Dec</option>
+                        </select>
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label">Company</label>
+                        <select class="form-select">
+                            <option selected>KPC</option>
+                            <option>KPD</option>
+                            <option>KPT</option>
+                            <option>KPS</option>
+                        </select>
+                    </div>
+                    <div class="col-md-3">
+                    </div>
+                </div>
+
+                <div class="row g-3 mb-3">
+                    <div class="col-md-6">
+                        <label class="form-label">Category</label>
+                        <select class="form-select">
+                            <option selected>221 - FA Leather Goods</option>
+                            <option>222 - FA Accessories</option>
+                        </select>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label">Segment</label>
+                        <select class="form-select">
+                            <option selected>O2000 - T/T Normal</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="row g-3 mb-4">
+                    <div class="col-md-6">
+                        <label class="form-label">Brand</label>
+                        <select class="form-select">
+                            <option selected>HBS - HUGO BOSS</option>
+                            <option>MCM - MCM</option>
+                        </select>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label">Vendor</label>
+                        <select class="form-select">
+                            <option selected>1010900 - HUGO BOSS SOUTH</option>
+                            <option>1011009 - MCM FASHION HK</option>
+                        </select>
+                    </div>
+                </div>
+
+                <!-- Action Buttons -->
+                <div class="row">
+                    <div class="col-12 text-end">
+                        <button class="btn btn-clear btn-custom me-2">
+                            <i class="bi bi-x-circle"></i> Clear filter
+                        </button>
+                        <button class="btn btn-view btn-custom">
+                            <i class="bi bi-eye"></i> View
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Detail Summary -->
+            <div class="detail-box">
+                <div class="detail-title">Detail</div>
+                
+                <div class="detail-row">
+                    <div class="detail-label">Budget Approved</div>
+                    <div class="detail-value">
+                        1,000,000.00 THB
+                        <a href="#" class="detail-link ms-3">Click history</a>
+                    </div>
+                </div>
+
+                <div class="detail-row">
+                    <div class="detail-label">Extra</div>
+                    <div class="detail-value">
+                        0.00 THB
+                        <a href="#" class="detail-link ms-3">Click history</a>
+                    </div>
+                </div>
+
+                <div class="detail-row">
+                    <div class="detail-label">Total Switch in</div>
+                    <div class="detail-value">
+                        200,000.00 THB
+                        <a href="#" class="detail-link ms-3">Click history</a>
+                    </div>
+                </div>
+
+                <div class="detail-row">
+                    <div class="detail-label">Total Balance in</div>
+                    <div class="detail-value"></div>
+                </div>
+
+                <div class="detail-row">
+                    <div class="detail-label">Total Carry in</div>
+                    <div class="detail-value"></div>
+                </div>
+
+                <div class="detail-row">
+                    <div class="detail-label">Total Switch to</div>
+                    <div class="detail-value">
+                        0.00 THB
+                        <a href="#" class="detail-link ms-3">Click history</a>
+                    </div>
+                </div>
+
+                <div class="detail-row">
+                    <div class="detail-label">Total Balance out</div>
+                    <div class="detail-value"></div>
+                </div>
+
+                <div class="detail-row">
+                    <div class="detail-label">Total Carry out</div>
+                    <div class="detail-value"></div>
+                </div>
+
+                <div class="detail-row">
+                    <div class="detail-label"><strong>Total Budget Approved</strong></div>
+                    <div class="detail-value"><strong>1,200,000.00 THB</strong></div>
+                </div>
+
+                <div class="detail-row">
+                    <div class="detail-label">Total Actual/Draft</div>
+                    <div class="detail-value">
+                        850,000.00 THB
+                        <a href="#" class="detail-link ms-3">Click history</a>
+                    </div>
+                </div>
+
+                <div class="detail-row">
+                    <div class="detail-label"><strong>Remaining</strong></div>
+                    <div class="detail-value"><strong>350,000.00 THB</strong></div>
+                </div>
+            </div>
+
+            <!-- Export Button -->
+            <div class="export-section">
+                <button class="btn btn-export btn-custom">
+                    <i class="bi bi-file-earmark-excel"></i> Export TXN
+                </button>
+            </div>
+
+            <!-- Other Remaining Table -->
+            <div class="table-container">
+                <div class="section-title">Other Remaining</div>
+                <div class="table-responsive">
+                    <table class="table table-hover mb-0">
+                        <thead>
+                            <tr>
+                                <th>Year</th>
+                                <th>Month</th>
+                                <th>Category</th>
+                                <th>Category name</th>
+                                <th>Company</th>
+                                <th>Segment</th>
+                                <th>Segment name</th>
+                                <th>Brand</th>
+                                <th>Brand name</th>
+                                <th>Vendor</th>
+                                <th>Vendor name</th>
+                                <th>Total Budget Approved (THB)</th>
+                                <th>Draft/Actual PO (THB)</th>
+                                <th>Remaining (THB)</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>2025</td>
+                                <td>Jun</td>
+                                <td>221</td>
+                                <td>FA Leather Goods</td>
+                                <td>KPC</td>
+                                <td>O3000</td>
+                                <td>Local Credit</td>
+                                <td>MNL</td>
+                                <td>MONCLER</td>
+                                <td>1011339</td>
+                                <td>INDUSTRIES SPA</td>
+                                <td class="text-end">1,000,000.00</td>
+                                <td class="text-end">94,834.00</td>
+                                <td class="text-end">905,166.00</td>
+                            </tr>
+                            <tr>
+                                <td>2025</td>
+                                <td>Jun</td>
+                                <td>221</td>
+                                <td>FA Leather Goods</td>
+                                <td>KPD</td>
+                                <td>O3000</td>
+                                <td>Local Credit</td>
+                                <td>MNL</td>
+                                <td>MONCLER</td>
+                                <td>1011339</td>
+                                <td>INDUSTRIES SPA</td>
+                                <td class="text-end">2,000,000.00</td>
+                                <td class="text-end">1,994,837.00</td>
+                                <td class="text-end">5,163.00</td>
+                            </tr>
+                            <tr>
+                                <td>2025</td>
+                                <td>Jun</td>
+                                <td>221</td>
+                                <td>FA Leather Goods</td>
+                                <td>KPC</td>
+                                <td>O1000</td>
+                                <td>L/C Normal</td>
+                                <td>YSL</td>
+                                <td>YSL</td>
+                                <td>1011281</td>
+                                <td>YVES SAINT LAU</td>
+                                <td class="text-end">3,000,000.00</td>
+                                <td class="text-end">599,999.00</td>
+                                <td class="text-end">2,400,001.00</td>
+                            </tr>
+                            <tr>
+                                <td>2025</td>
+                                <td>Jun</td>
+                                <td>221</td>
+                                <td>FA Leather Goods</td>
+                                <td>KPD</td>
+                                <td>O2000</td>
+                                <td>T/T Normal</td>
+                                <td>BUR</td>
+                                <td>BURBERRY</td>
+                                <td>1010636</td>
+                                <td>BURBERRY(SIN</td>
+                                <td class="text-end">4,600,000.00</td>
+                                <td class="text-end">2,045,586.00</td>
+                                <td class="text-end">1,954,414.00</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // Toggle Sidebar
+        function toggleSidebar() {
+            const sidebar = document.getElementById('sidebar');
+            const overlay = document.getElementById('sidebarOverlay');
+            
+            sidebar.classList.toggle('active');
+            overlay.classList.toggle('active');
+        }
+
+        // Toggle Submenu
+        function toggleSubmenu(event, submenuId) {
+            event.preventDefault();
+            event.stopPropagation();
+            
+            const submenu = document.getElementById(submenuId);
+            const menuLink = event.currentTarget;
+            
+            submenu.classList.toggle('show');
+            menuLink.classList.toggle('expanded');
+        }
+
+        // Load Page
+        function loadPage(event, pageName) {
+            event.preventDefault();
+            
+            document.querySelectorAll('.menu-link').forEach(link => {
+                link.classList.remove('active');
+            });
+            
+            event.currentTarget.classList.add('active');
+            document.getElementById('pageTitle').textContent = pageName;
+            
+            if (window.innerWidth <= 768) {
+                toggleSidebar();
+            }
+        }
+
+        // Close sidebar when clicking outside
+        document.addEventListener('click', function(event) {
+            const sidebar = document.getElementById('sidebar');
+            const menuToggle = document.querySelector('.menu-toggle');
+            
+            if (!sidebar.contains(event.target) && !menuToggle.contains(event.target)) {
+                if (sidebar.classList.contains('active')) {
+                    toggleSidebar();
+                }
+            }
+        });
+    </script>
+</body>
+</html>
