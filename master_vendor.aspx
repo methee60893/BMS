@@ -5,7 +5,7 @@
 <head runat="server">
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>KBMS - Master Vendor</title>
+    <title>BMS - Master Vendor</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
     <style>
@@ -442,7 +442,7 @@
         <!-- Sidebar -->
         <div class="sidebar" id="sidebar">
             <div class="sidebar-header">
-                <h3><i class="bi bi-building"></i> KBMS</h3>
+                <h3><i class="bi bi-building"></i> BMS</h3>
                 <div class="close-sidebar" id="closeSidebarBtn">
                     <i class="bi bi-x-lg"></i>
                 </div>
