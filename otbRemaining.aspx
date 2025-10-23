@@ -595,7 +595,7 @@
                             <option>Mar</option>
                             <option>Apr</option>
                             <option>May</option>
-                            <option selected>Jun</option>
+                            <option>Jun</option>
                             <option>Jul</option>
                             <option>Aug</option>
                             <option>Sep</option>

@@ -506,7 +506,7 @@
     <div class="sidebar" id="sidebar">
         <div class="sidebar-header">
             <h3><i class="bi bi-building"></i> BMS</h3>
-            <button class="close-sidebar" onclick="toggleSidebar()">
+            <button class="close-sidebar" type="button" onclick="toggleSidebar()">
                 <i class="bi bi-x-lg"></i>
             </button>
         </div>
@@ -572,7 +572,7 @@
         <!-- Top Navigation -->
         <div class="top-navbar">
             <div class="d-flex align-items-center gap-3">
-                <button class="menu-toggle" onclick="toggleSidebar()">
+                <button class="menu-toggle" type="button" onclick="toggleSidebar()">
                     <i class="bi bi-list"></i>
                 </button>
                 <h1 class="page-title" id="pageTitle">BMS</h1>
@@ -632,7 +632,7 @@
     </div>
 </div>
 
-            <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
 <script>
     $(document).ready(function () {
@@ -797,10 +797,10 @@
                     <!-- Action Buttons -->
                     <div class="row">
                         <div class="col-12 text-end">
-                            <button class="btn btn-clear btn-custom me-2">
+                            <button type="button" class="btn btn-clear btn-custom me-2">
                                 <i class="bi bi-x-circle"></i> Clear Filter
                             </button>
-                            <button class="btn btn-view btn-custom">
+                            <button type="button" class="btn btn-view btn-custom">
                                 <i class="bi bi-eye"></i> View
                             </button>
                         </div>
@@ -810,10 +810,10 @@
 
             <!-- Export Buttons -->
             <div class="export-buttons mb-3">
-                <button class="btn btn-export btn-custom">
+                <button type="button"  class="btn btn-export btn-custom">
                     <i class="bi bi-file-earmark-excel"></i> Export TXN
                 </button>
-                <button class="btn btn-export btn-custom">
+                <button type="button"  class="btn btn-export btn-custom">
                     <i class="bi bi-file-earmark-spreadsheet"></i> Export Sum
                 </button>
             </div>
@@ -944,10 +944,10 @@
 
             <!-- Bottom Action Buttons -->
             <div class="approval-buttons mt-4">
-                <button class="btn btn-approve btn-custom">
+                <button type="button" class="btn btn-approve btn-custom">
                     <i class="bi bi-check-circle"></i> Approved
                 </button>
-                <button class="btn btn-reject btn-custom">
+                <button type="button" class="btn btn-reject btn-custom">
                     <i class="bi bi-x-circle"></i> Reject
                 </button>
             </div>

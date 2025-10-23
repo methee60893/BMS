@@ -158,6 +158,9 @@
       <DependentUpon>dashboard.aspx</DependentUpon>
       <SubType>ASPXCodebehind</SubType>
     </Compile>
+    <Compile Include="DataOTBHandler.ashx.vb">
+      <DependentUpon>DataOTBHandler.ashx</DependentUpon>
+    </Compile>
     <Compile Include="default.aspx.designer.vb">
       <DependentUpon>default.aspx</DependentUpon>
     </Compile>
@@ -267,6 +270,7 @@
     </EmbeddedResource>
   </ItemGroup>
   <ItemGroup>
+    <Content Include="DataOTBHandler.ashx" />
     <None Include="My Project\Application.myapp">
       <Generator>MyApplicationCodeGenerator</Generator>
       <LastGenOutput>Application.Designer.vb</LastGenOutput>

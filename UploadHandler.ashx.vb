@@ -16,7 +16,7 @@ Public Class UploadHandler : Implements IHttpHandler
         context.Response.ContentType = "text/html"
         context.Response.ContentEncoding = Encoding.UTF8
 
-        ' ✅ รับค่า uploadBy จาก form data
+        '  รับค่า uploadBy จาก form data
         Dim uploadBy As String = context.Request.Form("uploadBy")
         If String.IsNullOrEmpty(uploadBy) Then uploadBy = "unknown"
 
@@ -40,7 +40,7 @@ Public Class UploadHandler : Implements IHttpHandler
             If context.Request("action") = "preview" Then
                 context.Response.Write(GenerateHtmlTable(dt))
             ElseIf context.Request("action") = "save" Then
-                SaveToDatabase(dt, uploadBy, context) ' ✅ ส่ง uploadBy ไปด้วย
+                SaveToDatabase(dt, uploadBy, context) '  ส่ง uploadBy ไปด้วย
                 context.Response.Write("OK")
             End If
 
@@ -160,8 +160,8 @@ Public Class UploadHandler : Implements IHttpHandler
         uploadTable.Columns.Add("Vendor", GetType(String))
         uploadTable.Columns.Add("Amount", GetType(String))
         uploadTable.Columns.Add("UploadBy", GetType(String))
-        uploadTable.Columns.Add("Batch", GetType(String))      ' ✅ เพิ่ม Batch
-        uploadTable.Columns.Add("CreateDT", GetType(DateTime)) ' ✅ เพิ่ม CreateDT
+        uploadTable.Columns.Add("Batch", GetType(String))      '  เพิ่ม Batch
+        uploadTable.Columns.Add("CreateDT", GetType(DateTime)) '  เพิ่ม CreateDT
 
         ' === 4. เติมข้อมูลทุกแถว ===
         For Each row As DataRow In dt.Rows
@@ -176,8 +176,8 @@ Public Class UploadHandler : Implements IHttpHandler
             newRow("Vendor") = If(row("Vendor") IsNot DBNull.Value, row("Vendor").ToString(), "")
             newRow("Amount") = If(row("Amount") IsNot DBNull.Value, row("Amount").ToString(), "")
             newRow("UploadBy") = uploadBy
-            newRow("Batch") = newBatch          ' ✅ ทุกแถวได้ Batch เดียวกัน
-            newRow("CreateDT") = createDT       ' ✅ เวลาเดียวกันทั้ง batch
+            newRow("Batch") = newBatch          '  ทุกแถวได้ Batch เดียวกัน
+            newRow("CreateDT") = createDT       '  เวลาเดียวกันทั้ง batch
             uploadTable.Rows.Add(newRow)
         Next
 
