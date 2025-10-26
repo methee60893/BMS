@@ -519,35 +519,20 @@
                                 <div class="row g-3 mb-3">
                                     <div class="col-md-3">
                                         <label class="form-label">Year</label>
-                                        <select class="form-select">
-                                            <option>2024</option>
-                                            <option selected>2025</option>
+                                        <select id="DDYearFrom" class="form-select">
+                                            
                                         </select>
                                     </div>
                                     <div class="col-md-3">
                                         <label class="form-label">Month</label>
-                                        <select class="form-select">
-                                            <option>Jan</option>
-                                            <option>Feb</option>
-                                            <option>Mar</option>
-                                            <option>Apr</option>
-                                            <option>May</option>
-                                            <option selected>Jun</option>
-                                            <option>Jul</option>
-                                            <option>Aug</option>
-                                            <option>Sep</option>
-                                            <option>Oct</option>
-                                            <option>Nov</option>
-                                            <option>Dec</option>
+                                        <select id="DDMonthFrom" class="form-select">
+                                            
                                         </select>
                                     </div>
                                     <div class="col-md-3">
                                         <label class="form-label">Company</label>
-                                        <select class="form-select">
-                                            <option selected>KPC</option>
-                                            <option>KPD</option>
-                                            <option>KPT</option>
-                                            <option>KPS</option>
+                                        <select id="DDCompanyFrom" class="form-select">
+                                          
                                         </select>
                                     </div>
                                     <div class="col-md-3">
@@ -557,16 +542,14 @@
                                 <div class="row g-3 mb-3">
                                     <div class="col-md-6">
                                         <label class="form-label">Category</label>
-                                        <select class="form-select">
-                                            <option selected>221 - FA Leather Goods</option>
-                                            <option>222 - FA Accessories</option>
+                                        <select id="DDCategoryFrom" class="form-select">
+                                          
                                         </select>
                                     </div>
                                     <div class="col-md-6">
                                         <label class="form-label">Segment</label>
-                                        <select class="form-select">
-                                            <option selected>O2000 - T/T Normal</option>
-                                            <option>O3000 - Local Credit</option>
+                                        <select id="DDSegmentFrom" class="form-select">
+                                            
                                         </select>
                                     </div>
                                 </div>
@@ -574,16 +557,14 @@
                                 <div class="row g-3 mb-3">
                                     <div class="col-md-6">
                                         <label class="form-label">Brand</label>
-                                        <select class="form-select">
-                                            <option selected>HBS - HUGO BOSS</option>
-                                            <option>MCM - MCM</option>
+                                        <select id="DDBrandFrom" class="form-select">
+                                           
                                         </select>
                                     </div>
                                     <div class="col-md-6">
                                         <label class="form-label">Vendor</label>
-                                        <select class="form-select">
-                                            <option selected>1010900 - HUGO BOSS SOUTH</option>
-                                            <option>1011009 - MCM FASHION HK</option>
+                                        <select id="DDVendorFrom" class="form-select">
+                                  
                                         </select>
                                     </div>
                                 </div>
@@ -598,35 +579,20 @@
                                 <div class="row g-3 mb-3">
                                     <div class="col-md-3">
                                         <label class="form-label">Year</label>
-                                        <select class="form-select">
-                                            <option>2024</option>
-                                            <option selected>2025</option>
+                                        <select id="DDYearTo" class="form-select">
+                                           
                                         </select>
                                     </div>
                                     <div class="col-md-3">
                                         <label class="form-label">Month</label>
-                                        <select class="form-select">
-                                            <option>Jan</option>
-                                            <option>Feb</option>
-                                            <option>Mar</option>
-                                            <option>Apr</option>
-                                            <option>May</option>
-                                            <option selected>Jun</option>
-                                            <option>Jul</option>
-                                            <option>Aug</option>
-                                            <option>Sep</option>
-                                            <option>Oct</option>
-                                            <option>Nov</option>
-                                            <option>Dec</option>
-                                        </select>
+                                        <select id="DDMonthTo" class="form-select">
+                                           
+                                        </selec>
                                     </div>
                                     <div class="col-md-3">
                                         <label class="form-label">Company</label>
-                                        <select class="form-select">
-                                            <option selected>KPC</option>
-                                            <option>KPD</option>
-                                            <option>KPT</option>
-                                            <option>KPS</option>
+                                        <select id="DDCompanyTo" class="form-select">
+                                           
                                         </select>
                                     </div>
                                     <div class="col-md-3">
@@ -636,16 +602,14 @@
                                 <div class="row g-3 mb-3">
                                     <div class="col-md-6">
                                         <label class="form-label">Category</label>
-                                        <select class="form-select">
-                                            <option selected>221 - FA Leather Goods</option>
-                                            <option>222 - FA Accessories</option>
+                                        <select id="DDCategoryTo" class="form-select">
+                                           
                                         </select>
                                     </div>
                                     <div class="col-md-6">
                                         <label class="form-label">Segment</label>
-                                        <select class="form-select">
-                                            <option selected>O2000 - T/T Normal</option>
-                                            <option>O3000 - Local Credit</option>
+                                        <select id="DDSegmentTo" class="form-select">
+                                           
                                         </select>
                                     </div>
                                 </div>
@@ -653,16 +617,14 @@
                                 <div class="row g-3 mb-3">
                                     <div class="col-md-6">
                                         <label class="form-label">Brand</label>
-                                        <select class="form-select">
-                                            <option selected>HBS - HUGO BOSS</option>
-                                            <option>MCM - MCM</option>
+                                        <select id="DDBrandTo" class="form-select">
+                                           
                                         </select>
                                     </div>
                                     <div class="col-md-6">
                                         <label class="form-label">Vendor</label>
-                                        <select class="form-select">
-                                            <option selected>1010900 - HUGO BOSS SOUTH</option>
-                                            <option>1011009 - MCM FASHION HK</option>
+                                        <select id="DDVendorTo" class="form-select">
+                                            
                                         </select>
                                     </div>
                                 </div>
@@ -670,14 +632,14 @@
                                 <div class="row g-3">
                                     <div class="col-md-3">
                                         <label class="form-label">Amount (THB)</label>
-                                        <input type="text" class="form-control amount-input" value="0.00">
+                                        <input id="txtAmontSwitch" type="text" class="form-control amount-input" value="0.00">
                                     </div>
                                 </div>
                             </div>
 
                             <!-- Submit Button -->
                             <div class="text-end mt-4">
-                                <button class="btn-submit">
+                                <button type="button" class="btn-submit" id="btnSubmitSwitch">
                                     <i class="bi bi-check-circle"></i> Submit
                                 </button>
                             </div>
@@ -699,35 +661,20 @@
                                 <div class="row g-3 mb-3">
                                     <div class="col-md-3">
                                         <label class="form-label">Year</label>
-                                        <select class="form-select">
-                                            <option>2024</option>
-                                            <option selected>2025</option>
+                                        <select id="DDYearEx" class="form-select">
+
                                         </select>
                                     </div>
                                     <div class="col-md-3">
                                         <label class="form-label">Month</label>
-                                        <select class="form-select">
-                                            <option>Jan</option>
-                                            <option>Feb</option>
-                                            <option>Mar</option>
-                                            <option>Apr</option>
-                                            <option>May</option>
-                                            <option selected>Jun</option>
-                                            <option>Jul</option>
-                                            <option>Aug</option>
-                                            <option>Sep</option>
-                                            <option>Oct</option>
-                                            <option>Nov</option>
-                                            <option>Dec</option>
+                                        <select id="DDMonthEx" class="form-select">
+                                           
                                         </select>
                                     </div>
                                     <div class="col-md-3">
                                         <label class="form-label">Company</label>
-                                        <select class="form-select">
-                                            <option selected>KPC</option>
-                                            <option>KPD</option>
-                                            <option>KPT</option>
-                                            <option>KPS</option>
+                                        <select id="DDCompanyEx" class="form-select">
+                                            
                                         </select>
                                     </div>
                                     <div class="col-md-3">
@@ -737,16 +684,14 @@
                                 <div class="row g-3 mb-3">
                                     <div class="col-md-6">
                                         <label class="form-label">Category</label>
-                                        <select class="form-select">
-                                            <option selected>221 - FA Leather Goods</option>
-                                            <option>222 - FA Accessories</option>
+                                        <select id="DDCategoryEx" class="form-select">
+                                           
                                         </select>
                                     </div>
                                     <div class="col-md-6">
                                         <label class="form-label">Segment</label>
-                                        <select class="form-select">
-                                            <option selected>O2000 - T/T Normal</option>
-                                            <option>O3000 - Local Credit</option>
+                                        <select id="DDSegmentEx" class="form-select">
+                                           
                                         </select>
                                     </div>
                                 </div>
@@ -754,30 +699,28 @@
                                 <div class="row g-3 mb-3">
                                     <div class="col-md-6">
                                         <label class="form-label">Brand</label>
-                                        <select class="form-select">
-                                            <option selected>HBS - HUGO BOSS</option>
-                                            <option>MCM - MCM</option>
+                                        <select id="DDBrandEx" class="form-select">
+                                           
                                         </select>
                                     </div>
                                     <div class="col-md-6">
                                         <label class="form-label">Vendor</label>
-                                        <select class="form-select">
-                                            <option selected>1010900 - HUGO BOSS SOUTH</option>
-                                            <option>1011009 - MCM FASHION HK</option>
+                                        <select id="DDVendorEx" class="form-select">
+                                           
                                         </select>
                                     </div>
                                 </div>
                                 <div class="row g-3">
                                     <div class="col-md-3">
                                         <label class="form-label">Amount (THB)</label>
-                                        <input type="text" class="form-control amount-input" value="0.00">
+                                        <input id="txtAmontEx" type="text" class="form-control amount-input" value="0.00">
                                     </div>
                                 </div>
                             </div>
 
                             <!-- Submit Button -->
                             <div class="text-end mt-4">
-                                <button class="btn-submit">
+                                <button type="button" class="btn-submit" id="btnSubmitExtra">
                                     <i class="bi bi-check-circle"></i> Submit
                                 </button>
                             </div>
@@ -787,9 +730,41 @@
             </div>
         </div>
     </div>
-
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
     <script>
+
+        let yearDropdownf = document.getElementById("DDYearFrom");
+        let monthDropdownf = document.getElementById("DDMonthFrom");
+        let companyDropdownf = document.getElementById("DDCompanyFrom");
+        let segmentDropdownf = document.getElementById("DDSegmentFrom");
+        let categoryDropdownf = document.getElementById("DDCategoryFrom");
+        let brandDropdownf = document.getElementById("DDBrandFrom");
+        let vendorDropdownf = document.getElementById("DDVendorFrom");
+
+        let yearDropdownt = document.getElementById("DDYearTo");
+        let monthDropdownt = document.getElementById("DDMonthTo");
+        let companyDropdownt = document.getElementById("DDCompanyTo");
+        let segmentDropdownt = document.getElementById("DDSegmentTo");
+        let categoryDropdownt = document.getElementById("DDCategoryTo");
+        let brandDropdownt = document.getElementById("DDBrandTo");
+        let vendorDropdownt = document.getElementById("DDVendorTo");
+
+        let yearDropdownE = document.getElementById("DDYearEx");
+        let monthDropdownE = document.getElementById("DDMonthEx");
+        let companyDropdownE = document.getElementById("DDCompanyEx");
+        let segmentDropdownE = document.getElementById("DDSegmentEx");
+        let categoryDropdownE = document.getElementById("DDCategoryEx");
+        let brandDropdownE = document.getElementById("DDBrandEx");
+        let vendorDropdownE = document.getElementById("DDVendorEx");
+
+        let txtAmontEx = document.getElementById("txtAmontEx");
+        let txtAmontSwitch = document.getElementById("txtAmontSwitch");
+
+        let btnSubmitExtra = document.getElementById("btnSubmitExtra");
+        let btnSubmitSwitch = document.getElementById("btnSubmitSwitch");
+
+
         // Toggle Sidebar
         function toggleSidebar() {
             const sidebar = document.getElementById('sidebar');
@@ -861,6 +836,227 @@
                 }
             }
         });
+        let initial = function () {
+            const firstMenuLink = document.querySelector('.menu-link');
+            if (firstMenuLink) {
+                firstMenuLink.classList.add('expanded');
+            }
+
+
+            //InitData master
+            InitMSData();
+            segmentDropdownf.addEventListener('change', changeVendorF);
+            segmentDropdownt.addEventListener('change', changeVendorT);
+            segmentDropdownE.addEventListener('change', changeVendorE);
+
+        }
+
+        let InitMSData = function () {
+            InitSegment(segmentDropdownf);
+            InitCategoty(categoryDropdownf);
+            InitBrand(brandDropdownf);
+            InitVendor(vendorDropdownf);
+            InitMSYear(yearDropdownf);
+            InitMonth(monthDropdownf);
+            InitCompany(companyDropdownf);
+
+            InitSegment(segmentDropdownt);
+            InitCategoty(categoryDropdownt);
+            InitBrand(brandDropdownt);
+            InitVendor(vendorDropdownt);
+            InitMSYear(yearDropdownt);
+            InitMonth(monthDropdownt);
+            InitCompany(companyDropdownt);
+
+            InitSegment(segmentDropdownE);
+            InitCategoty(categoryDropdownE);
+            InitBrand(brandDropdownE);
+            InitVendor(vendorDropdownE);
+            InitMSYear(yearDropdownE);
+            InitMonth(monthDropdownE);
+            InitCompany(companyDropdownE);
+        }
+
+        let InitSegment = function (segmentddf) {
+            $.ajax({
+                url: 'Handler/MasterDataHandler.ashx?action=SegmentMSList',
+                type: 'POST',
+                processData: false,
+                contentType: false,
+                success: function (response) {
+                    segmentddf.innerHTML = response;
+                },
+                error: function (xhr, status, error) {
+                    console.log('Error getlist data: ' + error);
+                }
+            });
+        }
+
+        let InitMSYear = function (yearddf) {
+            $.ajax({
+                url: 'Handler/MasterDataHandler.ashx?action=YearMSList',
+                type: 'POST',
+                processData: false,
+                contentType: false,
+                success: function (response) {
+                    yearddf.innerHTML = response;
+                },
+                error: function (xhr, status, error) {
+                    console.log('Error getlist data: ' + error);
+                }
+            });
+        }
+
+        let InitMonth = function (monthddf) {
+            $.ajax({
+                url: 'Handler/MasterDataHandler.ashx?action=MonthMSList',
+                type: 'POST',
+                processData: false,
+                contentType: false,
+                success: function (response) {
+                    monthddf.innerHTML = response;
+                },
+                error: function (xhr, status, error) {
+                    console.log('Error getlist data: ' + error);
+                }
+            });
+        }
+        let InitCompany = function (companyddf) {
+            // Implement month initialization if needed
+            $.ajax({
+                url: 'Handler/MasterDataHandler.ashx?action=CompanyMSList',
+                type: 'POST',
+                processData: false,
+                contentType: false,
+                success: function (response) {
+                    companyddf.innerHTML = response;
+                },
+                error: function (xhr, status, error) {
+                    console.log('Error getlist data: ' + error);
+                }
+            });
+        }
+        let InitCategoty = function (categoryddf) {
+
+            $.ajax({
+                url: 'Handler/MasterDataHandler.ashx?action=CategoryMSList',
+                type: 'POST',
+                processData: false,
+                contentType: false,
+                success: function (response) {
+                    categoryddf.innerHTML = response;
+                },
+                error: function (xhr, status, error) {
+                    console.log('Error getlist data: ' + error);
+                }
+            });
+        }
+        let InitBrand = function (branddd) {
+
+            $.ajax({
+                url: 'Handler/MasterDataHandler.ashx?action=BrandMSList',
+                type: 'POST',
+                processData: false,
+                contentType: false,
+                success: function (response) {
+                    branddd.innerHTML = response;
+                },
+                error: function (xhr, status, error) {
+                    console.log('Error getlist data: ' + error);
+                }
+            });
+        }
+        let InitVendor = function (vendorddf) {
+
+            $.ajax({
+                url: 'Handler/MasterDataHandler.ashx?action=VendorMSList',
+                type: 'POST',
+                processData: false,
+                contentType: false,
+                success: function (response) {
+                    vendorddf.innerHTML = response;
+                },
+                error: function (xhr, status, error) {
+                    console.log('Error getlist data: ' + error);
+                }
+            });
+        }
+
+        let changeVendorF = function () {
+            var segmentCode = segmentDropdownf.value;
+            if (!segmentCode) {
+                // ถ้าไม่มีค่า ให้โหลด vendor ทั้งหมด
+                InitVendor(vendorDropdownf);
+                return;
+            }
+            var formData = new FormData();
+            formData.append('segmentCode', segmentCode);
+            $.ajax({
+                url: 'Handler/MasterDataHandler.ashx?action=VendorMSListChg',
+                type: 'POST',
+                data: formData,
+                processData: false,
+                contentType: false,
+                success: function (response) {
+                    vendorDropdownf.innerHTML = response;
+                },
+                error: function (xhr, status, error) {
+                    console.log('Error getlist data: ' + error);
+                }
+            });
+        }
+
+        let changeVendorT = function () {
+            var segmentCode = segmentDropdownt.value;
+            if (!segmentCode) {
+                // ถ้าไม่มีค่า ให้โหลด vendor ทั้งหมด
+                InitVendor(vendorDropdownt);
+                return;
+            }
+            var formData = new FormData();
+            formData.append('segmentCode', segmentCode);
+            $.ajax({
+                url: 'Handler/MasterDataHandler.ashx?action=VendorMSListChg',
+                type: 'POST',
+                data: formData,
+                processData: false,
+                contentType: false,
+                success: function (response) {
+                    vendorDropdownt.innerHTML = response;
+                },
+                error: function (xhr, status, error) {
+                    console.log('Error getlist data: ' + error);
+                }
+            });
+        }
+
+        let changeVendorE = function () {
+            var segmentCode = segmentDropdownE.value;
+            if (!segmentCode) {
+                // ถ้าไม่มีค่า ให้โหลด vendor ทั้งหมด
+                InitVendor(vendorDropdownE);
+                return;
+            }
+            var formData = new FormData();
+            formData.append('segmentCode', segmentCode);
+            $.ajax({
+                url: 'Handler/MasterDataHandler.ashx?action=VendorMSListChg',
+                type: 'POST',
+                data: formData,
+                processData: false,
+                contentType: false,
+                success: function (response) {
+                    vendorDropdownE.innerHTML = response;
+                },
+                error: function (xhr, status, error) {
+                    console.log('Error getlist data: ' + error);
+                }
+            });
+        }
+
+        document.addEventListener('DOMContentLoaded', initial);
+
+
     </script>
 </body>
 </html>

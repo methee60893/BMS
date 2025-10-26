@@ -433,6 +433,7 @@
             }
         }
 
+
         /* Scrollbar Styling */
         .sidebar::-webkit-scrollbar {
             width: 6px;
@@ -637,7 +638,7 @@
 
             <!-- Export Button -->
             <div class="export-section">
-                <button class="btn btn-export btn-custom">
+                <button class="btn btn-export btn-custom" id="btnExport">
                     <i class="bi bi-file-earmark-excel"></i> Export TXN
                 </button>
             </div>

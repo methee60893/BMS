@@ -543,8 +543,8 @@
                 <div class="row g-3 mb-3">
                     <div class="col-md-3">
                         <label class="form-label">Type</label>
-                        <select class="form-select">
-                            <option selected>Switch In-out</option>
+                        <select id="DDSwitchType" class="form-select">
+                            <option>Switch In-out</option>
                             <option>Switch In</option>
                             <option>Switch Out</option>
                             <option>Carry Out</option>
@@ -552,35 +552,20 @@
                     </div>
                     <div class="col-md-3">
                         <label class="form-label">Year</label>
-                        <select class="form-select">
-                            <option selected>2025</option>
-                            <option>2024</option>
+                        <select id="DDYear" class="form-select">
+                            
                         </select>
                     </div>
                     <div class="col-md-3">
                         <label class="form-label">Month</label>
-                        <select class="form-select">
-                            <option>Jan</option>
-                            <option>Feb</option>
-                            <option>Mar</option>
-                            <option>Apr</option>
-                            <option>May</option>
-                            <option selected>Jun</option>
-                            <option>Jul</option>
-                            <option>Aug</option>
-                            <option>Sep</option>
-                            <option>Oct</option>
-                            <option>Nov</option>
-                            <option>Dec</option>
+                        <select id="DDMonth" class="form-select">
+
                         </select>
                     </div>
                     <div class="col-md-3">
                         <label class="form-label">Company</label>
-                        <select class="form-select">
-                            <option selected>KPC</option>
-                            <option>KPD</option>
-                            <option>KPT</option>
-                            <option>KPS</option>
+                        <select id="DDCompany" class="form-select">
+                           
                         </select>
                     </div>
                 </div>
@@ -588,16 +573,13 @@
                 <div class="row g-3 mb-3">
                     <div class="col-md-6">
                         <label class="form-label">Category</label>
-                        <select class="form-select">
-                            <option selected>221 - FA Leather Goods</option>
-                            <option>222 - FA Accessories</option>
+                        <select id="DDCategory" class="form-select">
+                         
                         </select>
                     </div>
                     <div class="col-md-6">
                         <label class="form-label">Segment</label>
-                        <select class="form-select">
-                            <option selected>O2000 - T/T Normal</option>
-                            <option>O3000 - Local Credit</option>
+                        <select id="DDSegment" class="form-select">
                         </select>
                     </div>
                 </div>
@@ -605,16 +587,13 @@
                 <div class="row g-3 mb-4">
                     <div class="col-md-6">
                         <label class="form-label">Brand</label>
-                        <select class="form-select">
-                            <option selected>HBS - HUGO BOSS</option>
-                            <option>MCM - MCM</option>
+                        <select id="DDBrand" class="form-select">
                         </select>
                     </div>
                     <div class="col-md-6">
                         <label class="form-label">Vendor</label>
-                        <select class="form-select">
-                            <option selected>1010900 - HUGO BOSS SOUTH EAST ASIA</option>
-                            <option>1011009 - MCM FASHION GROUP LIMITED</option>
+                        <select id="DDVendor" class="form-select">
+
                         </select>
                     </div>
                 </div>
@@ -622,10 +601,10 @@
                 <!-- Action Buttons -->
                 <div class="row">
                     <div class="col-12 text-end">
-                        <button class="btn btn-clear btn-custom me-2">
+                        <button class="btn btn-clear btn-custom me-2" id="btnClearFilter">
                             <i class="bi bi-x-circle"></i> Clear Filter
                         </button>
-                        <button class="btn btn-view btn-custom">
+                        <button class="btn btn-view btn-custom" id="btnView">
                             <i class="bi bi-eye"></i> View
                         </button>
                     </div>
@@ -634,7 +613,7 @@
 
             <!-- Export Button -->
             <div class="export-section">
-                <button class="btn btn-export btn-custom">
+                <button class="btn btn-export btn-custom" id="btnExport">
                     <i class="bi bi-file-earmark-excel"></i> Export TXN
                 </button>
             </div>
@@ -681,7 +660,7 @@
                                 <th rowspan="1">Vendor name</th>
                             </tr>
                         </thead>
-                        <tbody>
+                        <tbody id="tableViewBody">
                             <tr>
                                 <td>9/6/2025 11:00 AM</td>
                                 <td><span class="type-switch-in">Switch in</span></td>
@@ -811,7 +790,19 @@
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
     <script>
+        let typeDropdown = document.getElementById("DDSwitchType");
+        let yearDropdown = document.getElementById("DDYear");
+        let monthDropdown = document.getElementById("DDMonth");
+        let companyDropdown = document.getElementById("DDCompany");
+        let segmentDropdown = document.getElementById("DDSegment");
+        let categoryDropdown = document.getElementById("DDCategory");
+        let brandDropdown = document.getElementById("DDBrand");
+        let vendorDropdown = document.getElementById("DDVendor");
+        let btnClearFilter = document.getElementById("btnClearFilter");
+        let btnView = document.getElementById("btnView");
+
         // Toggle Sidebar
         function toggleSidebar() {
             const sidebar = document.getElementById('sidebar');
@@ -877,4 +868,202 @@
                 }
             }
         });
+
+        let initial = function () {
+            const firstMenuLink = document.querySelector('.menu-link');
+            if (firstMenuLink) {
+                firstMenuLink.classList.add('expanded');
+            }
+
+
+            //InitData master
+            InitMSData();
+            segmentDropdown.addEventListener('change', changeVendor);
+            btnClearFilter.addEventListener('click', function () {
+                mainForm.reset();
+                InitMSData();
+                tableViewBody.innerHTML = "";
+            });
+            btnView.addEventListener('click', search);
+
+
+        }
+        let search = function () {
+            var segmentCode = segmentDropdown.value;
+            var cate = categoryDropdown.value;
+            var brandCode = brandDropdown.value;
+            var vendorCode = vendorDropdown.value;
+            var OTBtype = typeDropdown.value;
+            let OTByear = yearDropdown.value;
+            let OTBmonth = monthDropdown.value;
+            let OTBcompany = companyDropdown.value;
+
+
+            var formData = new FormData();
+            formData.append('OTBtype', OTBtype);
+            formData.append('OTByear', OTByear);
+            formData.append('OTBmonth', OTBmonth);
+            formData.append('OTBCompany', OTBcompany);
+            formData.append('OTBCategory', cate);
+            formData.append('OTBSegment', segmentCode);
+            formData.append('OTBBrand', brandCode);
+            formData.append('OTBVendor', vendorCode);
+
+
+            $.ajax({
+                url: 'Handler/DataOTBHandler.ashx?action=obtApprovelistbyfilter',
+                type: 'POST',
+                data: formData,
+                processData: false,
+                contentType: false,
+                success: function (response) {
+                    tableViewBody.innerHTML = response;
+                },
+                error: function (xhr, status, error) {
+                    console.log('Error getlist data: ' + error);
+                }
+            });
+        }
+
+        let InitMSData = function () {
+            InitSegment(segmentDropdown);
+            InitCategoty(categoryDropdown);
+            InitBrand(brandDropdown);
+            InitVendor(vendorDropdown);
+            InitMSYear(yearDropdown);
+            InitMonth(monthDropdown);
+            InitCompany(companyDropdown);
+        }
+
+        let InitSegment = function (segmentDropdown) {
+            $.ajax({
+                url: 'Handler/MasterDataHandler.ashx?action=SegmentMSList',
+                type: 'POST',
+                processData: false,
+                contentType: false,
+                success: function (response) {
+                    segmentDropdown.innerHTML = response;
+                },
+                error: function (xhr, status, error) {
+                    console.log('Error getlist data: ' + error);
+                }
+            });
+        }
+
+        let InitMSYear = function (yearDropdown) {
+            $.ajax({
+                url: 'Handler/MasterDataHandler.ashx?action=YearMSList',
+                type: 'POST',
+                processData: false,
+                contentType: false,
+                success: function (response) {
+                    yearDropdown.innerHTML = response;
+                },
+                error: function (xhr, status, error) {
+                    console.log('Error getlist data: ' + error);
+                }
+            });
+        }
+
+        let InitMonth = function (monthDropdown) {
+            $.ajax({
+                url: 'Handler/MasterDataHandler.ashx?action=MonthMSList',
+                type: 'POST',
+                processData: false,
+                contentType: false,
+                success: function (response) {
+                    monthDropdown.innerHTML = response;
+                },
+                error: function (xhr, status, error) {
+                    console.log('Error getlist data: ' + error);
+                }
+            });
+        }
+        let InitCompany = function (companyDropdown) {
+            // Implement month initialization if needed
+            $.ajax({
+                url: 'Handler/MasterDataHandler.ashx?action=CompanyMSList',
+                type: 'POST',
+                processData: false,
+                contentType: false,
+                success: function (response) {
+                    companyDropdown.innerHTML = response;
+                },
+                error: function (xhr, status, error) {
+                    console.log('Error getlist data: ' + error);
+                }
+            });
+        }
+        let InitCategoty = function (categoryDropdown) {
+
+            $.ajax({
+                url: 'Handler/MasterDataHandler.ashx?action=CategoryMSList',
+                type: 'POST',
+                processData: false,
+                contentType: false,
+                success: function (response) {
+                    categoryDropdown.innerHTML = response;
+                },
+                error: function (xhr, status, error) {
+                    console.log('Error getlist data: ' + error);
+                }
+            });
+        }
+        let InitBrand = function (brandDropdown) {
+
+            $.ajax({
+                url: 'Handler/MasterDataHandler.ashx?action=BrandMSList',
+                type: 'POST',
+                processData: false,
+                contentType: false,
+                success: function (response) {
+                    brandDropdown.innerHTML = response;
+                },
+                error: function (xhr, status, error) {
+                    console.log('Error getlist data: ' + error);
+                }
+            });
+        }
+        let InitVendor = function (vendorDropdown) {
+
+            $.ajax({
+                url: 'Handler/MasterDataHandler.ashx?action=VendorMSList',
+                type: 'POST',
+                processData: false,
+                contentType: false,
+                success: function (response) {
+                    vendorDropdown.innerHTML = response;
+                },
+                error: function (xhr, status, error) {
+                    console.log('Error getlist data: ' + error);
+                }
+            });
+        }
+
+        let changeVendor = function () {
+            var segmentCode = segmentDropdown.value;
+            if (!segmentCode) {
+                // ถ้าไม่มีค่า ให้โหลด vendor ทั้งหมด
+                InitVendor(vendorDropdown);
+                return;
+            }
+            var formData = new FormData();
+            formData.append('segmentCode', segmentCode);
+            $.ajax({
+                url: 'Handler/MasterDataHandler.ashx?action=VendorMSListChg',
+                type: 'POST',
+                data: formData,
+                processData: false,
+                contentType: false,
+                success: function (response) {
+                    vendorDropdown.innerHTML = response;
+                },
+                error: function (xhr, status, error) {
+                    console.log('Error getlist data: ' + error);
+                }
+            });
+        }
+
+        document.addEventListener('DOMContentLoaded', initial);
+
     </script>
