@@ -8,7 +8,7 @@
     <title>BMS - OTB Management System</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
-    <style>
+ <style>
         :root {
             --primary-blue: #0d6efd;
             --sidebar-bg: #2c3e50;
@@ -418,6 +418,15 @@
             font-size: 0.85rem;
         }
 
+        .badge-approved {
+            background: #28a745;
+            color: white;
+            padding: 5px 10px;
+            border-radius: 4px;
+            font-weight: 600;
+            font-size: 0.8rem;
+        }
+
         /* Action Buttons Row */
         .action-buttons {
             display: flex;
@@ -497,7 +506,7 @@
 </head>
 <body>
     
-    <form action="/" method="post">
+    <form id="mainForm" action="/" method="post">
 
     <!-- Sidebar Overlay -->
     <div class="sidebar-overlay" id="sidebarOverlay" onclick="toggleSidebar()"></div>
@@ -632,9 +641,157 @@
     </div>
 </div>
 
+            <!-- Filter Box -->
+            <div class="filter-box">
+                <div class="filter-header">
+                    <i class="bi bi-funnel"></i>
+                    Filter Options
+                </div>
+                <div class="filter-body">
+                    <!-- Filter Fields -->
+                    <div class="row g-3 mb-3">
+                        <div class="col-md-3">
+                            <label class="form-label">Type</label>
+                            <select id="DDType" class="form-select">
+                                <option value="Original" selected>Original</option>
+                                <option value="Revise" >Revised</option>
+                            </select>
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label">Year</label>
+                            <select id="DDYear" class="form-select">
+                                
+                            </select>
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label">Month</label>
+                            <select id="DDMonth" class="form-select">
+                               
+                            </select>
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label">Company</label>
+                            <select id="DDCompany" class="form-select">
+
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="row g-3 mb-4">
+                        <div class="col-md-6">
+                            <label class="form-label">Category</label>
+                            <select id="DDCategory" class="form-select">
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Segment</label>
+                            <select id="DDSegment" class="form-select">
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="row g-3 mb-4">
+                        <div class="col-md-6">
+                            <label class="form-label">Brand</label>
+                            <select id="DDBrand" class="form-select">
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Vendor</label>
+                            <select  id="DDVendor" class="form-select">
+                            </select>
+                        </div>
+                    </div>
+
+                    <!-- Action Buttons -->
+                    <div class="row">
+                        <div class="col-12 text-end">
+                            <button type="button" class="btn btn-clear btn-custom me-2" id="btnClearFilter">
+                                <i class="bi bi-x-circle"></i> Clear Filter
+                            </button>
+                            <button type="button" class="btn btn-view btn-custom" id="btnView">
+                                <i class="bi bi-eye"></i> View
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Export Buttons -->
+            <div class="export-buttons mb-3">
+                <button type="button"  class="btn btn-export btn-custom" id="btnExportTXN">
+                    <i class="bi bi-file-earmark-excel"></i> Export TXN
+                </button>
+                <button type="button"  class="btn btn-export btn-custom" id="btnExportSUM">
+                    <i class="bi bi-file-earmark-spreadsheet"></i> Export Sum
+                </button>
+            </div>
+
+            <!-- Data Table -->
+            <div class="table-container">
+                <div class="table-responsive">
+                    <table id="tableView" class="table table-hover mb-0">
+                        <thead>
+                            <tr>
+                                <th style="width: 50px;">
+                                <input name="checkselectall" type="checkbox" class="form-check-input">
+                                </th>
+                                <th>Create Date</th>
+                                <th>Type</th>
+                                <th>Year</th>
+                                <th>Month</th>
+                                <th>Category</th>
+                                <th>Category Name</th>
+                                <th>Company</th>
+                                <th>Segment</th>
+                                <th>Segment Name</th>
+                                <th>Brand</th>
+                                <th>Brand Name</th>
+                                <th>Vendor</th>
+                                <th>Vendor Name</th>
+                                <th>TO-BE Amount (THB)</th>
+                                <th>Current Approved</th>
+                                <th>Diff</th>
+                                <th>Status</th>
+                                <th>Version</th>
+                                <th>Remark</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tableViewBody">
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Bottom Action Buttons -->
+            <div class="approval-buttons mt-4">
+                <button type="button" id="btnApprove" class="btn btn-approve btn-custom">
+                    <i class="bi bi-check-circle"></i> Approved
+                </button>
+                <button type="button" id="btnReject" class="btn btn-reject btn-custom">
+                    <i class="bi bi-x-circle"></i> Reject
+                </button>
+            </div>
+        </div>
+    </div>
+       </form>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
 <script>
+    let mainForm = document.getElementById("mainForm");
+    let typeDropdown = document.getElementById("DDType");
+    let yearDropdown = document.getElementById("DDYear");
+    let monthDropdown = document.getElementById("DDMonth");
+    let companyDropdown = document.getElementById("DDCompany");
+    let segmentDropdown = document.getElementById("DDSegment");
+    let categoryDropdown = document.getElementById("DDCategory");
+    let brandDropdown = document.getElementById("DDBrand");
+    let vendorDropdown = document.getElementById("DDVendor");
+    let btnClearFilter = document.getElementById("btnClearFilter");
+    let btnView = document.getElementById("btnView");
+    let btnExportTXN = document.getElementById("btnExportTXN");
+
+
     $(document).ready(function () {
         $('#btnUpload').on('click', function (e) {
             e.preventDefault(); // ป้องกัน default behavior (แม้จะเป็น button ก็ตาม)
@@ -656,7 +813,7 @@
             formData.append('uploadBy', uploadBy); //  ส่งไปกับ request
 
             $.ajax({
-                url: 'UploadHandler.ashx?action=preview',
+                url: 'Handler/UploadHandler.ashx?action=preview',
                 type: 'POST',
                 data: formData,
                 processData: false,
@@ -690,7 +847,7 @@
             formData.append('uploadBy', uploadBy); //  ส่ง uploadBy ไปด้วย
 
             $.ajax({
-                url: 'UploadHandler.ashx?action=save',
+                url: 'Handler/UploadHandler.ashx?action=save',
                 type: 'POST',
                 data: formData,
                 processData: false,
@@ -707,255 +864,8 @@
             });
         });
     });
-</script>
+        
 
-            <!-- Filter Box -->
-            <div class="filter-box">
-                <div class="filter-header">
-                    <i class="bi bi-funnel"></i>
-                    Filter Options
-                </div>
-                <div class="filter-body">
-                    <!-- Filter Fields -->
-                    <div class="row g-3 mb-3">
-                        <div class="col-md-3">
-                            <label class="form-label">Type</label>
-                            <select class="form-select">
-                                <option selected>Original</option>
-                                <option>Revised</option>
-                            </select>
-                        </div>
-                        <div class="col-md-3">
-                            <label class="form-label">Year</label>
-                            <select class="form-select">
-                                <option>2024</option>
-                                <option selected>2025</option>
-                            </select>
-                        </div>
-                        <div class="col-md-3">
-                            <label class="form-label">Month</label>
-                            <select class="form-select">
-                                <option>Jan</option>
-                                <option>Feb</option>
-                                <option>Mar</option>
-                                <option>Apr</option>
-                                <option>May</option>
-                                <option selected>Jun</option>
-                                <option>Jul</option>
-                                <option>Aug</option>
-                                <option>Sep</option>
-                                <option>Oct</option>
-                                <option>Nov</option>
-                                <option>Dec</option>
-                            </select>
-                        </div>
-                        <div class="col-md-3">
-                            <label class="form-label">Company</label>
-                            <select class="form-select">
-                                <option selected>KPC</option>
-                                <option>KPD</option>
-                                <option>KPT</option>
-                                <option>KPS</option>
-                            </select>
-                        </div>
-                    </div>
-
-                    <div class="row g-3 mb-4">
-                        <div class="col-md-6">
-                            <label class="form-label">Category</label>
-                            <select class="form-select">
-                                <option selected>221 - FA Leather Goods</option>
-                                <option>222 - FA Accessories</option>
-                            </select>
-                        </div>
-                        <div class="col-md-6">
-                            <label class="form-label">Segment</label>
-                            <select class="form-select">
-                                <option selected>O2000 - T/T Normal</option>
-                                <option>O3000 - Local Credit</option>
-                            </select>
-                        </div>
-                    </div>
-
-                    <div class="row g-3 mb-4">
-                        <div class="col-md-6">
-                            <label class="form-label">Brand</label>
-                            <select class="form-select">
-                                <option selected>HBS - HUGO BOSS</option>
-                                <option>MCM - MCM</option>
-                            </select>
-                        </div>
-                        <div class="col-md-6">
-                            <label class="form-label">Vendor</label>
-                            <select class="form-select">
-                                <option selected>1010900 - HUGO BOSS SOUTH</option>
-                                <option>1011009 - MCM FASHION HK</option>
-                            </select>
-                        </div>
-                    </div>
-
-                    <!-- Action Buttons -->
-                    <div class="row">
-                        <div class="col-12 text-end">
-                            <button type="button" class="btn btn-clear btn-custom me-2">
-                                <i class="bi bi-x-circle"></i> Clear Filter
-                            </button>
-                            <button type="button" class="btn btn-view btn-custom">
-                                <i class="bi bi-eye"></i> View
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Export Buttons -->
-            <div class="export-buttons mb-3">
-                <button type="button"  class="btn btn-export btn-custom">
-                    <i class="bi bi-file-earmark-excel"></i> Export TXN
-                </button>
-                <button type="button"  class="btn btn-export btn-custom">
-                    <i class="bi bi-file-earmark-spreadsheet"></i> Export Sum
-                </button>
-            </div>
-
-            <!-- Data Table -->
-            <div class="table-container">
-                <div class="table-responsive">
-                    <table class="table table-hover mb-0">
-                        <thead>
-                            <tr>
-                                <th style="width: 50px;">
-                                    <input type="checkbox" class="form-check-input">
-                                </th>
-                                <th>Create Date</th>
-                                <th>Type</th>
-                                <th>Year</th>
-                                <th>Month</th>
-                                <th>Category</th>
-                                <th>Category Name</th>
-                                <th>Company</th>
-                                <th>Segment</th>
-                                <th>Segment Name</th>
-                                <th>Brand</th>
-                                <th>Brand Name</th>
-                                <th>Vendor</th>
-                                <th>Vendor Name</th>
-                                <th>TO-BE Amount (THB)</th>
-                                <th>Current Approved</th>
-                                <th>Diff</th>
-                                <th>Status</th>
-                                <th>Version</th>
-                                <th>Remark</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <tr>
-                                <td><input type="checkbox" class="form-check-input"></td>
-                                <td>2025-06-15</td>
-                                <td>Original</td>
-                                <td>2025</td>
-                                <td>Jun</td>
-                                <td>221</td>
-                                <td>FA Leather Goods</td>
-                                <td>KPC</td>
-                                <td>O3000</td>
-                                <td>Local Credit</td>
-                                <td>SAM</td>
-                                <td>SAMSONITE</td>
-                                <td>1010531</td>
-                                <td>SAMSONITE SINGA</td>
-                                <td class="text-end">100,000.00</td>
-                                <td class="text-end">0.00</td>
-                                <td class="text-end">100,000.00</td>
-                                <td><span class="badge-draft">Draft</span></td>
-                                <td>A1</td>
-                                <td></td>
-                            </tr>
-                            <tr>
-                                <td><input type="checkbox" class="form-check-input"></td>
-                                <td>2025-06-15</td>
-                                <td>Original</td>
-                                <td>2025</td>
-                                <td>Jun</td>
-                                <td>221</td>
-                                <td>FA Leather Goods</td>
-                                <td>KPC</td>
-                                <td>O2000</td>
-                                <td>T/T Normal</td>
-                                <td>MCM</td>
-                                <td>MCM</td>
-                                <td>1011009</td>
-                                <td>MCM FASHION HK</td>
-                                <td class="text-end">250,000.00</td>
-                                <td class="text-end">0.00</td>
-                                <td class="text-end">250,000.00</td>
-                                <td><span class="badge-draft">Draft</span></td>
-                                <td>A1</td>
-                                <td></td>
-                            </tr>
-                            <tr>
-                                <td><input type="checkbox" class="form-check-input"></td>
-                                <td>2025-06-15</td>
-                                <td>Original</td>
-                                <td>2025</td>
-                                <td>Jun</td>
-                                <td>221</td>
-                                <td>FA Leather Goods</td>
-                                <td>KPD</td>
-                                <td>O2000</td>
-                                <td>T/T Normal</td>
-                                <td>HBS</td>
-                                <td>HUGO BOSS</td>
-                                <td>1010900</td>
-                                <td>HUGO BOSS SOUTH</td>
-                                <td class="text-end">600,000.00</td>
-                                <td class="text-end">0.00</td>
-                                <td class="text-end">600,000.00</td>
-                                <td><span class="badge-draft">Draft</span></td>
-                                <td>A1</td>
-                                <td></td>
-                            </tr>
-                            <tr>
-                                <td><input type="checkbox" class="form-check-input"></td>
-                                <td>2025-06-15</td>
-                                <td>Original</td>
-                                <td>2025</td>
-                                <td>Jun</td>
-                                <td>221</td>
-                                <td>FA Leather Goods</td>
-                                <td>KPD</td>
-                                <td>O2010</td>
-                                <td>T/T Normal Pay</td>
-                                <td>CHN</td>
-                                <td>CHANEL</td>
-                                <td>1020784</td>
-                                <td>Chanel Thailand</td>
-                                <td class="text-end">1,000,000.00</td>
-                                <td class="text-end">0.00</td>
-                                <td class="text-end">1,000,000.00</td>
-                                <td><span class="badge-draft">Draft</span></td>
-                                <td>A1</td>
-                                <td></td>
-                            </tr>
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-
-            <!-- Bottom Action Buttons -->
-            <div class="approval-buttons mt-4">
-                <button type="button" class="btn btn-approve btn-custom">
-                    <i class="bi bi-check-circle"></i> Approved
-                </button>
-                <button type="button" class="btn btn-reject btn-custom">
-                    <i class="bi bi-x-circle"></i> Reject
-                </button>
-            </div>
-        </div>
-    </div>
-
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-    <script>
         // Toggle Sidebar
         function toggleSidebar() {
             const sidebar = document.getElementById('sidebar');
@@ -964,6 +874,7 @@
             sidebar.classList.toggle('active');
             overlay.classList.toggle('active');
         }
+
 
         // Toggle Submenu
         function toggleSubmenu(event, submenuId) {
@@ -1002,6 +913,270 @@
             // Here you would implement AJAX call to load page content
             // Example: loadPageContent(pageName);
         }
+        // - expand first submenu
+        let initial = function () {
+            const firstMenuLink = document.querySelector('.menu-link');
+            if (firstMenuLink) {
+                firstMenuLink.classList.add('expanded');
+            }
+
+
+            //InitData master
+            InitMSData();
+            segmentDropdown.addEventListener('change', changeVendor);
+            btnClearFilter.addEventListener('click', function () {
+                mainForm.reset();
+                InitMSData();
+                tableViewBody.innerHTML = "";
+            });
+            btnView.addEventListener('click', search);
+            btnExportTXN.addEventListener('click', exportTXN);
+
+            // *** ADDED: Approve Button Click Event ***
+            btnApprove.addEventListener('click', approveSelectedItems);
+    }
+
+    // *** ADDED: Function to Approve Selected Items ***
+    let approveSelectedItems = function () {
+        let runNosToApprove = [];
+        // ค้นหา Checkbox ที่ชื่อ 'checkselect' ที่ถูกเลือก
+        $('input[name="checkselect"]:checked').each(function () {
+            // ดึงค่า RunNo จาก id (id="checkselect{RunNo}")
+            let runNo = this.id.replace('checkselect', '');
+            runNosToApprove.push(runNo);
+        });
+
+        if (runNosToApprove.length === 0) {
+            alert('Please select items to approve.');
+            return;
+        }
+
+        if (!confirm('Are you sure you want to approve ' + runNosToApprove.length + ' selected items?')) {
+            return;
+        }
+
+        var currentUser = '<%= HttpUtility.JavaScriptStringEncode(Session("user").ToString()) %>';
+            var approvedBy = currentUser || 'unknown';
+
+            var formData = new FormData();
+            formData.append('runNos', JSON.stringify(runNosToApprove)); // ส่งเป็น JSON String
+            formData.append('approvedBy', approvedBy);
+
+            $.ajax({
+                url: 'Handler/DataOTBHandler.ashx?action=approveDraftOTB',
+                type: 'POST',
+                data: formData,
+                processData: false,
+                contentType: false,
+                success: function (response) {
+                    if (response.trim() === "Success") {
+                        alert('Items approved successfully!');
+                        search(); // โหลดข้อมูลตารางใหม่
+                    } else {
+                        alert('Error approving items: ' + response);
+                    }
+                },
+                error: function (xhr, status, error) {
+                    console.log('Error approving items: ' + error);
+                    alert('An error occurred while approving items.');
+                }
+            });
+        }
+
+        let search = function () {
+            var segmentCode = segmentDropdown.value; 
+            var cate = categoryDropdown.value;
+            var brandCode = brandDropdown.value;
+            var vendorCode = vendorDropdown.value;
+            var OTBtype = typeDropdown.value;
+            let OTByear = yearDropdown.value;
+            let OTBmonth = monthDropdown.value;
+            let OTBcompany = companyDropdown.value;
+
+            var formData = new FormData();
+            formData.append('OTBtype', OTBtype);
+            formData.append('OTByear', OTByear);
+            formData.append('OTBmonth', OTBmonth);
+            formData.append('OTBCompany', OTBcompany);
+            formData.append('OTBCategory', cate);
+            formData.append('OTBSegment', segmentCode);
+            formData.append('OTBBrand', brandCode);
+            formData.append('OTBVendor', vendorCode);
+
+
+            $.ajax({
+                url: 'Handler/DataOTBHandler.ashx?action=obtlistbyfilter',
+                type: 'POST',
+                data: formData,
+                processData: false,
+                contentType: false,
+                success: function (response) {
+                    tableViewBody.innerHTML = response;
+                },
+                error: function (xhr, status, error) {
+                    console.log('Error getlist data: ' + error);
+                }
+            });
+    }
+
+    let exportTXN = function () {
+
+        console.log("Export TXN clicked");
+        // Build query string from filters
+        var params = new URLSearchParams();
+        params.append('action', 'exportdraftotb');
+        params.append('OTBtype', typeDropdown.value);
+        params.append('OTByear', yearDropdown.value);
+        params.append('OTBmonth', monthDropdown.value);
+        params.append('OTBCompany', companyDropdown.value);
+        params.append('OTBCategory', categoryDropdown.value);
+        params.append('OTBSegment', segmentDropdown.value);
+        params.append('OTBBrand', brandDropdown.value);
+        params.append('OTBVendor', vendorDropdown.value);
+
+        // Use window.location to trigger file download
+        // This is a GET request, so the handler must be adjusted to read from QueryString
+        window.location.href = 'Handler/DataOTBHandler.ashx?' + params.toString();
+    }
+
+        let InitMSData = function () {
+            InitSegment(segmentDropdown);
+            InitCategoty(categoryDropdown);
+            InitBrand(brandDropdown);
+            InitVendor(vendorDropdown);
+            InitMSYear(yearDropdown);
+            InitMonth(monthDropdown);
+            InitCompany(companyDropdown);
+        }
+
+        let InitSegment = function (segmentDropdown) {
+            $.ajax({
+                url: 'Handler/MasterDataHandler.ashx?action=SegmentList',
+                type: 'POST',
+                processData: false,
+                contentType: false,
+                success: function (response) {
+                    segmentDropdown.innerHTML = response;
+                },
+                error: function (xhr, status, error) {
+                    console.log('Error getlist data: ' + error);
+                }
+            });
+        }
+
+        let InitMSYear = function (yearDropdown) {
+            $.ajax({
+                url: 'Handler/MasterDataHandler.ashx?action=YearList',
+                type: 'POST',
+                processData: false,
+                contentType: false,
+                success: function (response) {
+                    yearDropdown.innerHTML = response;
+                },
+                error: function (xhr, status, error) {
+                    console.log('Error getlist data: ' + error);
+                }
+            });
+        }
+
+        let InitMonth = function (monthDropdown) {
+            $.ajax({
+                url: 'Handler/MasterDataHandler.ashx?action=MonthList',
+                type: 'POST',
+                processData: false,
+                contentType: false,
+                success: function (response) {
+                    monthDropdown.innerHTML = response;
+                },
+                error: function (xhr, status, error) {
+                    console.log('Error getlist data: ' + error);
+                }
+            });
+        }  
+        let InitCompany = function (companyDropdown) {
+            // Implement month initialization if needed
+            $.ajax({
+                url: 'Handler/MasterDataHandler.ashx?action=CompanyList',
+                type: 'POST',
+                processData: false,
+                contentType: false,
+                success: function (response) {
+                    companyDropdown.innerHTML = response;
+                },
+                error: function (xhr, status, error) {
+                    console.log('Error getlist data: ' + error);
+                }
+            });
+        }  
+        let InitCategoty = function (categoryDropdown) {
+            
+            $.ajax({
+                url: 'Handler/MasterDataHandler.ashx?action=CategoryList',
+                type: 'POST',
+                processData: false,
+                contentType: false,
+                success: function (response) {
+                    categoryDropdown.innerHTML = response;
+                },
+                error: function (xhr, status, error) {
+                    console.log('Error getlist data: ' + error);
+                }
+            });
+        }
+        let InitBrand = function (brandDropdown) {
+            
+            $.ajax({
+                url: 'Handler/MasterDataHandler.ashx?action=BrandList',
+                type: 'POST',
+                processData: false,
+                contentType: false,
+                success: function (response) {
+                    brandDropdown.innerHTML = response;
+                },
+                error: function (xhr, status, error) {
+                    console.log('Error getlist data: ' + error);
+                }
+            });
+        }
+        let InitVendor = function (vendorDropdown) {
+            
+            $.ajax({
+                url: 'Handler/MasterDataHandler.ashx?action=VendorList',
+                type: 'POST',
+                processData: false,
+                contentType: false,
+                success: function (response) {
+                    vendorDropdown.innerHTML = response;
+                },
+                error: function (xhr, status, error) {
+                    console.log('Error getlist data: ' + error);
+                }
+            });
+        }
+
+        let changeVendor = function () {
+            var segmentCode = segmentDropdown.value; 
+            if (!segmentCode) {
+                // ถ้าไม่มีค่า ให้โหลด vendor ทั้งหมด
+                InitVendor(vendorDropdown);
+                return;
+            }
+            var formData = new FormData();
+            formData.append('segmentCode', segmentCode); 
+            $.ajax({
+                url: 'Handler/MasterDataHandler.ashx?action=VendorListChg',
+                type: 'POST',
+                data: formData,
+                processData: false,
+                contentType: false,
+                success: function (response) {
+                    vendorDropdown.innerHTML = response;
+                },
+                error: function (xhr, status, error) {
+                    console.log('Error getlist data: ' + error);
+                }
+            });
+        }
 
         // Close sidebar when clicking outside on mobile
         document.addEventListener('click', function(event) {
@@ -1014,17 +1189,9 @@
                 }
             }
         });
-
-        // Initialize - expand first submenu
-        document.addEventListener('DOMContentLoaded', function() {
-            const firstMenuLink = document.querySelector('.menu-link');
-            if (firstMenuLink) {
-                firstMenuLink.classList.add('expanded');
-            }
-        });
-    </script>
-
-        </form>
+        // Initialize
+        document.addEventListener('DOMContentLoaded', initial);
+</script>
 </body>
 </html>
             
