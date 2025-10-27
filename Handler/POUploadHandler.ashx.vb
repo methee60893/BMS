@@ -19,7 +19,6 @@ Public Class POUploadHandler
         context.Response.ContentType = "text/html"
         context.Response.ContentEncoding = Encoding.UTF8
 
-
         Dim uploadBy As String = context.Request.Form("uploadBy")
         If String.IsNullOrEmpty(uploadBy) Then uploadBy = "unknown"
 
@@ -192,30 +191,29 @@ Public Class POUploadHandler
             Dim canUpdate As Boolean = False
 
             Try
-                Dim allErrors As String = validator.ValidateAllWithDuplicateCheck(typeValue, yearValue, monthValue,
-                                                                             categoryValue, companyValue, segmentValue,
-                                                                             brandValue, vendorValue, amountValue, canUpdate)
+                'Dim allErrors As String = validator.ValidateAllWithDuplicateCheck(, yearValue, monthValue,
+                '                                                             categoryValue, companyValue, segmentValue,
+                '                                                             brandValue, vendorValue, amountValue, canUpdate)
 
 
                 ' แยก error messages
-                If Not String.IsNullOrWhiteSpace(allErrors) Then
-                    Dim errors() As String = allErrors.Split(New Char() {" "c}, StringSplitOptions.RemoveEmptyEntries)
-                    For Each errMsg As String In errors
-                        Dim trimmed As String = errMsg.Trim()
-                        If Not String.IsNullOrEmpty(trimmed) Then
-                            errorMessages.Add(trimmed)
-                        End If
-                    Next
-                End If
+                'If Not String.IsNullOrWhiteSpace(allErrors) Then
+                '    Dim errors() As String = allErrors.Split(New Char() {" "c}, StringSplitOptions.RemoveEmptyEntries)
+                '    For Each errMsg As String In errors
+                '        Dim trimmed As String = errMsg.Trim()
+                '        If Not String.IsNullOrEmpty(trimmed) Then
+                '            errorMessages.Add(trimmed)
+                '        End If
+                '    Next
+                'End If
 
-                Dim uniqueKey As String = $"{typeValue}|{yearValue}|{monthValue}|{categoryValue}|{companyValue}|{segmentValue}|{brandValue}|{vendorValue}"
-                If duplicateInExcelChecker.ContainsKey(uniqueKey) Then
-                    errorMessages.Add("Duplicated_Draft OTB_Excel")
-                    isValid = False
-                Else
-                    duplicateInExcelChecker.Add(uniqueKey, i)
-                End If
-
+                'Dim uniqueKey As String = $"{typeValue}|{yearValue}|{monthValue}|{categoryValue}|{companyValue}|{segmentValue}|{brandValue}|{vendorValue}"
+                'If duplicateInExcelChecker.ContainsKey(uniqueKey) Then
+                '    errorMessages.Add("Duplicated_Draft OTB_Excel")
+                '    isValid = False
+                'Else
+                '    duplicateInExcelChecker.Add(uniqueKey, i)
+                'End If
                 ' ตรวจสอบว่า valid หรือไม่
                 ' ถ้ามี error ที่ร้ายแรง (ไม่ใช่ Duplicate) = invalid
                 Dim seriousErrors As Integer = 0
@@ -257,7 +255,6 @@ Public Class POUploadHandler
                 sb.AppendFormat("<td class='text-center'><input type='checkbox' name='selectedRows' class='form-check-input {0}' value='{1}' checked data-type='{2}' data-year='{3}' data-month='{4}' data-category='{5}' data-company='{6}' data-segment='{7}' data-brand='{8}' data-vendor='{9}' data-amount='{10}' data-can-update='{11}'></td>",
                           checkboxClass,
                           i,
-                          HttpUtility.HtmlAttributeEncode(typeValue),
                           HttpUtility.HtmlAttributeEncode(yearValue),
                           HttpUtility.HtmlAttributeEncode(monthValue),
                           HttpUtility.HtmlAttributeEncode(categoryValue),
@@ -265,8 +262,7 @@ Public Class POUploadHandler
                           HttpUtility.HtmlAttributeEncode(segmentValue),
                           HttpUtility.HtmlAttributeEncode(brandValue),
                           HttpUtility.HtmlAttributeEncode(vendorValue),
-                          HttpUtility.HtmlAttributeEncode(amountValue),
-                          HttpUtility.HtmlAttributeEncode(remarkValue),
+                          HttpUtility.HtmlAttributeEncode(RemarkValue),
                           canUpdate.ToString().ToLower())
             Else
                 ' Invalid = checkbox disabled
@@ -277,8 +273,8 @@ Public Class POUploadHandler
             sb.AppendFormat("<td class='text-center'>{0}</td>", i + 1)
 
             ' Type Column (Original = ดำ, Revise = แดง)
-            Dim typeClass As String = If(typeValue.Equals("Original", StringComparison.OrdinalIgnoreCase), "", "text-danger fw-bold")
-            sb.AppendFormat("<td class='text-center {0}'>{1}</td>", typeClass, HttpUtility.HtmlEncode(typeValue))
+            'Dim typeClass As String = If(typeValue.Equals("Original", StringComparison.OrdinalIgnoreCase), "", "text-danger fw-bold")
+            'sb.AppendFormat("<td class='text-center {0}'>{1}</td>", typeClass, HttpUtility.HtmlEncode(typeValue))
 
 
             ' Year Column
@@ -332,10 +328,10 @@ Public Class POUploadHandler
 
             ' Amount
             Try
-                Dim amountDec As Decimal = Convert.ToDecimal(amountValue)
-                sb.AppendFormat("<td class='text-end'>{0}</td>", amountDec.ToString("N2"))
+                'Dim amountDec As Decimal = Convert.ToDecimal(amountValue)
+                'sb.AppendFormat("<td class='text-end'>{0}</td>", amountDec.ToString("N2"))
             Catch
-                sb.AppendFormat("<td class='text-end'>{0}</td>", HttpUtility.HtmlEncode(amountValue))
+                'sb.AppendFormat("<td class='text-end'>{0}</td>", HttpUtility.HtmlEncode(amountValue))
             End Try
 
             ' Current Budget (ยังไม่มีข้อมูล)
@@ -396,7 +392,7 @@ Public Class POUploadHandler
         Dim validator As New OTBValidate()
 
         ' === 3. ดึง Batch ใหม่ ===
-        Dim newBatch As String = GetNextBatchNumber()
+        Dim newBatch As String = ""
         Dim newBatchInt As Integer = Convert.ToInt32(newBatch)
         Dim createDT As DateTime = DateTime.Now
 
@@ -462,9 +458,7 @@ Public Class POUploadHandler
                     Dim amountDec As Decimal = Convert.ToDecimal(amountValue)
 
                     ' คำนวณ Version
-                    Dim versionValue As String = CalculateVersionFromHistory(typeValue, yearValue, monthValue,
-                                                                         categoryValue, companyValue, segmentValue,
-                                                                         brandValue, vendorValue)
+
 
                     If canUpdate Then
                         ' === UPDATE Case ===
@@ -496,7 +490,6 @@ Public Class POUploadHandler
                         newRow("Brand") = brandValue
                         newRow("Vendor") = vendorValue
                         newRow("Amount") = amountDec.ToString("0.00")
-                        newRow("Version") = versionValue
                         newRow("UploadBy") = uploadBy
                         newRow("Batch") = newBatch
                         newRow("CreateDT") = createDT
