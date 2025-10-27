@@ -8,16 +8,18 @@ Imports System.Text
 Imports System.Web
 Imports ExcelDataReader
 
-Public Class UploadHandler : Implements IHttpHandler
+
+Public Class POUploadHandler
+    Implements System.Web.IHttpHandler
 
     Public Shared connectionString93 As String = "Data Source=10.3.0.93;Initial Catalog=BMS;Persist Security Info=True;User ID=sa;Password=sql2014"
 
-    Public Sub ProcessRequest(ByVal context As HttpContext) Implements IHttpHandler.ProcessRequest
+    Sub ProcessRequest(ByVal context As HttpContext) Implements IHttpHandler.ProcessRequest
         context.Response.Clear()
         context.Response.ContentType = "text/html"
         context.Response.ContentEncoding = Encoding.UTF8
 
-        '  รับค่า uploadBy จาก form data
+
         Dim uploadBy As String = context.Request.Form("uploadBy")
         If String.IsNullOrEmpty(uploadBy) Then uploadBy = "unknown"
 
@@ -41,7 +43,7 @@ Public Class UploadHandler : Implements IHttpHandler
             If context.Request("action") = "preview" Then
                 context.Response.Write(GenerateHtmlTable(dt))
             ElseIf context.Request("action") = "save" Then
-                SaveToDatabase(dt, uploadBy, context) '  ส่ง uploadBy ไปด้วย
+                SaveToDatabase(dt, uploadBy, context) ' 
                 context.Response.Write("OK")
             End If
 
@@ -51,7 +53,9 @@ Public Class UploadHandler : Implements IHttpHandler
         Finally
             If File.Exists(tempPath) Then File.Delete(tempPath)
         End Try
+
     End Sub
+
 
     Private Function ReadExcel(filePath As String) As DataTable
         Dim result As DataTable
@@ -87,7 +91,6 @@ Public Class UploadHandler : Implements IHttpHandler
         Return dt
     End Function
 
-    ' ฟังก์ชันแยก CSV ที่มี comma อยู่ในข้อความ เช่น "abc, def", ghi
     Private Function SplitCsvLine(line As String) As String()
         Dim fields As New List(Of String)
         Dim inQuotes As Boolean = False
@@ -135,8 +138,7 @@ Public Class UploadHandler : Implements IHttpHandler
         ' Header
         sb.Append("<thead class='table-primary sticky-header'><tr>")
         sb.Append("<th class='text-center' style='width:60px;'>Select</th>")
-        sb.Append("<th class='text-center' style='width:50px;'>No.</th>")
-        sb.Append("<th style='width:80px;'>Type</th>")
+        sb.Append("<th class='text-center' style='width:50px;'>Draft PO No.</th>")
         sb.Append("<th class='text-center' style='width:70px;'>Year</th>")
         sb.Append("<th class='text-center' style='width:70px;'>Month</th>")
         sb.Append("<th style='width:100px;'>Category</th>")
@@ -148,8 +150,10 @@ Public Class UploadHandler : Implements IHttpHandler
         sb.Append("<th style='width:120px;'>Brand name</th>")
         sb.Append("<th class='text-center' style='width:90px;'>Vendor</th>")
         sb.Append("<th style='width:150px;'>Vendor name</th>")
-        sb.Append("<th class='text-end' style='width:130px;'>T0-BE Amount (TH)</th>")
-        sb.Append("<th class='text-end' style='width:150px;'>Current total approved budget</th>")
+        sb.Append("<th class='text-end' style='width:130px;'> Amount (TH)</th>")
+        sb.Append("<th class='text-end' style='width:130px;'> Amount (CCY)</th>")
+        sb.Append("<th class='text-end' style='width:130px;'> CCY </th>")
+        sb.Append("<th class='text-end' style='width:150px;'>Ex.Rate </th>")
         sb.Append("<th style='width:100px;'>Remark</th>")
         sb.Append("<th class='text-danger' style='min-width:250px;'>Error</th>")
         sb.Append("</tr></thead>")
@@ -166,7 +170,7 @@ Public Class UploadHandler : Implements IHttpHandler
             Dim row As DataRow = dt.Rows(i)
 
             ' ดึงค่าจาก Excel
-            Dim typeValue As String = If(row("Type") IsNot DBNull.Value, row("Type").ToString().Trim(), "")
+            Dim PONOValue As String = If(row("Draft PO no. ") IsNot DBNull.Value, row("Draft PO no. ").ToString().Trim(), "")
             Dim yearValue As String = If(row("Year") IsNot DBNull.Value, row("Year").ToString().Trim(), "")
             Dim monthValue As String = If(row("Month") IsNot DBNull.Value, row("Month").ToString().Trim(), "")
             Dim categoryValue As String = If(row("Category") IsNot DBNull.Value, row("Category").ToString().Trim(), "")
@@ -174,8 +178,13 @@ Public Class UploadHandler : Implements IHttpHandler
             Dim segmentValue As String = If(row("Segment") IsNot DBNull.Value, row("Segment").ToString().Trim(), "")
             Dim brandValue As String = If(row("Brand") IsNot DBNull.Value, row("Brand").ToString().Trim(), "")
             Dim vendorValue As String = If(row("Vendor") IsNot DBNull.Value, row("Vendor").ToString().Trim(), "")
-            Dim amountValue As String = If(row("Amount") IsNot DBNull.Value, row("Amount").ToString().Trim(), "")
-            Dim remarkValue As String = If(row("Remark") IsNot DBNull.Value, row("Remark").ToString().Trim(), "")
+            Dim amountTHBValue As String = If(row("AmountTHB") IsNot DBNull.Value, row("AmountTHB").ToString().Trim(), "")
+            Dim amountCCYValue As String = If(row("AmountCCY") IsNot DBNull.Value, row("AmountCCY").ToString().Trim(), "")
+            Dim ccyValue As String = If(row("CCY") IsNot DBNull.Value, row("CCY").ToString().Trim(), "")
+            Dim exRateValue As String = If(row("ExRate") IsNot DBNull.Value, row("ExRate").ToString().Trim(), "")
+            Dim RemarkValue As String = If(row("Remark") IsNot DBNull.Value, row("Remark").ToString().Trim(), "")
+
+
 
             ' Validate แต่ละแถว
             Dim errorMessages As New List(Of String)
@@ -354,18 +363,6 @@ Public Class UploadHandler : Implements IHttpHandler
         sb.Append("</div>")
         sb.Append("<div class='col-md-4 text-end'>")
 
-        'If validCount > 0 Then
-        '    sb.Append("<button id='submitBtn' onclick='submitData()' class='btn btn-success btn-lg'>")
-        '    sb.Append("<i class='bi bi-check-circle'></i> Submit")
-        '    sb.Append("</button>")
-        'Else
-        '    sb.Append("<button class='btn btn-secondary btn-lg' disabled>")
-        '    sb.Append("<i class='bi bi-x-circle'></i> No Valid Data to Submit")
-        '    sb.Append("</button>")
-        'End If
-
-        'sb.Append("</div>")
-        'sb.Append("</div>")
 
         ' JavaScript สำหรับจัดการ Checkbox
         sb.Append("<script>")
@@ -580,103 +577,10 @@ Public Class UploadHandler : Implements IHttpHandler
         context.Response.Write($"Successfully saved {savedCount} new rows and updated {updatedCount} rows to Draft OTB (Batch: {newBatch})")
     End Sub
 
-    Public ReadOnly Property IsReusable() As Boolean Implements IHttpHandler.IsReusable
+    ReadOnly Property IsReusable() As Boolean Implements IHttpHandler.IsReusable
         Get
             Return False
         End Get
     End Property
-
-    Private Function GetNextBatchNumber() As String
-        Dim connectionString As String = connectionString93
-        Dim currentMax As Integer = 0
-
-        Using conn As New SqlConnection(connectionString)
-            conn.Open()
-            Using cmd As New SqlCommand("SELECT ISNULL(MAX(CAST(Batch AS INT)), 0) FROM [dbo].[Template_Upload_Draft_OTB]", conn)
-                Dim result = cmd.ExecuteScalar()
-                If result IsNot Nothing AndAlso Not IsDBNull(result) Then
-                    currentMax = Convert.ToInt32(result)
-                End If
-            End Using
-        End Using
-
-        Return (currentMax + 1).ToString()
-    End Function
-
-    ''' <summary>
-    ''' คำนวณ Version โดยดูจาก History ของ Key นี้
-    ''' - ถ้ายังไม่เคยมีข้อมูล Key นี้ → A1
-    ''' - ถ้าเคยมี Original แล้ว และ Type=Revise → R1, R2, R3...
-    ''' </summary>
-    Private Function CalculateVersionFromHistory(type As String, year As String, month As String,
-                                                 category As String, company As String, segment As String,
-                                                 brand As String, vendor As String) As String
-        Try
-            ' ถ้าเป็น Original → Version = A1 เสมอ
-            If type.Equals("Original", StringComparison.OrdinalIgnoreCase) Then
-                Return "A1"
-            End If
-
-            ' ถ้าเป็น Revise → ต้องหา Version ล่าสุดของ Key นี้
-            If type.Equals("Revise", StringComparison.OrdinalIgnoreCase) Then
-                Using conn As New SqlConnection(connectionString93)
-                    conn.Open()
-
-                    ' Query หา Version ล่าสุดของ Key เดียวกัน
-                    Dim query As String = "SELECT TOP 1 [Version]
-                                      FROM [dbo].[Template_Upload_Draft_OTB]
-                                      WHERE [Year] = @Year
-                                        AND [Month] = @Month
-                                        AND [Category] = @Category
-                                        AND [Company] = @Company
-                                        AND [Segment] = @Segment
-                                        AND [Brand] = @Brand
-                                        AND [Vendor] = @Vendor
-                                      ORDER BY [CreateDT] DESC, [Batch] DESC"
-
-                    Using cmd As New SqlCommand(query, conn)
-                        cmd.Parameters.AddWithValue("@Year", year)
-                        cmd.Parameters.AddWithValue("@Month", month)
-                        cmd.Parameters.AddWithValue("@Category", category)
-                        cmd.Parameters.AddWithValue("@Company", company)
-                        cmd.Parameters.AddWithValue("@Segment", segment)
-                        cmd.Parameters.AddWithValue("@Brand", brand)
-                        cmd.Parameters.AddWithValue("@Vendor", vendor)
-
-                        Dim lastVersion As Object = cmd.ExecuteScalar()
-
-                        If lastVersion IsNot Nothing AndAlso Not IsDBNull(lastVersion) Then
-                            Dim lastVersionStr As String = lastVersion.ToString()
-
-                            ' แยก Version number
-                            ' A1 → ไม่ควรมาถึงตรงนี้ (เพราะ Type=Revise)
-                            ' R1 → R2
-                            ' R2 → R3
-                            If lastVersionStr.StartsWith("R") Then
-                                Dim numPart As String = lastVersionStr.Substring(1)
-                                Dim reviseNum As Integer
-                                If Integer.TryParse(numPart, reviseNum) Then
-                                    Return $"R{reviseNum + 1}"
-                                End If
-                            ElseIf lastVersionStr.StartsWith("A") Then
-                                ' ถ้า Version ล่าสุดเป็น A1 แสดงว่านี่คือ Revise แรก
-                                Return "R1"
-                            End If
-                        Else
-                            ' ไม่พบข้อมูลเก่า แต่ Type=Revise → Error (แต่ให้ default R1)
-                            Return "R1"
-                        End If
-                    End Using
-                End Using
-            End If
-
-            ' Default
-            Return "A1"
-
-        Catch ex As Exception
-            ' ถ้า error ให้ return default
-            Return "A1"
-        End Try
-    End Function
 
 End Class

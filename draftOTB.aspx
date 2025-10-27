@@ -734,7 +734,7 @@
                         <thead>
                             <tr>
                                 <th style="width: 50px;">
-                                <input name="checkselectall" type="checkbox" class="form-check-input">
+                                
                                 </th>
                                 <th>Create Date</th>
                                 <th>Type</th>
@@ -764,12 +764,23 @@
             </div>
 
             <!-- Bottom Action Buttons -->
-            <div class="approval-buttons mt-4">
+            <!--<div class="approval-buttons mt-4">
                 <button type="button" id="btnApprove" class="btn btn-approve btn-custom">
                     <i class="bi bi-check-circle"></i> Approved
                 </button>
                 <button type="button" id="btnReject" class="btn btn-reject btn-custom">
                     <i class="bi bi-x-circle"></i> Reject
+                </button>
+            </div>-->
+            <div class="approval-buttons mt-4">
+                <button type="button" class="btn btn-success" id="btnApprove">
+                    <i class="bi bi-check-circle"></i> Approve Selected
+                </button>
+                <button type="button" class="btn btn-secondary" id="btnSelectAll">
+                    <i class="bi bi-check-all"></i> Select All
+                </button>
+                <button type="button" class="btn btn-secondary" id="btnDeselectAll">
+                    <i class="bi bi-x-circle"></i> Deselect All
                 </button>
             </div>
         </div>
@@ -790,6 +801,10 @@
     let btnClearFilter = document.getElementById("btnClearFilter");
     let btnView = document.getElementById("btnView");
     let btnExportTXN = document.getElementById("btnExportTXN");
+
+    let btnApprove = document.getElementById('btnApprove');
+    let btnSelectAll = document.getElementById('btnSelectAll');
+    let btnDeselectAll = document.getElementById('btnDeselectAll');
 
 
     $(document).ready(function () {
@@ -1037,6 +1052,138 @@
         // Use window.location to trigger file download
         // This is a GET request, so the handler must be adjusted to read from QueryString
         window.location.href = 'Handler/DataOTBHandler.ashx?' + params.toString();
+    }
+
+    // Select All Checkbox
+    if (btnSelectAll) {
+        btnSelectAll.addEventListener('click', function () {
+            document.querySelectorAll('input[name="checkselect"]').forEach(cb => {
+                cb.checked = true;
+            });
+        });
+    }
+
+    // Deselect All Checkbox
+    if (btnDeselectAll) {
+        btnDeselectAll.addEventListener('click', function () {
+            document.querySelectorAll('input[name="checkselect"]').forEach(cb => {
+                cb.checked = false;
+            });
+        });
+    }
+
+    // Approve Button
+    if (btnApprove) {
+        btnApprove.addEventListener('click', async function () {
+            // Get selected checkboxes
+            const selectedCheckboxes = document.querySelectorAll('input[name="checkselect"]:checked');
+
+            if (selectedCheckboxes.length === 0) {
+                showAlertDraft('warning', 'No Selection', 'Please select at least one record to approve');
+                return;
+            }
+
+            // Get IDs from checkboxes (assuming ID is in the checkbox id attribute)
+            const draftIDs = [];
+            selectedCheckboxes.forEach(cb => {
+                // Extract ID from checkbox id (e.g., checkselect123 -> 123)
+                const id = cb.id.replace('checkselect', '');
+                if (id) {
+                    draftIDs.push(id);
+                }
+            });
+
+            if (draftIDs.length === 0) {
+                showAlertDraft('warning', 'Error', 'Could not extract draft IDs');
+                return;
+            }
+
+            // Confirm approval
+            if (!confirm(`Are you sure you want to approve ${draftIDs.length} record(s)?`)) {
+                return;
+            }
+
+            try {
+                // Show loading
+                showLoadingDraft(true);
+
+                // Prepare form data
+                const formData = new FormData();
+                formData.append('draftIDs', draftIDs.join(','));
+                formData.append('approvedBy', 'Admin'); // TODO: Get from session/user context
+                formData.append('remark', ''); // Optional remark
+
+                // Send approval request
+                const response = await fetch('Handler/DataOTBHandler.ashx?action=approveDraftOTB', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                const result = await response.json();
+
+                showLoadingDraft(false);
+
+                if (result.success) {
+                    showAlertDraft('success', 'Success', result.message);
+
+                    // Refresh the table after 2 seconds
+                    setTimeout(() => {
+                        search(); // Call existing search function to refresh data
+                    }, 2000);
+                } else {
+                    showAlertDraft('danger', 'Error', result.message);
+                }
+
+            } catch (error) {
+                showLoadingDraft(false);
+                console.error('Approval error:', error);
+                showAlertDraft('danger', 'Error', 'Failed to approve records: ' + error.message);
+            }
+        });
+    }
+
+    // Helper function for alerts
+    function showAlertDraft(type, title, message) {
+        const alertHtml = `
+        <div class="alert alert-${type} alert-dismissible fade show" role="alert" style="position: fixed; top: 80px; right: 20px; z-index: 9999; min-width: 300px;">
+            <strong>${title}:</strong> ${message}
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+    `;
+
+        // Remove existing alerts
+        document.querySelectorAll('.alert').forEach(el => {
+            if (el.style.position === 'fixed') el.remove();
+        });
+
+        // Add new alert
+        document.body.insertAdjacentHTML('beforeend', alertHtml);
+
+        // Auto dismiss after 5 seconds
+        setTimeout(() => {
+            document.querySelectorAll('.alert[style*="position: fixed"]').forEach(el => {
+                el.classList.remove('show');
+                setTimeout(() => el.remove(), 150);
+            });
+        }, 5000);
+    }
+
+    // Helper function for loading overlay
+    function showLoadingDraft(show) {
+        const loadingHtml = `
+        <div id="loadingOverlayDraft" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 9999; display: flex; align-items: center; justify-content: center;">
+            <div class="spinner-border text-light" role="status" style="width: 3rem; height: 3rem;">
+                <span class="visually-hidden">Loading...</span>
+            </div>
+        </div>
+    `;
+
+        if (show) {
+            document.body.insertAdjacentHTML('beforeend', loadingHtml);
+        } else {
+            const overlay = document.getElementById('loadingOverlayDraft');
+            if (overlay) overlay.remove();
+        }
     }
 
         let InitMSData = function () {

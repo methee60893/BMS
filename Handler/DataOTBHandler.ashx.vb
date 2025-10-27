@@ -1,15 +1,16 @@
 ﻿Imports System
 Imports System.Data
 Imports System.Data.SqlClient
+Imports System.Drawing
 Imports System.Globalization
 Imports System.IO
 Imports System.Text
 Imports System.Web
 Imports System.Web.Script.Serialization
 Imports ExcelDataReader
+Imports Newtonsoft.Json
 Imports OfficeOpenXml
 Imports OfficeOpenXml.Style
-Imports System.Drawing
 
 Public Class DataOTBHandler
     Implements IHttpHandler
@@ -121,8 +122,9 @@ Public Class DataOTBHandler
                 If context.Request("action") = "obtlistbyfilter" Then
                     dt = GetOTBDraftDataWithFilter(OTBtype, OTByear, OTBmonth, OTBCompany, OTBCategory, OTBSegment, OTBBrand, OTBVendor)
                     context.Response.Write(GenerateHtmlDraftTable(dt))
-
-
+                    ' เพิ่มใน ProcessRequest method
+                ElseIf context.Request("action") = "approveDraftOTB" Then
+                    ApproveDraftOTB(context)
                 ElseIf context.Request("action") = "obtApprovelistbyfilter" Then
                     dt = GetOTBApproveDataWithFilter(OTBtype, OTByear, OTBmonth, OTBCompany, OTBCategory, OTBSegment, OTBBrand, OTBVendor, OTBVersion)
                     context.Response.Write(GenerateHtmlApprovedTable(dt))
@@ -444,6 +446,61 @@ Public Class DataOTBHandler
 
         Return dt
     End Function
+
+    Private Sub ApproveDraftOTB(context As HttpContext)
+        Try
+            ' Get selected IDs
+            Dim idsString As String = If(String.IsNullOrWhiteSpace(context.Request.Form("draftIDs")), "", context.Request.Form("draftIDs").Trim())
+            Dim approvedBy As String = If(String.IsNullOrWhiteSpace(context.Request.Form("approvedBy")), "System", context.Request.Form("approvedBy").Trim())
+            Dim remark As String = If(String.IsNullOrWhiteSpace(context.Request.Form("remark")), Nothing, context.Request.Form("remark").Trim())
+
+            If String.IsNullOrEmpty(idsString) Then
+                Dim errorResponse As New With {
+                .success = False,
+                .message = "No records selected for approval"
+            }
+                context.Response.Write(JsonConvert.SerializeObject(errorResponse))
+                Return
+            End If
+
+            ' Convert comma-separated IDs to List
+            Dim draftIDs As New List(Of Integer)
+            For Each idStr As String In idsString.Split(","c)
+                Dim id As Integer
+                If Integer.TryParse(idStr.Trim(), id) Then
+                    draftIDs.Add(id)
+                End If
+            Next
+
+            If draftIDs.Count = 0 Then
+                Dim errorResponse As New With {
+                .success = False,
+                .message = "Invalid draft IDs"
+            }
+                context.Response.Write(JsonConvert.SerializeObject(errorResponse))
+                Return
+            End If
+
+            ' Call Approve function
+            Dim result As Dictionary(Of String, Object) = ApprovedOTBManager.ApproveDraftOTB(draftIDs, approvedBy, remark)
+
+            Dim response As New With {
+            .success = If(result("Status").ToString() = "Success", True, False),
+            .message = If(result.ContainsKey("ErrorMessage"), result("ErrorMessage").ToString(), $"Successfully approved {result("ApprovedCount")} records"),
+            .approvedCount = result("ApprovedCount"),
+            .sapDate = If(result.ContainsKey("SAPDate"), result("SAPDate"), Nothing)
+        }
+
+            context.Response.Write(JsonConvert.SerializeObject(response))
+
+        Catch ex As Exception
+            Dim errorResponse As New With {
+            .success = False,
+            .message = "Error approving records: " & ex.Message
+        }
+            context.Response.Write(JsonConvert.SerializeObject(errorResponse))
+        End Try
+    End Sub
 
     Private Function GetMonthName(month As Object) As String
         If month Is DBNull.Value Then Return ""

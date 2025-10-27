@@ -469,7 +469,7 @@
           <i class="fa-solid fa-money-check-dollar"></i>
         </div>
         <h1 class="login-title">BMS</h1>
-        <p class="login-subtitle">Budget Mananement System</p>
+        <p class="login-subtitle">Budget Management System</p>
       </div>
 
       <div class="alert-message" id="alertMessage">

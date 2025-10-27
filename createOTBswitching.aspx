@@ -43,9 +43,9 @@
             box-shadow: 2px 0 10px rgba(0,0,0,0.3);
         }
 
-        .sidebar.active {
-            left: 0;
-        }
+            .sidebar.active {
+                left: 0;
+            }
 
         .sidebar-overlay {
             position: fixed;
@@ -58,9 +58,9 @@
             display: none;
         }
 
-        .sidebar-overlay.active {
-            display: block;
-        }
+            .sidebar-overlay.active {
+                display: block;
+            }
 
         .sidebar-header {
             padding: 25px 20px;
@@ -72,11 +72,11 @@
             border-bottom: 2px solid #34495e;
         }
 
-        .sidebar-header h3 {
-            margin: 0;
-            font-size: 1.8rem;
-            font-weight: 700;
-        }
+            .sidebar-header h3 {
+                margin: 0;
+                font-size: 1.8rem;
+                font-weight: 700;
+            }
 
         .close-sidebar {
             background: transparent;
@@ -94,9 +94,9 @@
             transition: background 0.3s;
         }
 
-        .close-sidebar:hover {
-            background: rgba(255,255,255,0.1);
-        }
+            .close-sidebar:hover {
+                background: rgba(255,255,255,0.1);
+            }
 
         .sidebar-menu {
             list-style: none;
@@ -118,32 +118,32 @@
             font-size: 0.95rem;
         }
 
-        .menu-link:hover {
-            background: var(--sidebar-hover);
-            color: white;
-            padding-left: 25px;
-        }
+            .menu-link:hover {
+                background: var(--sidebar-hover);
+                color: white;
+                padding-left: 25px;
+            }
 
-        .menu-link.active {
-            background: var(--orange-header);
-            color: white;
-            border-left: 4px solid #fff;
-        }
+            .menu-link.active {
+                background: var(--orange-header);
+                color: white;
+                border-left: 4px solid #fff;
+            }
 
-        .menu-link i {
-            font-size: 1.2rem;
-            min-width: 35px;
-        }
+            .menu-link i {
+                font-size: 1.2rem;
+                min-width: 35px;
+            }
 
-        .menu-link .bi-chevron-down {
-            margin-left: auto;
-            font-size: 1rem;
-            transition: transform 0.3s;
-        }
+            .menu-link .bi-chevron-down {
+                margin-left: auto;
+                font-size: 1rem;
+                transition: transform 0.3s;
+            }
 
-        .menu-link.expanded .bi-chevron-down {
-            transform: rotate(180deg);
-        }
+            .menu-link.expanded .bi-chevron-down {
+                transform: rotate(180deg);
+            }
 
         .submenu {
             list-style: none;
@@ -154,20 +154,20 @@
             background: rgba(0,0,0,0.2);
         }
 
-        .submenu.show {
-            max-height: 600px;
-        }
+            .submenu.show {
+                max-height: 600px;
+            }
 
-        .submenu .menu-link {
-            padding-left: 55px;
-            font-size: 0.9rem;
-            padding-top: 12px;
-            padding-bottom: 12px;
-        }
+            .submenu .menu-link {
+                padding-left: 55px;
+                font-size: 0.9rem;
+                padding-top: 12px;
+                padding-bottom: 12px;
+            }
 
-        .submenu .menu-link:hover {
-            padding-left: 60px;
-        }
+                .submenu .menu-link:hover {
+                    padding-left: 60px;
+                }
 
         /* Main Wrapper */
         .main-wrapper {
@@ -202,10 +202,10 @@
             gap: 10px;
         }
 
-        .menu-toggle:hover {
-            background: #094580;
-            transform: scale(1.05);
-        }
+            .menu-toggle:hover {
+                background: #094580;
+                transform: scale(1.05);
+            }
 
         .page-title {
             color: #2c3e50;
@@ -268,23 +268,23 @@
             flex: 1;
         }
 
-        .tab-button.active {
-            background: var(--primary-blue);
-        }
+            .tab-button.active {
+                background: var(--primary-blue);
+            }
 
-        .tab-button:hover {
-            background: var(--primary-blue);
-            opacity: 0.9;
-        }
+            .tab-button:hover {
+                background: var(--primary-blue);
+                opacity: 0.9;
+            }
 
-        /* Tab Content */
-        .tab-content {
-            display: none;
-        }
+       /* Tab Content */
+.tab-pane { 
+    display: none;
+}
 
-        .tab-content.active {
-            display: block;
-        }
+    .tab-pane.active {
+        display: block;
+    }
 
         /* Switch Container */
         .switch-container {
@@ -326,10 +326,10 @@
             font-size: 0.95rem;
         }
 
-        .form-control:focus, .form-select:focus {
-            border-color: var(--primary-blue);
-            box-shadow: 0 0 0 0.2rem rgba(11,86,164,0.15);
-        }
+            .form-control:focus, .form-select:focus {
+                border-color: var(--primary-blue);
+                box-shadow: 0 0 0 0.2rem rgba(11,86,164,0.15);
+            }
 
         .info-display {
             background: var(--light-blue-bg);
@@ -344,7 +344,7 @@
             font-weight: 500;
         }
 
-        .amount-input{
+        .amount-input {
             background: var(--light-blue-bg);
             border: 2px solid #b8d4f1;
             font-weight: 600;
@@ -364,11 +364,11 @@
             cursor: pointer;
         }
 
-        .btn-submit:hover {
-            background: #094580;
-            transform: translateY(-2px);
-            box-shadow: 0 4px 12px rgba(11,86,164,0.3);
-        }
+            .btn-submit:hover {
+                background: #094580;
+                transform: translateY(-2px);
+                box-shadow: 0 4px 12px rgba(11,86,164,0.3);
+            }
 
         /* Responsive */
         @media (max-width: 768px) {
@@ -408,7 +408,7 @@
     <!-- Sidebar -->
     <div class="sidebar" id="sidebar">
         <div class="sidebar-header">
-            <h3><i class="bi bi-building"></i> BMS</h3>
+            <h3><i class="bi bi-building"></i>BMS</h3>
             <button class="close-sidebar" onclick="toggleSidebar()">
                 <i class="bi bi-x-lg"></i>
             </button>
@@ -497,232 +497,212 @@
 
             <!-- Tabs -->
             <div class="custom-tabs">
-                <button class="tab-button active" onclick="switchTab('switch')">
-                    <i class="bi bi-arrow-left-right"></i> Switch
+                <button class="tab-button custom-tab active" onclick="switchTab('switching')">
+                    <i class="bi bi-arrow-repeat"></i>OTB Switching
                 </button>
-                <button class="tab-button" onclick="switchTab('extra')">
-                    <i class="bi bi-plus-circle"></i> Extra
+                <button class="tab-button custom-tab" onclick="switchTab('extra')">
+                    <i class="bi bi-plus-circle"></i>Extra Budget
                 </button>
             </div>
+            <div class="tab-content-area">
+                <!-- Switch Tab Content -->
+                <div class="tab-pane active" id="switchingTab">
+                    <div class="switch-container">
+                        <div class="row">
+                            <div class="col-12">
+                                <!-- From Section -->
+                                <div class="switch-section">
+                                    <div class="section-title">
+                                        <i class="bi bi-box-arrow-right"></i>From
+                                    </div>
 
-            <!-- Switch Tab Content -->
-            <div class="tab-content active" id="switchTab">
-                <div class="switch-container">
-                    <div class="row">
-                        <div class="col-12">
-                            <!-- From Section -->
-                            <div class="switch-section">
-                                <div class="section-title">
-                                    <i class="bi bi-box-arrow-right"></i> From
-                                </div>
+                                    <div class="row g-3 mb-3">
+                                        <div class="col-md-3">
+                                            <label class="form-label">Year</label>
+                                            <select id="DDYearFrom" class="form-select">
+                                            </select>
+                                        </div>
+                                        <div class="col-md-3">
+                                            <label class="form-label">Month</label>
+                                            <select id="DDMonthFrom" class="form-select">
+                                            </select>
+                                        </div>
+                                        <div class="col-md-3">
+                                            <label class="form-label">Company</label>
+                                            <select id="DDCompanyFrom" class="form-select">
+                                            </select>
+                                        </div>
+                                        <div class="col-md-3">
+                                        </div>
+                                    </div>
 
-                                <div class="row g-3 mb-3">
-                                    <div class="col-md-3">
-                                        <label class="form-label">Year</label>
-                                        <select id="DDYearFrom" class="form-select">
-                                            
-                                        </select>
+                                    <div class="row g-3 mb-3">
+                                        <div class="col-md-6">
+                                            <label class="form-label">Category</label>
+                                            <select id="DDCategoryFrom" class="form-select">
+                                            </select>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <label class="form-label">Segment</label>
+                                            <select id="DDSegmentFrom" class="form-select">
+                                            </select>
+                                        </div>
                                     </div>
-                                    <div class="col-md-3">
-                                        <label class="form-label">Month</label>
-                                        <select id="DDMonthFrom" class="form-select">
-                                            
-                                        </select>
-                                    </div>
-                                    <div class="col-md-3">
-                                        <label class="form-label">Company</label>
-                                        <select id="DDCompanyFrom" class="form-select">
-                                          
-                                        </select>
-                                    </div>
-                                    <div class="col-md-3">
-                                    </div>
-                                </div>
 
-                                <div class="row g-3 mb-3">
-                                    <div class="col-md-6">
-                                        <label class="form-label">Category</label>
-                                        <select id="DDCategoryFrom" class="form-select">
-                                          
-                                        </select>
-                                    </div>
-                                    <div class="col-md-6">
-                                        <label class="form-label">Segment</label>
-                                        <select id="DDSegmentFrom" class="form-select">
-                                            
-                                        </select>
-                                    </div>
-                                </div>
-
-                                <div class="row g-3 mb-3">
-                                    <div class="col-md-6">
-                                        <label class="form-label">Brand</label>
-                                        <select id="DDBrandFrom" class="form-select">
-                                           
-                                        </select>
-                                    </div>
-                                    <div class="col-md-6">
-                                        <label class="form-label">Vendor</label>
-                                        <select id="DDVendorFrom" class="form-select">
-                                  
-                                        </select>
-                                    </div>
-                                </div>
-                            </div>
-
-                            <!-- To Section -->
-                            <div class="switch-section">
-                                <div class="section-title">
-                                    <i class="bi bi-box-arrow-in-right"></i> To
-                                </div>
-
-                                <div class="row g-3 mb-3">
-                                    <div class="col-md-3">
-                                        <label class="form-label">Year</label>
-                                        <select id="DDYearTo" class="form-select">
-                                           
-                                        </select>
-                                    </div>
-                                    <div class="col-md-3">
-                                        <label class="form-label">Month</label>
-                                        <select id="DDMonthTo" class="form-select">
-                                           
-                                        </selec>
-                                    </div>
-                                    <div class="col-md-3">
-                                        <label class="form-label">Company</label>
-                                        <select id="DDCompanyTo" class="form-select">
-                                           
-                                        </select>
-                                    </div>
-                                    <div class="col-md-3">
+                                    <div class="row g-3 mb-3">
+                                        <div class="col-md-6">
+                                            <label class="form-label">Brand</label>
+                                            <select id="DDBrandFrom" class="form-select">
+                                            </select>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <label class="form-label">Vendor</label>
+                                            <select id="DDVendorFrom" class="form-select">
+                                            </select>
+                                        </div>
                                     </div>
                                 </div>
 
-                                <div class="row g-3 mb-3">
-                                    <div class="col-md-6">
-                                        <label class="form-label">Category</label>
-                                        <select id="DDCategoryTo" class="form-select">
-                                           
-                                        </select>
+                                <!-- To Section -->
+                                <div class="switch-section">
+                                    <div class="section-title">
+                                        <i class="bi bi-box-arrow-in-right"></i>To
                                     </div>
-                                    <div class="col-md-6">
-                                        <label class="form-label">Segment</label>
-                                        <select id="DDSegmentTo" class="form-select">
-                                           
-                                        </select>
+
+                                    <div class="row g-3 mb-3">
+                                        <div class="col-md-3">
+                                            <label class="form-label">Year</label>
+                                            <select id="DDYearTo" class="form-select">
+                                            </select>
+                                        </div>
+                                        <div class="col-md-3">
+                                            <label class="form-label">Month</label>
+                                            <select id="DDMonthTo" class="form-select">
+                                            </select>
+                                        </div>
+                                        <div class="col-md-3">
+                                            <label class="form-label">Company</label>
+                                            <select id="DDCompanyTo" class="form-select">
+                                            </select>
+                                        </div>
+                                        <div class="col-md-3">
+                                        </div>
+                                    </div>
+
+                                    <div class="row g-3 mb-3">
+                                        <div class="col-md-6">
+                                            <label class="form-label">Category</label>
+                                            <select id="DDCategoryTo" class="form-select">
+                                            </select>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <label class="form-label">Segment</label>
+                                            <select id="DDSegmentTo" class="form-select">
+                                            </select>
+                                        </div>
+                                    </div>
+
+                                    <div class="row g-3 mb-3">
+                                        <div class="col-md-6">
+                                            <label class="form-label">Brand</label>
+                                            <select id="DDBrandTo" class="form-select">
+                                            </select>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <label class="form-label">Vendor</label>
+                                            <select id="DDVendorTo" class="form-select">
+                                            </select>
+                                        </div>
+                                    </div>
+
+                                    <div class="row g-3">
+                                        <div class="col-md-3">
+                                            <label class="form-label">Amount (THB)</label>
+                                            <input id="txtAmontSwitch" type="text" class="form-control amount-input" value="0.00">
+                                        </div>
                                     </div>
                                 </div>
 
-                                <div class="row g-3 mb-3">
-                                    <div class="col-md-6">
-                                        <label class="form-label">Brand</label>
-                                        <select id="DDBrandTo" class="form-select">
-                                           
-                                        </select>
-                                    </div>
-                                    <div class="col-md-6">
-                                        <label class="form-label">Vendor</label>
-                                        <select id="DDVendorTo" class="form-select">
-                                            
-                                        </select>
-                                    </div>
+                                <!-- Submit Button -->
+                                <div class="text-end mt-4">
+                                    <button type="button" class="btn-submit" id="btnSubmitSwitch">
+                                        <i class="bi bi-check-circle"></i>Submit
+                                    </button>
                                 </div>
-
-                                <div class="row g-3">
-                                    <div class="col-md-3">
-                                        <label class="form-label">Amount (THB)</label>
-                                        <input id="txtAmontSwitch" type="text" class="form-control amount-input" value="0.00">
-                                    </div>
-                                </div>
-                            </div>
-
-                            <!-- Submit Button -->
-                            <div class="text-end mt-4">
-                                <button type="button" class="btn-submit" id="btnSubmitSwitch">
-                                    <i class="bi bi-check-circle"></i> Submit
-                                </button>
                             </div>
                         </div>
                     </div>
                 </div>
-            </div>
 
-            <!-- Extra Tab Content -->
-            <div class="tab-content" id="extraTab">
-                <div class="switch-container">
-                    <div class="row">
-                        <div class="col-12">
-                            <div class="switch-section">
-                                <div class="section-title">
-                                    <i class="bi bi-plus-circle"></i> Extra
+                <!-- Extra Tab Content -->
+                <div class="tab-pane" id="extraTab">
+                    <div class="switch-container">
+                        <div class="row">
+                            <div class="col-12">
+                                <div class="switch-section">
+                                    <div class="section-title">
+                                        <i class="bi bi-plus-circle"></i>Extra
+                                    </div>
+
+                                    <div class="row g-3 mb-3">
+                                        <div class="col-md-3">
+                                            <label class="form-label">Year</label>
+                                            <select id="DDYearEx" class="form-select">
+                                            </select>
+                                        </div>
+                                        <div class="col-md-3">
+                                            <label class="form-label">Month</label>
+                                            <select id="DDMonthEx" class="form-select">
+                                            </select>
+                                        </div>
+                                        <div class="col-md-3">
+                                            <label class="form-label">Company</label>
+                                            <select id="DDCompanyEx" class="form-select">
+                                            </select>
+                                        </div>
+                                        <div class="col-md-3">
+                                        </div>
+                                    </div>
+
+                                    <div class="row g-3 mb-3">
+                                        <div class="col-md-6">
+                                            <label class="form-label">Category</label>
+                                            <select id="DDCategoryEx" class="form-select">
+                                            </select>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <label class="form-label">Segment</label>
+                                            <select id="DDSegmentEx" class="form-select">
+                                            </select>
+                                        </div>
+                                    </div>
+
+                                    <div class="row g-3 mb-3">
+                                        <div class="col-md-6">
+                                            <label class="form-label">Brand</label>
+                                            <select id="DDBrandEx" class="form-select">
+                                            </select>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <label class="form-label">Vendor</label>
+                                            <select id="DDVendorEx" class="form-select">
+                                            </select>
+                                        </div>
+                                    </div>
+                                    <div class="row g-3">
+                                        <div class="col-md-3">
+                                            <label class="form-label">Amount (THB)</label>
+                                            <input id="txtAmontEx" type="text" class="form-control amount-input" value="0.00">
+                                        </div>
+                                    </div>
                                 </div>
 
-                                <div class="row g-3 mb-3">
-                                    <div class="col-md-3">
-                                        <label class="form-label">Year</label>
-                                        <select id="DDYearEx" class="form-select">
-
-                                        </select>
-                                    </div>
-                                    <div class="col-md-3">
-                                        <label class="form-label">Month</label>
-                                        <select id="DDMonthEx" class="form-select">
-                                           
-                                        </select>
-                                    </div>
-                                    <div class="col-md-3">
-                                        <label class="form-label">Company</label>
-                                        <select id="DDCompanyEx" class="form-select">
-                                            
-                                        </select>
-                                    </div>
-                                    <div class="col-md-3">
-                                    </div>
+                                <!-- Submit Button -->
+                                <div class="text-end mt-4">
+                                    <button type="button" class="btn-submit" id="btnSubmitExtra">
+                                        <i class="bi bi-check-circle"></i>Submit
+                                    </button>
                                 </div>
-
-                                <div class="row g-3 mb-3">
-                                    <div class="col-md-6">
-                                        <label class="form-label">Category</label>
-                                        <select id="DDCategoryEx" class="form-select">
-                                           
-                                        </select>
-                                    </div>
-                                    <div class="col-md-6">
-                                        <label class="form-label">Segment</label>
-                                        <select id="DDSegmentEx" class="form-select">
-                                           
-                                        </select>
-                                    </div>
-                                </div>
-
-                                <div class="row g-3 mb-3">
-                                    <div class="col-md-6">
-                                        <label class="form-label">Brand</label>
-                                        <select id="DDBrandEx" class="form-select">
-                                           
-                                        </select>
-                                    </div>
-                                    <div class="col-md-6">
-                                        <label class="form-label">Vendor</label>
-                                        <select id="DDVendorEx" class="form-select">
-                                           
-                                        </select>
-                                    </div>
-                                </div>
-                                <div class="row g-3">
-                                    <div class="col-md-3">
-                                        <label class="form-label">Amount (THB)</label>
-                                        <input id="txtAmontEx" type="text" class="form-control amount-input" value="0.00">
-                                    </div>
-                                </div>
-                            </div>
-
-                            <!-- Submit Button -->
-                            <div class="text-end mt-4">
-                                <button type="button" class="btn-submit" id="btnSubmitExtra">
-                                    <i class="bi bi-check-circle"></i> Submit
-                                </button>
                             </div>
                         </div>
                     </div>
@@ -730,58 +710,254 @@
             </div>
         </div>
     </div>
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <!-- Error Validation Modal -->
+    <div class="modal fade" id="errorValidationModal" tabindex="-1" data-bs-backdrop="static" data-bs-keyboard="false">
+        <div class="modal-dialog modal-dialog-centered modal-lg">
+            <div class="modal-content">
+                <div class="modal-header bg-danger text-white">
+                    <h5 class="modal-title">
+                        <i class="bi bi-exclamation-triangle-fill me-2"></i>
+                        Validation Error
+                    </h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="alert alert-danger d-flex align-items-center mb-3" role="alert">
+                        <i class="bi bi-x-circle-fill fs-4 me-3"></i>
+                        <div>
+                            <strong>Please correct the following errors:</strong>
+                            <p class="mb-0 mt-1" id="errorSummaryText">Some fields require your attention</p>
+                        </div>
+                    </div>
+                    <div id="errorListContainer" class="error-list-container"></div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                        <i class="bi bi-arrow-left me-2"></i>Go Back to Fix
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="modal fade" id="previewSwitchModal" tabindex="-1" aria-labelledby="previewSwitchModalLabel" data-bs-backdrop="static" data-bs-keyboard="false" >
+        <div class="modal-dialog modal-xl">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="previewSwitchModalLabel">Preview Data</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div id="previewSwitchContainer">
+                        <div class="col-12">
+                            <!-- From Section -->
+                            <div class="switch-section">
+                                <div class="section-title">
+                                    <i class="bi bi-box-arrow-right"></i>From
+                                </div>
+
+                                <div class="row g-3 mb-3">
+                                    <div class="col-md-3">
+                                        <label class="form-label">Year</label>
+                                        <input id="tsYearFrom" type="text" class="form-control" value="">
+                                    </div>
+                                    <div class="col-md-3">
+                                        <label class="form-label">Month</label>
+                                        <input id="tsMonthFrom" type="text" class="form-control " value="">
+                                    </div>
+                                    <div class="col-md-3">
+                                        <label class="form-label">Company</label>
+                                        <input id="tsCompanyFrom" type="text" class="form-control" value="">
+                                    </div>
+                                    <div class="col-md-3">
+                                    </div>
+                                </div>
+
+                                <div class="row g-3 mb-3">
+                                    <div class="col-md-6">
+                                        <label class="form-label">Category</label>
+                                        <input id="tsCategoryFrom" type="text" class="form-control " value="">
+                                    </div>
+                                    <div class="col-md-6">
+                                        <label class="form-label">Segment</label>
+                                        <input id="tsSegmentFrom" type="text" class="form-control " value="">
+                                    </div>
+                                </div>
+
+                                <div class="row g-3 mb-3">
+                                    <div class="col-md-6">
+                                        <label class="form-label">Brand</label>
+                                        <input id="tsBrandFrom" type="text" class="form-control" value="">
+                                    </div>
+                                    <div class="col-md-6">
+                                        <label class="form-label">Vendor</label>
+                                        <input id="tsVendorFrom" type="text" class="form-control " value="">
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- To Section -->
+                            <div class="switch-section">
+                                <div class="section-title">
+                                    <i class="bi bi-box-arrow-in-right"></i>To
+                                </div>
+
+                                <div class="row g-3 mb-3">
+                                    <div class="col-md-3">
+                                        <label class="form-label">Year</label>
+                                        <input id="tsYearTo" type="text" class="form-control" value="">
+                                    </div>
+                                    <div class="col-md-3">
+                                        <label class="form-label">Month</label>
+                                        <input id="tsMonthTo" type="text" class="form-control " value="">
+                                    </div>
+                                    <div class="col-md-3">
+                                        <label class="form-label">Company</label>
+                                        <input id="tsCompanyTo" type="text" class="form-control " value="">
+                                    </div>
+                                    <div class="col-md-3">
+                                    </div>
+                                </div>
+
+                                <div class="row g-3 mb-3">
+                                    <div class="col-md-6">
+                                        <label class="form-label">Category</label>
+                                        <input id="tsCategoryTo" type="text" class="form-control" value="">
+                                    </div>
+                                    <div class="col-md-6">
+                                        <label class="form-label">Segment</label>
+                                        <input id="tsSegmentTo" type="text" class="form-control" value="">
+                                    </div>
+                                </div>
+
+                                <div class="row g-3 mb-3">
+                                    <div class="col-md-6">
+                                        <label class="form-label">Brand</label>
+                                        <input id="tsBrandTo" type="text" class="form-control " value="">
+                                    </div>
+                                    <div class="col-md-6">
+                                        <label class="form-label">Vendor</label>
+                                        <input id="tsVendorTo" type="text" class="form-control" value="">
+                                    </div>
+                                </div>
+
+                                <div class="row g-3">
+                                    <div class="col-md-3">
+                                        <label class="form-label">Amount (THB)</label>
+                                        <input id="tsAmontSwitch" type="text" class="form-control " value="0.00">
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" id="btnConfirmSwitch" class="btn btn-primary">Confirm</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="modal fade" id="previewExtraModal" tabindex="-1" aria-labelledby="previewModalLabel" data-bs-backdrop="static" data-bs-keyboard="false" >
+        <div class="modal-dialog modal-xl">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="previewExtraModalLabel">Preview Data</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div id="previewExtraContainer">
+                        <div class="col-12">
+                            <div class="switch-section">
+                                <div class="section-title">
+                                    <i class="bi bi-plus-circle"></i>Extra
+                                </div>
+
+                                <div class="row g-3 mb-3">
+                                    <div class="col-md-3">
+                                        <label class="form-label">Year</label>
+                                        <input id="tsYearEx" type="text" class="form-control" value="">
+                                    </div>
+                                    <div class="col-md-3">
+                                        <label class="form-label">Month</label>
+                                        <input id="tsMonthEx" type="text" class="form-control" value="">
+                                    </div>
+                                    <div class="col-md-3">
+                                        <label class="form-label">Company</label>
+                                        <input id="tsCompanyEx" type="text" class="form-control" value="">
+                                    </div>
+                                    <div class="col-md-3">
+                                    </div>
+                                </div>
+
+                                <div class="row g-3 mb-3">
+                                    <div class="col-md-6">
+                                        <label class="form-label">Category</label>
+                                        <input id="tsCategoryEx" type="text" class="form-control" value="">
+                                    </div>
+                                    <div class="col-md-6">
+                                        <label class="form-label">Segment</label>
+                                        <input id="tsSegmentEx" type="text" class="form-control" value="">
+                                    </div>
+                                </div>
+
+                                <div class="row g-3 mb-3">
+                                    <div class="col-md-6">
+                                        <label class="form-label">Brand</label>
+                                        <input id="tsBrandEx" type="text" class="form-control" value="">
+                                    </div>
+                                    <div class="col-md-6">
+                                        <label class="form-label">Vendor</label>
+                                        <input id="tsVendorEx" type="text" class="form-control" value="">
+                                    </div>
+                                </div>
+                                <div class="row g-3">
+                                    <div class="col-md-3">
+                                        <label class="form-label">Amount (THB)</label>
+                                        <input id="tsAmontEx" type="text" class="form-control" value="0.00">
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" id="btnConfirmExtra" class="btn btn-primary">Confirm</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script>
-
-        let yearDropdownf = document.getElementById("DDYearFrom");
-        let monthDropdownf = document.getElementById("DDMonthFrom");
-        let companyDropdownf = document.getElementById("DDCompanyFrom");
-        let segmentDropdownf = document.getElementById("DDSegmentFrom");
-        let categoryDropdownf = document.getElementById("DDCategoryFrom");
-        let brandDropdownf = document.getElementById("DDBrandFrom");
-        let vendorDropdownf = document.getElementById("DDVendorFrom");
-
-        let yearDropdownt = document.getElementById("DDYearTo");
-        let monthDropdownt = document.getElementById("DDMonthTo");
-        let companyDropdownt = document.getElementById("DDCompanyTo");
-        let segmentDropdownt = document.getElementById("DDSegmentTo");
-        let categoryDropdownt = document.getElementById("DDCategoryTo");
-        let brandDropdownt = document.getElementById("DDBrandTo");
-        let vendorDropdownt = document.getElementById("DDVendorTo");
-
-        let yearDropdownE = document.getElementById("DDYearEx");
-        let monthDropdownE = document.getElementById("DDMonthEx");
-        let companyDropdownE = document.getElementById("DDCompanyEx");
-        let segmentDropdownE = document.getElementById("DDSegmentEx");
-        let categoryDropdownE = document.getElementById("DDCategoryEx");
-        let brandDropdownE = document.getElementById("DDBrandEx");
-        let vendorDropdownE = document.getElementById("DDVendorEx");
-
-        let txtAmontEx = document.getElementById("txtAmontEx");
-        let txtAmontSwitch = document.getElementById("txtAmontSwitch");
-
-        let btnSubmitExtra = document.getElementById("btnSubmitExtra");
-        let btnSubmitSwitch = document.getElementById("btnSubmitSwitch");
-
+        // ==========================================
+        // Global Variables
+        // ==========================================
+        var yearDropdownf, monthDropdownf, companyDropdownf, categoryDropdownf, segmentDropdownf, brandDropdownf, vendorDropdownf;
+        var yearDropdownt, monthDropdownt, companyDropdownt, categoryDropdownt, segmentDropdownt, brandDropdownt, vendorDropdownt;
+        var yearDropdownE, monthDropdownE, companyDropdownE, categoryDropdownE, segmentDropdownE, brandDropdownE, vendorDropdownE;
+        var txtAmontSwitch, txtAmontEx;
+        var btnSubmit, btnSubmitExtra;
 
         // Toggle Sidebar
         function toggleSidebar() {
             const sidebar = document.getElementById('sidebar');
             const overlay = document.getElementById('sidebarOverlay');
-            
+
             sidebar.classList.toggle('active');
             overlay.classList.toggle('active');
         }
+
 
         // Toggle Submenu
         function toggleSubmenu(event, submenuId) {
             event.preventDefault();
             event.stopPropagation();
-            
+
             const submenu = document.getElementById(submenuId);
             const menuLink = event.currentTarget;
-            
+
+            // Toggle submenu
             submenu.classList.toggle('show');
             menuLink.classList.toggle('expanded');
         }
@@ -789,69 +965,511 @@
         // Load Page
         function loadPage(event, pageName) {
             event.preventDefault();
-            
+
+            // Remove active class from all submenu links
             document.querySelectorAll('.submenu .menu-link').forEach(link => {
                 link.classList.remove('active');
             });
-            
+
+            // Add active class to clicked link
             event.currentTarget.classList.add('active');
+
+            // Update page title
             document.getElementById('pageTitle').textContent = pageName;
-            
+
+            // Close sidebar on mobile after selection
             if (window.innerWidth <= 768) {
                 toggleSidebar();
             }
+
+            console.log('Loading page:', pageName);
+            // Here you would implement AJAX call to load page content
+            // Example: loadPageContent(pageName);
         }
 
-        // Switch Tab
-        function switchTab(tab) {
-            // Remove active class from all tab buttons
-            const tabs = document.querySelectorAll('.tab-button');
-            tabs.forEach(t => t.classList.remove('active'));
-            
-            // Hide all tab contents
-            const tabContents = document.querySelectorAll('.tab-content');
-            tabContents.forEach(tc => tc.classList.remove('active'));
-            
-            // Add active class to clicked button
-            event.target.closest('.tab-button').classList.add('active');
-            
-            // Show corresponding tab content
-            if (tab === 'switch') {
-                document.getElementById('switchTab').classList.add('active');
-            } else if (tab === 'extra') {
-                document.getElementById('extraTab').classList.add('active');
+        // ==========================================
+        // Tab Switching Function
+        // ==========================================
+        function switchTab(tabName) {
+            // Hide all tab panes
+            var tabPanes = document.querySelectorAll('.tab-pane');
+            for (var i = 0; i < tabPanes.length; i++) {
+                tabPanes[i].classList.remove('active');
             }
-            
-            console.log('Switched to tab:', tab);
+
+            // Remove active class from all tab buttons
+            var tabButtons = document.querySelectorAll('.custom-tab');
+            for (var j = 0; j < tabButtons.length; j++) {
+                tabButtons[j].classList.remove('active');
+            }
+
+            // Show selected tab by index
+            if (tabName === 'switching') {
+                if (tabPanes[0]) tabPanes[0].classList.add('active');
+                if (tabButtons[0]) tabButtons[0].classList.add('active');
+            } else if (tabName === 'extra') {
+                if (tabPanes[1]) tabPanes[1].classList.add('active');
+                if (tabButtons[1]) tabButtons[1].classList.add('active');
+            }
         }
 
-        // Close sidebar when clicking outside
-        document.addEventListener('click', function(event) {
-            const sidebar = document.getElementById('sidebar');
-            const menuToggle = document.querySelector('.menu-toggle');
-            
-            if (!sidebar.contains(event.target) && !menuToggle.contains(event.target)) {
-                if (sidebar.classList.contains('active')) {
-                    toggleSidebar();
+        // ==========================================
+        // Initialize Function
+        // ==========================================
+        var initial = function () {
+            // From Section
+            yearDropdownf = document.getElementById("DDYearFrom");
+            monthDropdownf = document.getElementById("DDMonthFrom");
+            companyDropdownf = document.getElementById("DDCompanyFrom");
+            categoryDropdownf = document.getElementById("DDCategoryFrom");
+            segmentDropdownf = document.getElementById("DDSegmentFrom");
+            brandDropdownf = document.getElementById("DDBrandFrom");
+            vendorDropdownf = document.getElementById("DDVendorFrom");
+            txtAmontSwitch = document.getElementById("txtAmontSwitch");
+            btnSubmit = document.getElementById("btnSubmitSwitch");
+
+            // To Section
+            yearDropdownt = document.getElementById("DDYearTo");
+            monthDropdownt = document.getElementById("DDMonthTo");
+            companyDropdownt = document.getElementById("DDCompanyTo");
+            categoryDropdownt = document.getElementById("DDCategoryTo");
+            segmentDropdownt = document.getElementById("DDSegmentTo");
+            brandDropdownt = document.getElementById("DDBrandTo");
+            vendorDropdownt = document.getElementById("DDVendorTo");
+
+            // Extra Section
+            yearDropdownE = document.getElementById("DDYearEx");
+            monthDropdownE = document.getElementById("DDMonthEx");
+            companyDropdownE = document.getElementById("DDCompanyEx");
+            categoryDropdownE = document.getElementById("DDCategoryEx");
+            segmentDropdownE = document.getElementById("DDSegmentEx");
+            brandDropdownE = document.getElementById("DDBrandEx");
+            vendorDropdownE = document.getElementById("DDVendorEx");
+            txtAmontEx = document.getElementById("txtAmontEx");
+            btnSubmitExtra = document.getElementById("btnSubmitExtra");
+
+            // Init Master Data
+            InitMSData();
+
+            // Event Listeners
+            if (segmentDropdownf) segmentDropdownf.addEventListener('change', changeVendorF);
+            if (segmentDropdownt) segmentDropdownt.addEventListener('change', changeVendorT);
+            if (segmentDropdownE) segmentDropdownE.addEventListener('change', changeVendorE);
+
+            // Submit Buttons
+            if (btnSubmit) {
+                btnSubmit.addEventListener('click', handleSwitchSubmit);
+            }
+
+            if (btnSubmitExtra) {
+                btnSubmitExtra.addEventListener('click', handleExtraSubmit);
+            }
+
+            // Event Listeners for Modal Confirm Buttons
+            var btnConfirmSwitch = document.getElementById('btnConfirmSwitch');
+            if (btnConfirmSwitch) {
+                btnConfirmSwitch.addEventListener('click', saveSwitchingData);
+            }
+
+            var btnConfirmExtra = document.getElementById('btnConfirmExtra');
+            if (btnConfirmExtra) {
+                btnConfirmExtra.addEventListener('click', saveExtraData);
+            }
+        };
+
+        // ==========================================
+        // Handle Switch Submit
+        // ==========================================
+        async function handleSwitchSubmit(e) {
+            e.preventDefault();
+            clearValidationErrors();
+
+            var formData = new FormData();
+            formData.append('yearFrom', yearDropdownf.value);
+            formData.append('monthFrom', monthDropdownf.value);
+            formData.append('companyFrom', companyDropdownf.value);
+            formData.append('categoryFrom', categoryDropdownf.value);
+            formData.append('segmentFrom', segmentDropdownf.value);
+            formData.append('brandFrom', brandDropdownf.value);
+            formData.append('vendorFrom', vendorDropdownf.value);
+            formData.append('yearTo', yearDropdownt.value);
+            formData.append('monthTo', monthDropdownt.value);
+            formData.append('companyTo', companyDropdownt.value);
+            formData.append('categoryTo', categoryDropdownt.value);
+            formData.append('segmentTo', segmentDropdownt.value);
+            formData.append('brandTo', brandDropdownt.value);
+            formData.append('vendorTo', vendorDropdownt.value);
+            formData.append('amount', txtAmontSwitch.value);
+
+            try {
+                showLoading(true);
+                var response = await fetch('Handler/ValidateHandler.ashx?action=validateSwitch', {
+                    method: 'POST',
+                    body: formData
+                });
+                var result = await response.json();
+                showLoading(false);
+
+                if (result.success) {
+                    populatePreviewData();
+                    var previewSwitchModal = new bootstrap.Modal(document.getElementById('previewSwitchModal'), {
+                        keyboard: false
+                    });
+                    previewSwitchModal.show();
+                } else {
+                    showErrorModal(result.errors, 'Switch Transaction', '', result.availableBudget);
+                }
+            } catch (error) {
+                showLoading(false);
+                console.error('Validation error:', error);
+                showErrorModal({ 'general': 'Failed to validate data: ' + error.message }, 'System Error');
+            }
+        }
+
+        // ==========================================
+        // Handle Extra Submit
+        // ==========================================
+        async function handleExtraSubmit(e) {
+            e.preventDefault();
+            clearValidationErrors();
+
+            var formData = new FormData();
+            formData.append('year', yearDropdownE.value);
+            formData.append('month', monthDropdownE.value);
+            formData.append('company', companyDropdownE.value);
+            formData.append('category', categoryDropdownE.value);
+            formData.append('segment', segmentDropdownE.value);
+            formData.append('brand', brandDropdownE.value);
+            formData.append('vendor', vendorDropdownE.value);
+            formData.append('amount', txtAmontEx.value);
+
+            try {
+                showLoading(true);
+                var response = await fetch('Handler/ValidateHandler.ashx?action=validateExtra', {
+                    method: 'POST',
+                    body: formData
+                });
+                var result = await response.json();
+                showLoading(false);
+
+                if (result.success) {
+                    populateExtraPreviewData();
+                    var previewExtraModal = new bootstrap.Modal(document.getElementById('previewExtraModal'), {
+                        keyboard: false
+                    });
+                    previewExtraModal.show();
+                } else {
+                    showErrorModal(result.errors, 'Extra Budget', 'Ex', result.currentBudget);
+                }
+            } catch (error) {
+                showLoading(false);
+                console.error('Validation error:', error);
+                showErrorModal({ 'general': 'Failed to validate data: ' + error.message }, 'System Error');
+            }
+        }
+
+        // ==========================================
+        // Show Error Modal
+        // ==========================================
+        function showErrorModal(errors, transactionType, suffix, availableBudget) {
+            transactionType = transactionType || 'Transaction';
+            suffix = suffix || '';
+
+            var fieldInfo = {
+                'yearFrom': { name: 'Year', section: 'From', element: 'DDYear' },
+                'monthFrom': { name: 'Month', section: 'From', element: 'DDMonth' },
+                'companyFrom': { name: 'Company', section: 'From', element: 'DDCompany' },
+                'categoryFrom': { name: 'Category', section: 'From', element: 'DDCategory' },
+                'segmentFrom': { name: 'Segment', section: 'From', element: 'DDSegment' },
+                'brandFrom': { name: 'Brand', section: 'From', element: 'DDBrand' },
+                'vendorFrom': { name: 'Vendor', section: 'From', element: 'DDVendor' },
+                'yearTo': { name: 'Year', section: 'To', element: 'DDYeart' },
+                'monthTo': { name: 'Month', section: 'To', element: 'DDMontht' },
+                'companyTo': { name: 'Company', section: 'To', element: 'DDCompanyt' },
+                'categoryTo': { name: 'Category', section: 'To', element: 'DDCategoryt' },
+                'segmentTo': { name: 'Segment', section: 'To', element: 'DDSegmentt' },
+                'brandTo': { name: 'Brand', section: 'To', element: 'DDBrandt' },
+                'vendorTo': { name: 'Vendor', section: 'To', element: 'DDVendort' },
+                'amount': { name: 'Amount (THB)', section: 'General', element: 'txtAmontSwitch' },
+                'year': { name: 'Year', section: 'Extra', element: 'DDYearEx' },
+                'month': { name: 'Month', section: 'Extra', element: 'DDMonthEx' },
+                'company': { name: 'Company', section: 'Extra', element: 'DDCompanyEx' },
+                'category': { name: 'Category', section: 'Extra', element: 'DDCategoryEx' },
+                'segment': { name: 'Segment', section: 'Extra', element: 'DDSegmentEx' },
+                'brand': { name: 'Brand', section: 'Extra', element: 'DDBrandEx' },
+                'vendor': { name: 'Vendor', section: 'Extra', element: 'DDVendorEx' }
+            };
+
+            var errorCount = Object.keys(errors).length;
+            var summaryText = document.getElementById('errorSummaryText');
+            if (summaryText) {
+                var summary = 'Found ' + errorCount + ' validation error' + (errorCount > 1 ? 's' : '') + ' in your ' + transactionType;
+                if (availableBudget !== null && availableBudget !== undefined) {
+                    var budgetFormatted = parseFloat(availableBudget).toLocaleString('en-US', {
+                        minimumFractionDigits: 2,
+                        maximumFractionDigits: 2
+                    });
+                    summary += '<br><small class="text-muted">Available Budget: <strong>' + budgetFormatted + ' THB</strong></small>';
+                }
+                summaryText.innerHTML = summary;
+            }
+
+            var errorListContainer = document.getElementById('errorListContainer');
+            var errorHtml = '';
+
+            var sortedErrors = Object.entries(errors).sort(function (a, b) {
+                var sectionA = fieldInfo[a[0]] ? fieldInfo[a[0]].section : 'General';
+                var sectionB = fieldInfo[b[0]] ? fieldInfo[b[0]].section : 'General';
+                var sectionOrder = { 'From': 1, 'To': 2, 'General': 3, 'Extra': 4 };
+                return (sectionOrder[sectionA] || 99) - (sectionOrder[sectionB] || 99);
+            });
+
+            for (var i = 0; i < sortedErrors.length; i++) {
+                var field = sortedErrors[i][0];
+                var message = sortedErrors[i][1];
+                var info = fieldInfo[field];
+
+                if (field === 'general') {
+                    errorHtml += '<div class="error-item">' +
+                        '<div class="error-item-icon"><i class="bi bi-exclamation-circle"></i></div>' +
+                        '<div class="error-item-content">' +
+                        '<div class="error-field-name"><span class="error-section-badge">General</span>Validation Error</div>' +
+                        '<p class="error-message">' + message + '</p>' +
+                        '</div></div>';
+                } else if (info) {
+                    var sectionColor = info.section === 'From' ? '#FF6B35' : info.section === 'To' ? '#4ECDC4' : '#dc3545';
+                    errorHtml += '<div class="error-item" data-field="' + info.element + '">' +
+                        '<div class="error-item-icon"><i class="bi bi-x-circle"></i></div>' +
+                        '<div class="error-item-content">' +
+                        '<div class="error-field-name">' +
+                        '<span class="error-section-badge" style="background-color: ' + sectionColor + ';">' +
+                        info.section + '</span>' + info.name + '</div>' +
+                        '<p class="error-message">' + message + '</p>' +
+                        '</div></div>';
+
+                    var element = document.getElementById(info.element);
+                    if (element) element.classList.add('has-error');
                 }
             }
-        });
-        let initial = function () {
-            const firstMenuLink = document.querySelector('.menu-link');
-            if (firstMenuLink) {
-                firstMenuLink.classList.add('expanded');
+
+            if (errorListContainer) errorListContainer.innerHTML = errorHtml;
+
+            var errorModal = new bootstrap.Modal(document.getElementById('errorValidationModal'), {
+                backdrop: 'static',
+                keyboard: false
+            });
+            errorModal.show();
+
+            var errorItems = document.querySelectorAll('.error-item[data-field]');
+            for (var j = 0; j < errorItems.length; j++) {
+                (function (item) {
+                    item.style.cursor = 'pointer';
+                    item.addEventListener('click', function () {
+                        var fieldId = this.getAttribute('data-field');
+                        var fieldElement = document.getElementById(fieldId);
+                        if (fieldElement) {
+                            errorModal.hide();
+                            setTimeout(function () {
+                                fieldElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                                fieldElement.focus();
+                                fieldElement.classList.add('pulse-error');
+                                setTimeout(function () {
+                                    fieldElement.classList.remove('pulse-error');
+                                }, 1000);
+                            }, 300);
+                        }
+                    });
+                })(errorItems[j]);
             }
-
-
-            //InitData master
-            InitMSData();
-            segmentDropdownf.addEventListener('change', changeVendorF);
-            segmentDropdownt.addEventListener('change', changeVendorT);
-            segmentDropdownE.addEventListener('change', changeVendorE);
-
         }
 
-        let InitMSData = function () {
+        // ==========================================
+        // Helper Functions
+        // ==========================================
+        function clearValidationErrors() {
+            var hasErrorElements = document.querySelectorAll('.has-error');
+            for (var i = 0; i < hasErrorElements.length; i++) {
+                hasErrorElements[i].classList.remove('has-error');
+            }
+            var pulseErrorElements = document.querySelectorAll('.pulse-error');
+            for (var j = 0; j < pulseErrorElements.length; j++) {
+                pulseErrorElements[j].classList.remove('pulse-error');
+            }
+        }
+
+        function populatePreviewData() {
+            document.getElementById("tsYearFrom").value = yearDropdownf.value;
+            document.getElementById("tsMonthFrom").value = monthDropdownf.value;
+            document.getElementById("tsCompanyFrom").value = companyDropdownf.value;
+            document.getElementById("tsCategoryFrom").value = categoryDropdownf.value;
+            document.getElementById("tsSegmentFrom").value = segmentDropdownf.value;
+            document.getElementById("tsBrandFrom").value = brandDropdownf.value;
+            document.getElementById("tsVendorFrom").value = vendorDropdownf.value;
+            document.getElementById("tsYearTo").value = yearDropdownt.value;
+            document.getElementById("tsMonthTo").value = monthDropdownt.value;
+            document.getElementById("tsCompanyTo").value = companyDropdownt.value;
+            document.getElementById("tsCategoryTo").value = categoryDropdownt.value;
+            document.getElementById("tsSegmentTo").value = segmentDropdownt.value;
+            document.getElementById("tsBrandTo").value = brandDropdownt.value;
+            document.getElementById("tsVendorTo").value = vendorDropdownt.value;
+            document.getElementById("tsAmontSwitch").value = txtAmontSwitch.value;
+        }
+
+        function populateExtraPreviewData() {
+            document.getElementById("tsYearEx").value = yearDropdownE.value;
+            document.getElementById("tsMonthEx").value = monthDropdownE.value;
+            document.getElementById("tsCompanyEx").value = companyDropdownE.value;
+            document.getElementById("tsCategoryEx").value = categoryDropdownE.value;
+            document.getElementById("tsSegmentEx").value = segmentDropdownE.value;
+            document.getElementById("tsBrandEx").value = brandDropdownE.value;
+            document.getElementById("tsVendorEx").value = vendorDropdownE.value;
+            document.getElementById("tsAmontEx").value = txtAmontEx.value;
+        }
+
+        function showLoading(show) {
+            var loadingHtml = '<div id="loadingOverlay" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); z-index: 9999; display: flex; flex-direction: column; align-items: center; justify-content: center;">' +
+                '<div class="spinner-border text-light" role="status" style="width: 3rem; height: 3rem;">' +
+                '<span class="visually-hidden">Loading...</span></div>' +
+                '<p class="text-light mt-3 mb-0">Validating data...</p></div>';
+
+            if (show) {
+                document.body.insertAdjacentHTML('beforeend', loadingHtml);
+            } else {
+                var overlay = document.getElementById('loadingOverlay');
+                if (overlay) overlay.remove();
+            }
+        }
+
+        // ==========================================
+        // Handle Save Data (After Confirm)
+        // ==========================================
+        async function saveSwitchingData() {
+            showLoading(true);
+            var formData = new FormData();
+
+            // ดึงข้อมูลจาก hidden fields ใน Modal
+            formData.append('yearFrom', document.getElementById('tsYearFrom').value);
+            formData.append('monthFrom', document.getElementById('tsMonthFrom').value);
+            formData.append('companyFrom', document.getElementById('tsCompanyFrom').value);
+            formData.append('categoryFrom', document.getElementById('tsCategoryFrom').value);
+            formData.append('segmentFrom', document.getElementById('tsSegmentFrom').value);
+            formData.append('brandFrom', document.getElementById('tsBrandFrom').value);
+            formData.append('vendorFrom', document.getElementById('tsVendorFrom').value);
+
+            formData.append('yearTo', document.getElementById('tsYearTo').value);
+            formData.append('monthTo', document.getElementById('tsMonthTo').value);
+            formData.append('companyTo', document.getElementById('tsCompanyTo').value);
+            formData.append('categoryTo', document.getElementById('tsCategoryTo').value);
+            formData.append('segmentTo', document.getElementById('tsSegmentTo').value);
+            formData.append('brandTo', document.getElementById('tsBrandTo').value);
+            formData.append('vendorTo', document.getElementById('tsVendorTo').value);
+
+            formData.append('amount', document.getElementById('tsAmontSwitch').value);
+            formData.append('createdBy', 'System'); // TODO: เปลี่ยนเป็น User จริง
+            formData.append('remark', ''); // TODO: เพิ่มช่อง Remark ถ้าต้องการ
+
+            try {
+                var response = await fetch('Handler/SaveOTBHandler.ashx?action=saveSwitching', {
+                    method: 'POST',
+                    body: formData
+                });
+                var result = await response.json();
+                showLoading(false);
+
+                if (result.success) {
+                    bootstrap.Modal.getInstance(document.getElementById('previewSwitchModal')).hide();
+                    alert(result.message || 'Save successful!');
+
+                    // ล้างฟอร์ม
+                    // ล้างฟอร์ม (Manual Reset)
+                    // Clear "From" fields
+                    if (yearDropdownf) yearDropdownf.value = "";
+                    if (monthDropdownf) monthDropdownf.value = "";
+                    if (companyDropdownf) companyDropdownf.value = "";
+                    if (categoryDropdownf) categoryDropdownf.value = "";
+                    if (segmentDropdownf) segmentDropdownf.value = "";
+                    if (brandDropdownf) brandDropdownf.value = "";
+                    if (vendorDropdownf) vendorDropdownf.value = "";
+
+                    // Clear "To" fields
+                    if (yearDropdownt) yearDropdownt.value = "";
+                    if (monthDropdownt) monthDropdownt.value = "";
+                    if (companyDropdownt) companyDropdownt.value = "";
+                    if (categoryDropdownt) categoryDropdownt.value = "";
+                    if (segmentDropdownt) segmentDropdownt.value = "";
+                    if (brandDropdownt) brandDropdownt.value = "";
+                    if (vendorDropdownt) vendorDropdownt.value = "";
+
+                    // Clear Amount (ใช้ ID จาก HTML ที่คุณส่งมาให้)
+                    var txtAmontSwitch = document.getElementById("txtAmontSwitch");
+                    if (txtAmontSwitch) txtAmontSwitch.value = "0.00";
+                    // --- ✨ จบส่วนที่แก้ไข ---
+
+                    InitMSData(); // โหลด Master data ใหม่
+                } else {
+                    alert('Save failed: ' + result.message);
+                }
+            } catch (error) {
+                showLoading(false);
+                alert('Error: ' + error.message);
+            }
+        }
+
+        async function saveExtraData() {
+            showLoading(true);
+            var formData = new FormData();
+
+            // ดึงข้อมูลจาก hidden fields ใน Modal
+            formData.append('year', document.getElementById('tsYearEx').value);
+            formData.append('month', document.getElementById('tsMonthEx').value);
+            formData.append('company', document.getElementById('tsCompanyEx').value);
+            formData.append('category', document.getElementById('tsCategoryEx').value);
+            formData.append('segment', document.getElementById('tsSegmentEx').value);
+            formData.append('brand', document.getElementById('tsBrandEx').value);
+            formData.append('vendor', document.getElementById('tsVendorEx').value);
+            formData.append('amount', document.getElementById('tsAmontEx').value);
+
+            formData.append('createdBy', 'System'); // TODO: เปลี่ยนเป็น User จริง
+            formData.append('remark', ''); // TODO: เพิ่มช่อง Remark ถ้าต้องการ
+
+            try {
+                var response = await fetch('Handler/SaveOTBHandler.ashx?action=saveExtra', {
+                    method: 'POST',
+                    body: formData
+                });
+                var result = await response.json();
+                showLoading(false);
+
+                if (result.success) {
+                    bootstrap.Modal.getInstance(document.getElementById('previewExtraModal')).hide();
+                    alert(result.message || 'Extra budget save successful!');
+                    // ล้างฟอร์ม
+                    // ล้างฟอร์ม (Manual Reset)
+                    if (yearDropdownE) yearDropdownE.value = "";
+                    if (monthDropdownE) monthDropdownE.value = "";
+                    if (companyDropdownE) companyDropdownE.value = "";
+                    if (categoryDropdownE) categoryDropdownE.value = "";
+                    if (segmentDropdownE) segmentDropdownE.value = "";
+                    if (brandDropdownE) brandDropdownE.value = "";
+                    if (vendorDropdownE) vendorDropdownE.value = "";
+
+                    // Clear Amount (ใช้ ID จาก HTML ที่คุณส่งมาให้)
+                    var txtAmontEx = document.getElementById("txtAmontEx");
+                    if (txtAmontEx) txtAmontEx.value = "0.00";
+                    InitMSData(); // โหลด Master data ใหม่
+                } else {
+                    alert('Save failed: ' + result.message);
+                }
+            } catch (error) {
+                showLoading(false);
+                alert('Error: ' + error.message);
+            }
+        }
+
+        // ==========================================
+        // Initialize Master Data
+        // ==========================================
+        var InitMSData = function () {
             InitSegment(segmentDropdownf);
             InitCategoty(categoryDropdownf);
             InitBrand(brandDropdownf);
@@ -875,9 +1493,10 @@
             InitMSYear(yearDropdownE);
             InitMonth(monthDropdownE);
             InitCompany(companyDropdownE);
-        }
+        };
 
-        let InitSegment = function (segmentddf) {
+        // Master Data Functions
+        var InitSegment = function (segmentddf) {
             $.ajax({
                 url: 'Handler/MasterDataHandler.ashx?action=SegmentMSList',
                 type: 'POST',
@@ -890,9 +1509,9 @@
                     console.log('Error getlist data: ' + error);
                 }
             });
-        }
+        };
 
-        let InitMSYear = function (yearddf) {
+        var InitMSYear = function (yearddf) {
             $.ajax({
                 url: 'Handler/MasterDataHandler.ashx?action=YearMSList',
                 type: 'POST',
@@ -905,9 +1524,9 @@
                     console.log('Error getlist data: ' + error);
                 }
             });
-        }
+        };
 
-        let InitMonth = function (monthddf) {
+        var InitMonth = function (monthddf) {
             $.ajax({
                 url: 'Handler/MasterDataHandler.ashx?action=MonthMSList',
                 type: 'POST',
@@ -920,9 +1539,9 @@
                     console.log('Error getlist data: ' + error);
                 }
             });
-        }
-        let InitCompany = function (companyddf) {
-            // Implement month initialization if needed
+        };
+
+        var InitCompany = function (companyddf) {
             $.ajax({
                 url: 'Handler/MasterDataHandler.ashx?action=CompanyMSList',
                 type: 'POST',
@@ -935,9 +1554,9 @@
                     console.log('Error getlist data: ' + error);
                 }
             });
-        }
-        let InitCategoty = function (categoryddf) {
+        };
 
+        var InitCategoty = function (categoryddf) {
             $.ajax({
                 url: 'Handler/MasterDataHandler.ashx?action=CategoryMSList',
                 type: 'POST',
@@ -950,9 +1569,9 @@
                     console.log('Error getlist data: ' + error);
                 }
             });
-        }
-        let InitBrand = function (branddd) {
+        };
 
+        var InitBrand = function (branddd) {
             $.ajax({
                 url: 'Handler/MasterDataHandler.ashx?action=BrandMSList',
                 type: 'POST',
@@ -965,9 +1584,9 @@
                     console.log('Error getlist data: ' + error);
                 }
             });
-        }
-        let InitVendor = function (vendorddf) {
+        };
 
+        var InitVendor = function (vendorddf) {
             $.ajax({
                 url: 'Handler/MasterDataHandler.ashx?action=VendorMSList',
                 type: 'POST',
@@ -980,12 +1599,12 @@
                     console.log('Error getlist data: ' + error);
                 }
             });
-        }
+        };
 
-        let changeVendorF = function () {
+        // Change Vendor Functions
+        var changeVendorF = function () {
             var segmentCode = segmentDropdownf.value;
             if (!segmentCode) {
-                // ถ้าไม่มีค่า ให้โหลด vendor ทั้งหมด
                 InitVendor(vendorDropdownf);
                 return;
             }
@@ -1004,12 +1623,11 @@
                     console.log('Error getlist data: ' + error);
                 }
             });
-        }
+        };
 
-        let changeVendorT = function () {
+        var changeVendorT = function () {
             var segmentCode = segmentDropdownt.value;
             if (!segmentCode) {
-                // ถ้าไม่มีค่า ให้โหลด vendor ทั้งหมด
                 InitVendor(vendorDropdownt);
                 return;
             }
@@ -1028,12 +1646,11 @@
                     console.log('Error getlist data: ' + error);
                 }
             });
-        }
+        };
 
-        let changeVendorE = function () {
+        var changeVendorE = function () {
             var segmentCode = segmentDropdownE.value;
             if (!segmentCode) {
-                // ถ้าไม่มีค่า ให้โหลด vendor ทั้งหมด
                 InitVendor(vendorDropdownE);
                 return;
             }
@@ -1052,11 +1669,10 @@
                     console.log('Error getlist data: ' + error);
                 }
             });
-        }
+        };
 
+        // Document Ready
         document.addEventListener('DOMContentLoaded', initial);
-
-
     </script>
 </body>
 </html>

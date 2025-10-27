@@ -66,6 +66,9 @@
     <Reference Include="Microsoft.IO.RecyclableMemoryStream, Version=3.0.1.0, Culture=neutral, PublicKeyToken=31bf3856ad364e35, processorArchitecture=MSIL">
       <HintPath>packages\Microsoft.IO.RecyclableMemoryStream.3.0.1\lib\netstandard2.0\Microsoft.IO.RecyclableMemoryStream.dll</HintPath>
     </Reference>
+    <Reference Include="Newtonsoft.Json, Version=13.0.0.0, Culture=neutral, PublicKeyToken=30ad4fe6b2a6aeed, processorArchitecture=MSIL">
+      <HintPath>packages\Newtonsoft.Json.13.0.4\lib\net45\Newtonsoft.Json.dll</HintPath>
+    </Reference>
     <Reference Include="PresentationCore" />
     <Reference Include="System" />
     <Reference Include="System.Buffers, Version=4.0.5.0, Culture=neutral, PublicKeyToken=cc7b13ffcd2ddd51, processorArchitecture=MSIL">
@@ -218,6 +221,15 @@
     <Compile Include="Handler\MasterDataHandler.ashx.vb">
       <DependentUpon>MasterDataHandler.ashx</DependentUpon>
     </Compile>
+    <Compile Include="Handler\POUploadHandler.ashx.vb">
+      <DependentUpon>POUploadHandler.ashx</DependentUpon>
+    </Compile>
+    <Compile Include="Handler\SaveOTBHandler.ashx.vb">
+      <DependentUpon>SaveOTBHandler.ashx</DependentUpon>
+    </Compile>
+    <Compile Include="Handler\ValidateHandler.ashx.vb">
+      <DependentUpon>ValidateHandler.ashx</DependentUpon>
+    </Compile>
     <Compile Include="master_brand.aspx.designer.vb">
       <DependentUpon>master_brand.aspx</DependentUpon>
     </Compile>
@@ -308,6 +320,9 @@
   <ItemGroup>
     <Content Include="Handler\DataOTBHandler.ashx" />
     <Content Include="Handler\MasterDataHandler.ashx" />
+    <Content Include="Handler\ValidateHandler.ashx" />
+    <Content Include="Handler\SaveOTBHandler.ashx" />
+    <Content Include="Handler\POUploadHandler.ashx" />
     <None Include="My Project\Application.myapp">
       <Generator>MyApplicationCodeGenerator</Generator>
       <LastGenOutput>Application.Designer.vb</LastGenOutput>
