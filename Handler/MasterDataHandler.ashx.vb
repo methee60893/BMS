@@ -56,6 +56,11 @@ Public Class MasterDataHandler
                 context.Response.Write(GetMSBrandList())
             ElseIf context.Request("action") = "VendorMSList" Then
                 context.Response.Write(GetMSVendorList())
+            ElseIf context.Request("action") = "VersionMSList" Then
+                Dim typeCode As String = If(String.IsNullOrWhiteSpace(context.Request.Form("OTBtype")),
+                                       "",
+                                       context.Request.Form("OTBtype").Trim())
+                context.Response.Write(GetMSVersionList(typeCode))
             ElseIf context.Request("action") = "VendorMSListChg" Then
                 Dim segmentCode As String = If(String.IsNullOrWhiteSpace(context.Request.Form("segmentCode")),
                                        "",
@@ -85,6 +90,25 @@ Public Class MasterDataHandler
             End Using
         End Using
         Return GenerateHtmlSegmentDropdown(dt)
+    End Function
+
+    Private Function GetMSVersionList(Optional OTBTypeCode As String = "Original") As String
+        Dim dt As New DataTable()
+        Using conn As New SqlConnection(connectionString93)
+            conn.Open()
+            Dim query As String = "SELECT  [VersionCode]
+                                          ,[OTBTypeCode]
+                                      FROM [BMS].[dbo].[MS_Version]
+                                        WHERE [OTBTypeCode] = @OTBTypeCode
+                                    "
+            Using cmd As New SqlCommand(query, conn)
+                cmd.Parameters.AddWithValue("@OTBTypeCode", OTBTypeCode)
+                Using reader As SqlDataReader = cmd.ExecuteReader()
+                    dt.Load(reader)
+                End Using
+            End Using
+        End Using
+        Return GenerateHtmlVersionDropdown(dt)
     End Function
 
     Private Function GetYearList() As String
@@ -332,6 +356,19 @@ Public Class MasterDataHandler
         Return GenerateHtmlVendorDropdown(dt)
     End Function
 
+    Private Function GenerateHtmlVersionDropdown(dt As DataTable) As String
+
+        Dim sb As New StringBuilder()
+        sb.Append("<option value=''>-- กรุณาเลือก Version --</option>")
+        For i As Integer = 0 To dt.Rows.Count - 1
+            Dim versionCode As String = If(dt.Rows(i)("VersionCode") IsNot DBNull.Value, dt.Rows(i)("VersionCode").ToString(), "")
+            sb.AppendFormat("<option value='{0}'>{1}</option>",
+                       HttpUtility.HtmlEncode(versionCode),
+                       HttpUtility.HtmlEncode(versionCode))
+        Next
+
+        Return sb.ToString()
+    End Function
 
     Private Function GenerateHtmlSegmentDropdown(dt As DataTable) As String
 

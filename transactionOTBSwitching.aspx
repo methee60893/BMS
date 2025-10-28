@@ -544,10 +544,10 @@
                     <div class="col-md-3">
                         <label class="form-label">Type</label>
                         <select id="DDSwitchType" class="form-select">
-                            <option>Switch In-out</option>
-                            <option>Switch In</option>
-                            <option>Switch Out</option>
-                            <option>Carry Out</option>
+                            <option value="D">Switch In-out</option>
+                            <option value="G">Carry In-out</option>
+                            <option value="I">Balance In-Out</option>
+                            <option value="E">Extra</option>
                         </select>
                     </div>
                     <div class="col-md-3">
@@ -880,7 +880,7 @@
             InitMSData();
             segmentDropdown.addEventListener('change', changeVendor);
             btnClearFilter.addEventListener('click', function () {
-                mainForm.reset();
+                //mainForm.reset();
                 InitMSData();
                 tableViewBody.innerHTML = "";
             });
@@ -893,14 +893,14 @@
             var cate = categoryDropdown.value;
             var brandCode = brandDropdown.value;
             var vendorCode = vendorDropdown.value;
-            var OTBtype = typeDropdown.value;
+            var Switchtype = typeDropdown.value;
             let OTByear = yearDropdown.value;
             let OTBmonth = monthDropdown.value;
             let OTBcompany = companyDropdown.value;
 
 
             var formData = new FormData();
-            formData.append('OTBtype', OTBtype);
+            formData.append('OTBtype', Switchtype);
             formData.append('OTByear', OTByear);
             formData.append('OTBmonth', OTBmonth);
             formData.append('OTBCompany', OTBcompany);
@@ -911,7 +911,7 @@
 
 
             $.ajax({
-                url: 'Handler/DataOTBHandler.ashx?action=obtApprovelistbyfilter',
+                url: 'Handler/DataOTBHandler.ashx?action=obtswitchlistbyfilter',
                 type: 'POST',
                 data: formData,
                 processData: false,

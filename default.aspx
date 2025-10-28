@@ -10,7 +10,7 @@
   <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
   <link rel="icon" href="data:,">
   
-  <style>
+    <style>
     :root {
       --primary-color: #1a237e;
       --secondary-color: #3949ab;
@@ -37,11 +37,13 @@
       min-height: 100vh;
       font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
       color: var(--text-primary);
-      overflow: hidden;
+      overflow-x: hidden;
+      overflow-y: auto;
       display: flex;
       align-items: center;
       justify-content: center;
       position: relative;
+      padding: 1rem;
     }
 
     /* Animated background particles */
@@ -87,7 +89,7 @@
       z-index: 1;
       width: 100%;
       max-width: 440px;
-      padding: 20px;
+      padding: 0;
     }
 
     .login-card {
@@ -246,6 +248,8 @@
       justify-content: space-between;
       align-items: center;
       margin-bottom: 2rem;
+      flex-wrap: wrap;
+      gap: 0.75rem;
     }
 
     .remember-me {
@@ -285,44 +289,40 @@
     input[type="submit"].btn-kp-primary {
       background: linear-gradient(135deg, var(--primary-color), var(--secondary-color)) !important;
       border: none !important;
-      border-radius: 10px !important;
-      padding: 1rem 2rem !important;
-      font-weight: 600 !important;
       color: var(--text-primary) !important;
+      padding: 0.875rem 2rem !important;
+      border-radius: 10px !important;
+      font-weight: 600 !important;
       font-size: 1rem !important;
+      text-transform: none !important;
+      letter-spacing: 0.02em !important;
       transition: all 0.3s ease !important;
-      box-shadow: var(--shadow-card) !important;
       position: relative !important;
       overflow: hidden !important;
-      text-transform: uppercase !important;
-      letter-spacing: 0.08em !important;
-      width: 100% !important;
       cursor: pointer !important;
-      height: auto !important;
+      width: 100% !important;
+      box-shadow: 0 4px 15px rgba(26, 35, 126, 0.4) !important;
     }
 
     .btn-kp-primary::before,
     input[type="submit"].btn-kp-primary::before {
-      content: '';
-      position: absolute;
-      top: 0;
-      left: -100%;
-      width: 100%;
-      height: 100%;
-      background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
-      transition: left 0.5s ease;
-    }
-
-    .btn-kp-primary:hover::before,
-    input[type="submit"].btn-kp-primary:hover::before {
-      left: 100%;
+      content: '' !important;
+      position: absolute !important;
+      inset: 0 !important;
+      background: linear-gradient(135deg, var(--accent-color), var(--gold-accent)) !important;
+      opacity: 0 !important;
+      transition: opacity 0.3s ease !important;
     }
 
     .btn-kp-primary:hover,
     input[type="submit"].btn-kp-primary:hover {
       transform: translateY(-2px) !important;
-      box-shadow: 0 12px 28px rgba(26, 35, 126, 0.5) !important;
-      background: linear-gradient(135deg, var(--secondary-color), var(--primary-color)) !important;
+      box-shadow: 0 6px 20px rgba(26, 35, 126, 0.6) !important;
+    }
+
+    .btn-kp-primary:hover::before,
+    input[type="submit"].btn-kp-primary:hover::before {
+      opacity: 1 !important;
     }
 
     .btn-kp-primary:active,
@@ -337,9 +337,18 @@
       transform: none !important;
     }
 
+    .w-100 {
+      width: 100% !important;
+    }
+
+    .mb-3 {
+      margin-bottom: 1rem !important;
+    }
+
     .divider {
       display: flex;
       align-items: center;
+      text-align: center;
       margin: 2rem 0;
       color: var(--text-secondary);
       font-size: 0.85rem;
@@ -438,22 +447,318 @@
       background: var(--accent-color);
     }
 
-    @media (max-width: 480px) {
+    /* ============================================ */
+    /* RESPONSIVE DESIGN - MEDIA QUERIES */
+    /* ============================================ */
+
+    /* Extra Small Devices (Portrait Phones, less than 576px) */
+    @media (max-width: 575.98px) {
+      body {
+        padding: 0.5rem;
+        overflow-y: auto;
+      }
+
+      .login-container {
+        max-width: 100%;
+        padding: 0;
+      }
+
       .login-card {
-        padding: 2rem 1.5rem;
+        padding: 1.5rem;
+        border-radius: 16px;
+      }
+
+      .login-header {
+        margin-bottom: 1.5rem;
+      }
+
+      .logo-container {
+        width: 60px;
+        height: 60px;
+        margin-bottom: 1rem;
+        border-radius: 16px;
+      }
+
+      .logo-container i {
+        font-size: 1.75rem;
       }
 
       .login-title {
         font-size: 1.5rem;
+        margin-bottom: 0.3rem;
+      }
+
+      .login-subtitle {
+        font-size: 0.85rem;
+      }
+
+      .form-group {
+        margin-bottom: 1.2rem;
+      }
+
+      .form-label {
+        font-size: 0.75rem;
+        margin-bottom: 0.5rem;
+      }
+
+      .form-control,
+      input[type="text"].form-control,
+      input[type="password"].form-control {
+        padding: 0.75rem 0.875rem 0.75rem 2.75rem !important;
+        font-size: 0.875rem !important;
+        border-radius: 8px !important;
+      }
+
+      .input-icon {
+        left: 0.875rem;
+        font-size: 1rem;
+      }
+
+      .password-toggle {
+        right: 0.875rem;
+        padding: 0.4rem;
+      }
+
+      .remember-forgot {
+        margin-bottom: 1.5rem;
+        gap: 0.5rem;
+      }
+
+      .remember-me {
+        flex: 1 1 100%;
+      }
+
+      .remember-me label,
+      .forgot-link {
+        font-size: 0.8rem;
+      }
+
+      .forgot-link {
+        flex: 1 1 100%;
+        text-align: right;
+      }
+
+      .btn-kp-primary,
+      input[type="submit"].btn-kp-primary {
+        padding: 0.75rem 1.5rem !important;
+        font-size: 0.9rem !important;
+        border-radius: 8px !important;
+      }
+
+      .footer-text {
+        margin-top: 1.5rem;
+        padding-top: 1.5rem;
+        font-size: 0.75rem;
+      }
+
+      .footer-text p {
+        margin-bottom: 0.5rem;
+      }
+
+      .alert-message {
+        padding: 0.875rem;
+        font-size: 0.85rem;
+        margin-bottom: 1.2rem;
+      }
+
+      /* Reduce particles on mobile for performance */
+      .bg-particles {
+        opacity: 0.2;
+      }
+    }
+
+    /* Small Devices (Landscape Phones, 576px and up) */
+    @media (min-width: 576px) and (max-width: 767.98px) {
+      body {
+        padding: 1rem;
+      }
+
+      .login-container {
+        max-width: 500px;
+      }
+
+      .login-card {
+        padding: 2rem;
+        border-radius: 18px;
       }
 
       .logo-container {
         width: 70px;
         height: 70px;
+        margin-bottom: 1.25rem;
+        border-radius: 18px;
       }
 
       .logo-container i {
         font-size: 2rem;
+      }
+
+      .login-title {
+        font-size: 1.6rem;
+      }
+
+      .login-subtitle {
+        font-size: 0.9rem;
+      }
+
+      .form-control,
+      input[type="text"].form-control,
+      input[type="password"].form-control {
+        font-size: 0.9rem !important;
+      }
+
+      .remember-forgot {
+        gap: 0.75rem;
+      }
+    }
+
+    /* Medium Devices (Tablets, 768px and up) */
+    @media (min-width: 768px) and (max-width: 991.98px) {
+      body {
+        padding: 1.5rem;
+      }
+
+      .login-container {
+        max-width: 480px;
+      }
+
+      .login-card {
+        padding: 2.5rem;
+      }
+
+      .logo-container {
+        width: 75px;
+        height: 75px;
+      }
+
+      .logo-container i {
+        font-size: 2.25rem;
+      }
+    }
+
+    /* Large Devices (Desktops, 992px and up) */
+    @media (min-width: 992px) {
+      .login-container {
+        max-width: 440px;
+      }
+
+      .login-card {
+        padding: 3rem;
+      }
+    }
+
+    /* Extra Large Devices (Large Desktops, 1200px and up) */
+    @media (min-width: 1200px) {
+      .login-card {
+        padding: 3.5rem;
+      }
+
+      .logo-container {
+        width: 90px;
+        height: 90px;
+      }
+
+      .logo-container i {
+        font-size: 2.75rem;
+      }
+
+      .login-title {
+        font-size: 2rem;
+      }
+
+      .login-subtitle {
+        font-size: 1rem;
+      }
+    }
+
+    /* Landscape Orientation for Mobile */
+    @media (max-height: 600px) and (orientation: landscape) {
+      body {
+        padding: 1rem 2rem;
+      }
+
+      .login-card {
+        padding: 1.5rem;
+      }
+
+      .login-header {
+        margin-bottom: 1rem;
+      }
+
+      .logo-container {
+        width: 50px;
+        height: 50px;
+        margin-bottom: 0.75rem;
+      }
+
+      .logo-container i {
+        font-size: 1.5rem;
+      }
+
+      .login-title {
+        font-size: 1.25rem;
+      }
+
+      .login-subtitle {
+        font-size: 0.8rem;
+      }
+
+      .form-group {
+        margin-bottom: 1rem;
+      }
+
+      .remember-forgot {
+        margin-bottom: 1rem;
+      }
+
+      .footer-text {
+        margin-top: 1rem;
+        padding-top: 1rem;
+        font-size: 0.75rem;
+      }
+    }
+
+    /* High DPI / Retina Displays */
+    @media (-webkit-min-device-pixel-ratio: 2), (min-resolution: 192dpi) {
+      .login-card {
+        border-width: 0.5px;
+      }
+    }
+
+    /* Dark Mode Support (if needed) */
+    @media (prefers-color-scheme: dark) {
+      /* Already in dark mode, but can add more refinements if needed */
+    }
+
+    /* Reduced Motion for Accessibility */
+    @media (prefers-reduced-motion: reduce) {
+      * {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+      }
+
+      .particle {
+        animation: none;
+        display: none;
+      }
+    }
+
+    /* Print Styles */
+    @media print {
+      .bg-particles,
+      .password-toggle {
+        display: none !important;
+      }
+
+      body {
+        background: white;
+        color: black;
+      }
+
+      .login-card {
+        box-shadow: none;
+        border: 1px solid #000;
       }
     }
   </style>

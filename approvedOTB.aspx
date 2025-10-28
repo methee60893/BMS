@@ -571,13 +571,14 @@
                         <div class="col-md-3">
                             <label class="form-label">Type</label>
                             <select  id="DDType" class="form-select">
-                                <option selected>Original</option>
-                                <option>Revised</option>
+                                <option value=''>-- กรุณาเลือก Type --</option>
+                                <option value="Original" >Original</option> 
+                                <option value="Revise" >Revise</option>
                             </select>
                         </div>
                         <div class="col-md-3">
                             <label class="form-label">Version</label>
-                            <input id="txtVersion" type="text" class="form-control version-input" value="A1">
+                            <select id="DDVersion" class="form-select"></select>
                         </div>
                         <div class="col-md-6">
                             <label class="form-label">Category</label>
@@ -695,7 +696,7 @@
         let vendorDropdown = document.getElementById("DDVendor");
         let btnClearFilter = document.getElementById("btnClearFilter");
         let btnView = document.getElementById("btnView");
-        let txtVersion = document.getElementById("txtVersion");
+        let versionDropdown = document.getElementById("DDVersion");
 
         // Toggle Sidebar
         function toggleSidebar() {
@@ -786,6 +787,7 @@
             //InitData master
             InitMSData();
             segmentDropdown.addEventListener('change', changeVendor);
+            typeDropdown.addEventListener('change', changeType);
             btnClearFilter.addEventListener('click', function () {
                 mainForm.reset();
                 InitMSData();
@@ -797,15 +799,15 @@
         }
 
         let search = function () {
-            var segmentCode = segmentDropdown.value;
-            var cate = categoryDropdown.value;
-            var brandCode = brandDropdown.value;
-            var vendorCode = vendorDropdown.value;
-            var OTBtype = typeDropdown.value;
+            let segmentCode = segmentDropdown.value;
+            let cate = categoryDropdown.value;
+            let brandCode = brandDropdown.value;
+            let vendorCode = vendorDropdown.value;
+            let OTBtype = typeDropdown.value;
             let OTByear = yearDropdown.value;
             let OTBmonth = monthDropdown.value;
             let OTBcompany = companyDropdown.value;
-            let OTBVersion = txtVersion.value;
+            let OTBVersion = versionDropdown.value;
 
             var formData = new FormData();
             formData.append('OTBtype', OTBtype);
@@ -841,6 +843,7 @@
             InitMSYear(yearDropdown);
             InitMonth(monthDropdown);
             InitCompany(companyDropdown);
+            InitVersion(versionDropdown);
         }
 
         let InitSegment = function (segmentDropdown) {
@@ -857,7 +860,25 @@
                 }
             });
         }
+        let InitVersion = function (versionDropdown) {
+            var OTBtype = typeDropdown.value;
 
+            var formData = new FormData();
+            formData.append('OTBtype', OTBtype);
+            $.ajax({
+                url: 'Handler/MasterDataHandler.ashx?action=VersionMSList',
+                type: 'POST',
+                data: formData,
+                processData: false,
+                contentType: false,
+                success: function (response) {
+                    versionDropdown.innerHTML = response;
+                },
+                error: function (xhr, status, error) {
+                    console.log('Error getlist data: ' + error);
+                }
+            });
+        }
         let InitMSYear = function (yearDropdown) {
             $.ajax({
                 url: 'Handler/MasterDataHandler.ashx?action=YearMSList',
@@ -946,6 +967,10 @@
                     console.log('Error getlist data: ' + error);
                 }
             });
+        }
+
+        let changeType = function () {
+            InitVersion(versionDropdown)
         }
 
         let changeVendor = function () {

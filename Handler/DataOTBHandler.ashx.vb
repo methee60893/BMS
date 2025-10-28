@@ -128,12 +128,14 @@ Public Class DataOTBHandler
                 ElseIf context.Request("action") = "obtApprovelistbyfilter" Then
                     dt = GetOTBApproveDataWithFilter(OTBtype, OTByear, OTBmonth, OTBCompany, OTBCategory, OTBSegment, OTBBrand, OTBVendor, OTBVersion)
                     context.Response.Write(GenerateHtmlApprovedTable(dt))
+                ElseIf context.Request("action") = "obtswitchlistbyfilter" Then
+                    dt = GetOTBSwitchDataWithFilter(OTBtype, OTByear, OTBmonth, OTBCompany, OTBCategory, OTBSegment, OTBBrand, OTBVendor)
+                    context.Response.Write(GenerateHtmlSwitchable(dt))
                 ElseIf context.Request("action") = "approveDraftOTB" Then
                     Dim runNosJson As String = If(String.IsNullOrWhiteSpace(context.Request.Form("runNos")), "[]", context.Request.Form("runNos"))
                     Dim approvedBy As String = If(String.IsNullOrWhiteSpace(context.Request.Form("approvedBy")), "unknown", context.Request.Form("approvedBy").Trim())
 
                     Dim serializer As New JavaScriptSerializer()
-
                     Dim runNosString As List(Of String) = serializer.Deserialize(Of List(Of String))(runNosJson)
 
 
@@ -209,45 +211,47 @@ Public Class DataOTBHandler
     Private Function GenerateHtmlDraftTable(dt As DataTable) As String
         Dim sb As New StringBuilder()
 
+        If dt.Rows.Count = 0 Then
+            sb.Append("<tr><td colspan='19' class='text-center text-muted'>No Draft OTB records found</td></tr>")
+        Else
+            For i As Integer = 0 To dt.Rows.Count - 1
 
-        For i As Integer = 0 To dt.Rows.Count - 1
+                Dim RunNo As String = If(dt.Rows(i)("RunNo") IsNot DBNull.Value, dt.Rows(i)("RunNo").ToString(), "")
+                Dim CreateDT As String = If(dt.Rows(i)("CreateDT") IsNot DBNull.Value, dt.Rows(i)("CreateDT").ToString(), "")
+                Dim OTBType As String = If(dt.Rows(i)("OTBType") IsNot DBNull.Value, dt.Rows(i)("OTBType").ToString(), "")
+                Dim OTBYear As String = If(dt.Rows(i)("OTBYear") IsNot DBNull.Value, dt.Rows(i)("OTBYear").ToString(), "")
+                Dim OTBMonth As String = If(dt.Rows(i)("OTBMonth") IsNot DBNull.Value, dt.Rows(i)("OTBMonth").ToString(), "")
+                Dim MonthName As String = If(dt.Rows(i)("month_name_sh") IsNot DBNull.Value, dt.Rows(i)("month_name_sh").ToString(), "")
+                Dim CateName As String = If(dt.Rows(i)("CateName") IsNot DBNull.Value, dt.Rows(i)("CateName").ToString(), "")
+                Dim OTBCategory As String = If(dt.Rows(i)("OTBCategory") IsNot DBNull.Value, dt.Rows(i)("OTBCategory").ToString(), "")
+                Dim CompanyName As String = If(dt.Rows(i)("CompanyName") IsNot DBNull.Value, dt.Rows(i)("CompanyName").ToString(), "")
+                Dim OTBCompany As String = If(dt.Rows(i)("OTBCompany") IsNot DBNull.Value, dt.Rows(i)("OTBCompany").ToString(), "")
+                Dim SegmentName As String = If(dt.Rows(i)("SegmentName") IsNot DBNull.Value, dt.Rows(i)("SegmentName").ToString(), "")
+                Dim OTBSegment As String = If(dt.Rows(i)("OTBSegment") IsNot DBNull.Value, dt.Rows(i)("OTBSegment").ToString(), "")
+                Dim OTBBrand As String = If(dt.Rows(i)("OTBBrand") IsNot DBNull.Value, dt.Rows(i)("OTBBrand").ToString(), "")
+                Dim BrandName As String = If(dt.Rows(i)("BrandName") IsNot DBNull.Value, dt.Rows(i)("BrandName").ToString(), "")
+                Dim OTBVendor As String = If(dt.Rows(i)("OTBVendor") IsNot DBNull.Value, dt.Rows(i)("OTBVendor").ToString(), "")
+                Dim Vendor As String = If(dt.Rows(i)("Vendor") IsNot DBNull.Value, dt.Rows(i)("Vendor").ToString(), "")
+                Dim Amount As String = "0.00"
+                Dim CurrentBudgetAmount As String = "0.00"
+                Dim Diff As String = "0.00"
+                Dim amountValue As Decimal
+                If Decimal.TryParse(If(dt.Rows(i)("Amount") IsNot DBNull.Value, dt.Rows(i)("Amount").ToString(), ""), amountValue) Then
+                    Amount = amountValue.ToString("N2")
+                End If
+                Dim currentBudget As Decimal = OTBBudgetCalculator.CalculateCurrentApprovedBudget(OTBYear, OTBMonth, OTBCategory, OTBCompany, OTBSegment, OTBBrand, OTBVendor)
+                CurrentBudgetAmount = currentBudget.ToString("N2")
 
-            Dim RunNo As String = If(dt.Rows(i)("RunNo") IsNot DBNull.Value, dt.Rows(i)("RunNo").ToString(), "")
-            Dim CreateDT As String = If(dt.Rows(i)("CreateDT") IsNot DBNull.Value, dt.Rows(i)("CreateDT").ToString(), "")
-            Dim OTBType As String = If(dt.Rows(i)("OTBType") IsNot DBNull.Value, dt.Rows(i)("OTBType").ToString(), "")
-            Dim OTBYear As String = If(dt.Rows(i)("OTBYear") IsNot DBNull.Value, dt.Rows(i)("OTBYear").ToString(), "")
-            Dim OTBMonth As String = If(dt.Rows(i)("OTBMonth") IsNot DBNull.Value, dt.Rows(i)("OTBMonth").ToString(), "")
-            Dim MonthName As String = If(dt.Rows(i)("month_name_sh") IsNot DBNull.Value, dt.Rows(i)("month_name_sh").ToString(), "")
-            Dim CateName As String = If(dt.Rows(i)("CateName") IsNot DBNull.Value, dt.Rows(i)("CateName").ToString(), "")
-            Dim OTBCategory As String = If(dt.Rows(i)("OTBCategory") IsNot DBNull.Value, dt.Rows(i)("OTBCategory").ToString(), "")
-            Dim CompanyName As String = If(dt.Rows(i)("CompanyName") IsNot DBNull.Value, dt.Rows(i)("CompanyName").ToString(), "")
-            Dim OTBCompany As String = If(dt.Rows(i)("OTBCompany") IsNot DBNull.Value, dt.Rows(i)("OTBCompany").ToString(), "")
-            Dim SegmentName As String = If(dt.Rows(i)("SegmentName") IsNot DBNull.Value, dt.Rows(i)("SegmentName").ToString(), "")
-            Dim OTBSegment As String = If(dt.Rows(i)("OTBSegment") IsNot DBNull.Value, dt.Rows(i)("OTBSegment").ToString(), "")
-            Dim OTBBrand As String = If(dt.Rows(i)("OTBBrand") IsNot DBNull.Value, dt.Rows(i)("OTBBrand").ToString(), "")
-            Dim BrandName As String = If(dt.Rows(i)("BrandName") IsNot DBNull.Value, dt.Rows(i)("BrandName").ToString(), "")
-            Dim OTBVendor As String = If(dt.Rows(i)("OTBVendor") IsNot DBNull.Value, dt.Rows(i)("OTBVendor").ToString(), "")
-            Dim Vendor As String = If(dt.Rows(i)("Vendor") IsNot DBNull.Value, dt.Rows(i)("Vendor").ToString(), "")
-            Dim Amount As String = "0.00"
-            Dim CurrentBudgetAmount As String = "0.00"
-            Dim Diff As String = "0.00"
-            Dim amountValue As Decimal
-            If Decimal.TryParse(If(dt.Rows(i)("Amount") IsNot DBNull.Value, dt.Rows(i)("Amount").ToString(), ""), amountValue) Then
-                Amount = amountValue.ToString("N2")
-            End If
-            Dim currentBudget As Decimal = OTBBudgetCalculator.CalculateCurrentApprovedBudget(OTBYear, OTBMonth, OTBCategory, OTBCompany, OTBSegment, OTBBrand, OTBVendor)
-            CurrentBudgetAmount = currentBudget.ToString("N2")
+                Dim diffamout As Decimal = amountValue - currentBudget
+                Diff = diffamout.ToString("N2")
 
-            Dim diffamout As Decimal = amountValue - currentBudget
-            Diff = diffamout.ToString("N2")
-
-            Dim Batch As String = If(dt.Rows(i)("Batch") IsNot DBNull.Value, dt.Rows(i)("Batch").ToString(), "")
-            Dim Remark As String = If(dt.Rows(i)("Remark") IsNot DBNull.Value, dt.Rows(i)("Remark").ToString(), "")
-            Dim Version As String = If(dt.Rows(i)("Version") IsNot DBNull.Value, dt.Rows(i)("Version").ToString(), "")
-            Dim OTBStatus As String = If(dt.Rows(i)("OTBStatus") IsNot DBNull.Value, dt.Rows(i)("OTBStatus").ToString(), "")
+                Dim Batch As String = If(dt.Rows(i)("Batch") IsNot DBNull.Value, dt.Rows(i)("Batch").ToString(), "")
+                Dim Remark As String = If(dt.Rows(i)("Remark") IsNot DBNull.Value, dt.Rows(i)("Remark").ToString(), "")
+                Dim Version As String = If(dt.Rows(i)("Version") IsNot DBNull.Value, dt.Rows(i)("Version").ToString(), "")
+                Dim OTBStatus As String = If(dt.Rows(i)("OTBStatus") IsNot DBNull.Value, dt.Rows(i)("OTBStatus").ToString(), "")
 
 
-            sb.AppendFormat("<tr>
+                sb.AppendFormat("<tr>
                                 <td><input type=""checkbox"" id=""checkselect{0}"" name=""checkselect"" class=""form-check-input"" checked></td>
                                 <td>{1}</td>
                                 <td>{2}</td>
@@ -289,7 +293,8 @@ Public Class DataOTBHandler
                             If(OTBStatus.Equals("Draft"), "<span class=""badge-draft"">Draft</span>", "<span class=""badge-approved"">Approved</span>"),
                             HttpUtility.HtmlEncode(Version),
                             HttpUtility.HtmlEncode(Remark))
-        Next
+            Next
+        End If
         Return sb.ToString()
     End Function
     Private Function GenerateHtmlApprovedTable(dt As DataTable) As String
@@ -373,6 +378,136 @@ Public Class DataOTBHandler
         Return sb.ToString()
     End Function
 
+    Private Function GenerateHtmlSwitchable(dt As DataTable) As String
+        Dim sb As New StringBuilder()
+
+        If dt.Rows.Count = 0 Then
+            sb.Append("<tr><td colspan='30' class='text-center text-muted'>No switch OTB records found</td></tr>")
+        Else
+            For Each row As DataRow In dt.Rows
+                sb.Append("<tr>")
+
+                ' Create Date
+                sb.AppendFormat("<td class='date-cell'>{0}</td>",
+                       If(row("CreateDT") IsNot DBNull.Value, Convert.ToDateTime(row("CreateDT")).ToString("dd/MM/yyyy HH:mm"), ""))
+
+                ' Year & Month (Source) - เพิ่มการตรวจสอบ DBNull
+                sb.AppendFormat("<td class='text-center'>{0}</td>",
+                       If(row("Year") IsNot DBNull.Value, row("Year").ToString(), ""))
+                sb.AppendFormat("<td class='text-center'>{0}</td>",
+                       HttpUtility.HtmlEncode(If(row("MonthName") IsNot DBNull.Value, row("MonthName").ToString(), "")))
+
+                ' Type (Source)
+                Dim typeValue As String = If(row("Type") IsNot DBNull.Value, row("Type").ToString(), "")
+                Dim typeClass As String = ""
+                Select Case typeValue
+                    Case "Switch out"
+                        typeClass = "type-switch-out"
+                    Case "Carry out"
+                        typeClass = "type-carry-out"
+                    Case "Balance out"
+                        typeClass = "type-balance-out"
+                    Case "Extra"
+                        typeClass = "type-extra"
+                    Case Else
+                        typeClass = "type-default"
+                End Select
+                sb.AppendFormat("<td class='text-center {0}'>{1}</td>", typeClass, HttpUtility.HtmlEncode(typeValue))
+
+                ' Company (Source)
+                sb.AppendFormat("<td class='text-center'>{0}</td>",
+                       HttpUtility.HtmlEncode(If(row("Company") IsNot DBNull.Value, row("Company").ToString(), "")))
+                sb.AppendFormat("<td>{0}</td>",
+                       HttpUtility.HtmlEncode(If(row("CompanyName") IsNot DBNull.Value, row("CompanyName").ToString(), "")))
+
+                ' Category (Source)
+                sb.AppendFormat("<td class='text-center'>{0}</td>",
+                       HttpUtility.HtmlEncode(If(row("Category") IsNot DBNull.Value, row("Category").ToString(), "")))
+                sb.AppendFormat("<td>{0}</td>",
+                       HttpUtility.HtmlEncode(If(row("CategoryName") IsNot DBNull.Value, row("CategoryName").ToString(), "")))
+
+                ' Segment (Source)
+                sb.AppendFormat("<td class='text-center'>{0}</td>",
+                       HttpUtility.HtmlEncode(If(row("Segment") IsNot DBNull.Value, row("Segment").ToString(), "")))
+                sb.AppendFormat("<td>{0}</td>",
+                       HttpUtility.HtmlEncode(If(row("SegmentName") IsNot DBNull.Value, row("SegmentName").ToString(), "")))
+
+                ' Brand (Source)
+                sb.AppendFormat("<td class='text-center'>{0}</td>",
+                       HttpUtility.HtmlEncode(If(row("Brand") IsNot DBNull.Value, row("Brand").ToString(), "")))
+                sb.AppendFormat("<td>{0}</td>",
+                       HttpUtility.HtmlEncode(If(row("BrandName") IsNot DBNull.Value, row("BrandName").ToString(), "")))
+
+                ' Vendor (Source)
+                sb.AppendFormat("<td class='text-center'>{0}</td>",
+                       HttpUtility.HtmlEncode(If(row("Vendor") IsNot DBNull.Value, row("Vendor").ToString(), "")))
+                sb.AppendFormat("<td>{0}</td>",
+                       HttpUtility.HtmlEncode(If(row("VendorName") IsNot DBNull.Value, row("VendorName").ToString(), "")))
+
+                ' Budget Amount
+                Dim budgetAmount As Decimal = If(row("BudgetAmount") IsNot DBNull.Value, Convert.ToDecimal(row("BudgetAmount")), 0)
+                sb.AppendFormat("<td class='amount-cell'>{0}</td>", budgetAmount.ToString("N2"))
+
+                ' Release
+                Dim releaseAmount As Decimal = If(row("Release") IsNot DBNull.Value, Convert.ToDecimal(row("Release")), 0)
+                sb.AppendFormat("<td class='amount-cell'>{0}</td>", releaseAmount.ToString("N2"))
+
+                ' Switch Year & Month (Target) - เพิ่มการตรวจสอบ DBNull
+                sb.AppendFormat("<td class='text-center'>{0}</td>",
+                       If(row("SwitchYear") IsNot DBNull.Value, row("SwitchYear").ToString(), ""))
+                sb.AppendFormat("<td class='text-center'>{0}</td>",
+                       HttpUtility.HtmlEncode(If(row("SwitchMonthName") IsNot DBNull.Value, row("SwitchMonthName").ToString(), "")))
+
+                ' Switch Company (Target)
+                sb.AppendFormat("<td class='text-center'>{0}</td>",
+                       HttpUtility.HtmlEncode(If(row("SwitchCompany") IsNot DBNull.Value, row("SwitchCompany").ToString(), "")))
+
+                ' Switch Category (Target)
+                sb.AppendFormat("<td class='text-center'>{0}</td>",
+                       HttpUtility.HtmlEncode(If(row("SwitchCategory") IsNot DBNull.Value, row("SwitchCategory").ToString(), "")))
+
+                ' Switch Segment (Target)
+                sb.AppendFormat("<td class='text-center'>{0}</td>",
+                       HttpUtility.HtmlEncode(If(row("SwitchSegment") IsNot DBNull.Value, row("SwitchSegment").ToString(), "")))
+
+                ' Switch Brand (Target)
+                sb.AppendFormat("<td class='text-center'>{0}</td>",
+                       HttpUtility.HtmlEncode(If(row("SwitchBrand") IsNot DBNull.Value, row("SwitchBrand").ToString(), "")))
+
+                ' Switch Vendor (Target)
+                sb.AppendFormat("<td class='text-center'>{0}</td>",
+                       HttpUtility.HtmlEncode(If(row("SwitchVendor") IsNot DBNull.Value, row("SwitchVendor").ToString(), "")))
+
+                ' Batch
+                sb.AppendFormat("<td class='text-center'>{0}</td>",
+                       HttpUtility.HtmlEncode(If(row("Batch") IsNot DBNull.Value, row("Batch").ToString(), "")))
+
+                ' Remark
+                sb.AppendFormat("<td class='small'>{0}</td>",
+                       HttpUtility.HtmlEncode(If(row("Remark") IsNot DBNull.Value, row("Remark").ToString(), "")))
+
+                ' Status
+                sb.AppendFormat("<td class='text-center status-approved'>{0}</td>",
+                       HttpUtility.HtmlEncode(If(row("OTBStatus") IsNot DBNull.Value, row("OTBStatus").ToString(), "")))
+
+                ' Approved Date
+                sb.AppendFormat("<td class='date-cell'>{0}</td>",
+                       If(row("ApproveDT") IsNot DBNull.Value, Convert.ToDateTime(row("ApproveDT")).ToString("dd/MM/yyyy HH:mm"), ""))
+
+                ' SAP Date
+                sb.AppendFormat("<td class='date-cell'>{0}</td>",
+                       If(row("SAPDate") IsNot DBNull.Value, Convert.ToDateTime(row("SAPDate")).ToString("dd/MM/yyyy HH:mm"), ""))
+
+                ' Action By
+                sb.AppendFormat("<td>{0}</td>",
+                       HttpUtility.HtmlEncode(If(row("ActionBy") IsNot DBNull.Value, row("ActionBy").ToString(), "")))
+
+                sb.Append("</tr>")
+            Next
+        End If
+        Return sb.ToString()
+    End Function
+
     Private Function GetOTBData() As DataTable
         Dim dt As New DataTable()
         Using conn As New SqlConnection(connectionString93)
@@ -414,7 +549,7 @@ Public Class DataOTBHandler
                                           ,[Version]
                                           ,[OTBStatus]
                                       FROM [BMS].[dbo].[View_OTB_Draft]
-                                    WHERE (@OTBtype = '' OR OTBType = @OTBtype)
+                                      WHERE (@OTBtype = '' OR OTBType = @OTBtype)
                                       AND (@OTByear = '' OR OTBYear = @OTByear)
                                       AND (@OTBmonth = '' OR OTBMonth = @OTBmonth)
                                       AND (@OTBCompany = '' OR OTBCompany = @OTBCompany)
@@ -442,7 +577,14 @@ Public Class DataOTBHandler
 
     Private Function GetOTBApproveDataWithFilter(OTBtype As String, OTByear As String, OTBmonth As String, OTBCompany As String, OTBCategory As String, OTBSegment As String, OTBBrand As String, OTBVendor As String, OTBVersion As String) As DataTable
         Dim dt As New DataTable()
-        dt = ApprovedOTBManager.SearchApprovedOTB(type:=OTBtype, year:=OTByear, month:=OTBmonth, company:=OTBCompany, category:=OTBCategory, segment:=OTBSegment, brand:=OTBBrand, vendor:=OTBVendor, version:=OTBVersion)
+        dt = ApprovedOTBManager.SearchApprovedOTB(OTBtype, OTByear, OTBmonth, OTBCompany, OTBCategory, OTBSegment, OTBBrand, OTBVendor, OTBVersion)
+
+        Return dt
+    End Function
+
+    Private Function GetOTBSwitchDataWithFilter(OTBtype As String, OTByear As String, OTBmonth As String, OTBCompany As String, OTBCategory As String, OTBSegment As String, OTBBrand As String, OTBVendor As String) As DataTable
+        Dim dt As New DataTable()
+        dt = ApprovedOTBManager.SearchSwitchOTB(OTBtype, OTByear, OTBmonth, OTBCompany, OTBCategory, OTBSegment, OTBBrand, OTBVendor)
 
         Return dt
     End Function

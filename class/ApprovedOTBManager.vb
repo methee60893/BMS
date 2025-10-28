@@ -56,18 +56,18 @@ Public Class ApprovedOTBManager
     ''' </summary>
     Public Shared Function SearchApprovedOTB(
         Optional type As String = Nothing,
-        Optional year As Integer? = Nothing,
-        Optional month As Integer? = Nothing,
+        Optional year As String = Nothing,
+        Optional month As String = Nothing,
         Optional company As String = Nothing,
         Optional category As String = Nothing,
         Optional segment As String = Nothing,
         Optional brand As String = Nothing,
         Optional vendor As String = Nothing,
-        Optional status As String = "Approved",
-        Optional dateFrom As DateTime? = Nothing,
-        Optional dateTo As DateTime? = Nothing,
         Optional version As String = Nothing) As DataTable
 
+        Dim dateFrom As DateTime? = Nothing
+        Dim dateTo As DateTime? = Nothing
+        Dim status As String = "Approved"
         Dim dt As New DataTable()
 
         Try
@@ -79,8 +79,8 @@ Public Class ApprovedOTBManager
                     cmd.CommandTimeout = 300
 
                     cmd.Parameters.AddWithValue("@Type", If(String.IsNullOrEmpty(type), DBNull.Value, type))
-                    cmd.Parameters.AddWithValue("@Year", If(year.HasValue, year.Value, DBNull.Value))
-                    cmd.Parameters.AddWithValue("@Month", If(month.HasValue, month.Value, DBNull.Value))
+                    cmd.Parameters.AddWithValue("@Year", If(String.IsNullOrEmpty(year), DBNull.Value, year))
+                    cmd.Parameters.AddWithValue("@Month", If(String.IsNullOrEmpty(month), DBNull.Value, month))
                     cmd.Parameters.AddWithValue("@Company", If(String.IsNullOrEmpty(company), DBNull.Value, company))
                     cmd.Parameters.AddWithValue("@Category", If(String.IsNullOrEmpty(category), DBNull.Value, category))
                     cmd.Parameters.AddWithValue("@Segment", If(String.IsNullOrEmpty(segment), DBNull.Value, segment))
@@ -103,6 +103,57 @@ Public Class ApprovedOTBManager
 
         Return dt
     End Function
+
+    ''' <summary>
+    ''' Search Approved OTB
+    ''' </summary>
+    Public Shared Function SearchSwitchOTB(
+        Optional type As String = Nothing,
+        Optional year As String = Nothing,
+        Optional month As String = Nothing,
+        Optional company As String = Nothing,
+        Optional category As String = Nothing,
+        Optional segment As String = Nothing,
+        Optional brand As String = Nothing,
+        Optional vendor As String = Nothing) As DataTable
+
+        Dim dateFrom As DateTime? = Nothing
+        Dim dateTo As DateTime? = Nothing
+        Dim dt As New DataTable()
+
+        Try
+            Using conn As New SqlConnection(connectionString)
+                conn.Open()
+
+                Using cmd As New SqlCommand("SP_Search_SWitch_OTB", conn)
+                    cmd.CommandType = CommandType.StoredProcedure
+                    cmd.CommandTimeout = 300
+
+                    cmd.Parameters.AddWithValue("@Type", If(String.IsNullOrEmpty(type), DBNull.Value, type))
+                    cmd.Parameters.AddWithValue("@Year", If(String.IsNullOrEmpty(year), DBNull.Value, year))
+                    cmd.Parameters.AddWithValue("@Month", If(String.IsNullOrEmpty(month), DBNull.Value, month))
+                    cmd.Parameters.AddWithValue("@Company", If(String.IsNullOrEmpty(company), DBNull.Value, company))
+                    cmd.Parameters.AddWithValue("@Category", If(String.IsNullOrEmpty(category), DBNull.Value, category))
+                    cmd.Parameters.AddWithValue("@Segment", If(String.IsNullOrEmpty(segment), DBNull.Value, segment))
+                    cmd.Parameters.AddWithValue("@Brand", If(String.IsNullOrEmpty(brand), DBNull.Value, brand))
+                    cmd.Parameters.AddWithValue("@Vendor", If(String.IsNullOrEmpty(vendor), DBNull.Value, vendor))
+                    cmd.Parameters.AddWithValue("@DateFrom", If(dateFrom.HasValue, dateFrom.Value, DBNull.Value))
+                    cmd.Parameters.AddWithValue("@DateTo", If(dateTo.HasValue, dateTo.Value, DBNull.Value))
+
+
+                    Using adapter As New SqlDataAdapter(cmd)
+                        adapter.Fill(dt)
+                    End Using
+                End Using
+            End Using
+
+        Catch ex As Exception
+            Throw New Exception("Error searching switch OTB: " & ex.Message)
+        End Try
+
+        Return dt
+    End Function
+
 
     ''' <summary>
     ''' Export Approved OTB to DataTable (สำหรับ Excel Export)
