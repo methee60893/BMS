@@ -739,8 +739,8 @@
                             
                             <div class="file-input-group">
                                 <label>File</label>
-                                <input type="file" class="form-control" accept=".xlsx,.xls,.csv">
-                                <button class="btn-upload">
+                                <input type="file"  id="fileUpload" class="form-control" accept=".xlsx,.xls,.csv">
+                                <button type="button" id="btnUpload" class="btn-upload">
                                     <i class="bi bi-upload"></i> Upload
                                 </button>
                             </div>
@@ -751,8 +751,68 @@
         </div>
     </div>
 
+    <!-- Modal -->
+<div class="modal fade" id="previewModal" tabindex="-1" aria-labelledby="previewModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-xl">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="previewModalLabel">Preview Data</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div id="previewTableContainer"></div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" id="btnSubmitData" class="btn btn-primary">Submit to Database</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
     <script>
+
+        $(document).ready(function () {
+            $('#btnUpload').on('click', function (e) {
+                e.preventDefault(); // ป้องกัน default behavior (แม้จะเป็น button ก็ตาม)
+                console.log("Upload button clicked");
+
+                var fileInput = $('#fileUpload')[0];
+                var file = fileInput.files[0];
+                var currentUser = '<%= HttpUtility.JavaScriptStringEncode(Session("user").ToString()) %>';
+                        var uploadBy = currentUser || 'unknown';
+                        console.log(uploadBy);
+
+                        if (!file) {
+                            alert('Please select a file.');
+                            return;
+                        }
+
+                        var formData = new FormData();
+                        formData.append('file', file);
+                        formData.append('uploadBy', uploadBy); //  ส่งไปกับ request
+
+                        $.ajax({
+                            url: 'Handler/POUploadHandler.ashx?action=preview',
+                            type: 'POST',
+                            data: formData,
+                            processData: false,
+                            contentType: false,
+                            success: function (response) {
+                                $('#previewTableContainer').html(response);
+                                $('#previewModal').modal('show');
+                            },
+                            error: function (xhr, status, error) {
+                                alert('Error loading preview: ' + error);
+                            }
+                        });
+                    });
+
+        });
+
         // Toggle Sidebar
         function toggleSidebar() {
             const sidebar = document.getElementById('sidebar');

@@ -177,10 +177,10 @@ Public Class POUploadHandler
             Dim segmentValue As String = If(row("Segment") IsNot DBNull.Value, row("Segment").ToString().Trim(), "")
             Dim brandValue As String = If(row("Brand") IsNot DBNull.Value, row("Brand").ToString().Trim(), "")
             Dim vendorValue As String = If(row("Vendor") IsNot DBNull.Value, row("Vendor").ToString().Trim(), "")
-            Dim amountTHBValue As String = If(row("AmountTHB") IsNot DBNull.Value, row("AmountTHB").ToString().Trim(), "")
-            Dim amountCCYValue As String = If(row("AmountCCY") IsNot DBNull.Value, row("AmountCCY").ToString().Trim(), "")
+            Dim amountTHBValue As String = If(row("Amount (THB)") IsNot DBNull.Value, row("Amount (THB)").ToString().Trim(), "")
+            Dim amountCCYValue As String = If(row("Amount (CCY)") IsNot DBNull.Value, row("Amount (CCY)").ToString().Trim(), "")
             Dim ccyValue As String = If(row("CCY") IsNot DBNull.Value, row("CCY").ToString().Trim(), "")
-            Dim exRateValue As String = If(row("ExRate") IsNot DBNull.Value, row("ExRate").ToString().Trim(), "")
+            Dim exRateValue As String = If(row("Ex. Rate") IsNot DBNull.Value, row("Ex. Rate").ToString().Trim(), "")
             Dim RemarkValue As String = If(row("Remark") IsNot DBNull.Value, row("Remark").ToString().Trim(), "")
 
 
@@ -249,33 +249,14 @@ Public Class POUploadHandler
             sb.AppendFormat("<tr class='{0}' data-row-index='{1}'>", rowClass, i)
 
             ' Checkbox Column
-            If isValid OrElse canUpdate Then
-                ' Valid หรือ CanUpdate = checkbox enabled
-                Dim checkboxClass As String = If(canUpdate, "update-checkbox", "row-checkbox")
-                sb.AppendFormat("<td class='text-center'><input type='checkbox' name='selectedRows' class='form-check-input {0}' value='{1}' checked data-type='{2}' data-year='{3}' data-month='{4}' data-category='{5}' data-company='{6}' data-segment='{7}' data-brand='{8}' data-vendor='{9}' data-amount='{10}' data-can-update='{11}'></td>",
+            Dim checkboxClass As String = "row-checkbox"
+            sb.AppendFormat("<td class='text-center'><input type='checkbox' name='selectedRows' class='form-check-input {0}' value='{1}' checked ></td>",
                           checkboxClass,
-                          i,
-                          HttpUtility.HtmlAttributeEncode(yearValue),
-                          HttpUtility.HtmlAttributeEncode(monthValue),
-                          HttpUtility.HtmlAttributeEncode(categoryValue),
-                          HttpUtility.HtmlAttributeEncode(companyValue),
-                          HttpUtility.HtmlAttributeEncode(segmentValue),
-                          HttpUtility.HtmlAttributeEncode(brandValue),
-                          HttpUtility.HtmlAttributeEncode(vendorValue),
-                          HttpUtility.HtmlAttributeEncode(RemarkValue),
-                          canUpdate.ToString().ToLower())
-            Else
-                ' Invalid = checkbox disabled
-                sb.Append("<td class='text-center'><input type='checkbox' class='form-check-input' disabled></td>")
-            End If
+                          i)
+
 
             ' No. Column
-            sb.AppendFormat("<td class='text-center'>{0}</td>", i + 1)
-
-            ' Type Column (Original = ดำ, Revise = แดง)
-            'Dim typeClass As String = If(typeValue.Equals("Original", StringComparison.OrdinalIgnoreCase), "", "text-danger fw-bold")
-            'sb.AppendFormat("<td class='text-center {0}'>{1}</td>", typeClass, HttpUtility.HtmlEncode(typeValue))
-
+            sb.AppendFormat("<td class='text-center'>{0}</td>", HttpUtility.HtmlEncode(PONOValue))
 
             ' Year Column
             sb.AppendFormat("<td class='text-center'>{0}</td>", HttpUtility.HtmlEncode(yearValue))
@@ -326,16 +307,27 @@ Public Class POUploadHandler
             ' Vendor Name (TODO: ดึงจาก Master)
             sb.Append("<td>-</td>")
 
-            ' Amount
+            ' Amount (TH)
             Try
-                'Dim amountDec As Decimal = Convert.ToDecimal(amountValue)
-                'sb.AppendFormat("<td class='text-end'>{0}</td>", amountDec.ToString("N2"))
+                Dim amountTHBDec As Decimal = Convert.ToDecimal(amountTHBValue)
+                sb.AppendFormat("<td class='text-end'>{0}</td>", amountTHBDec.ToString("N2"))
             Catch
-                'sb.AppendFormat("<td class='text-end'>{0}</td>", HttpUtility.HtmlEncode(amountValue))
+                sb.AppendFormat("<td class='text-end'>{0}</td>", HttpUtility.HtmlEncode(amountTHBValue))
             End Try
 
-            ' Current Budget (ยังไม่มีข้อมูล)
-            sb.Append("<td class='text-end'>0.00</td>")
+            ' Amount (CCY)
+            Try
+                Dim amountCCYDec As Decimal = Convert.ToDecimal(amountCCYValue)
+                sb.AppendFormat("<td class='text-end'>{0}</td>", amountCCYDec.ToString("N2"))
+            Catch
+                sb.AppendFormat("<td class='text-end'>{0}</td>", HttpUtility.HtmlEncode(amountCCYValue))
+            End Try
+
+            ' CCY
+            sb.AppendFormat("<td class='text-end'>{0}</td>", HttpUtility.HtmlEncode(ccyValue))
+
+            ' Ex.Rate
+            sb.AppendFormat("<td class='text-end'>{0}</td>", HttpUtility.HtmlEncode(exRateValue))
 
             ' Remark
             sb.AppendFormat("<td>{0}</td>", HttpUtility.HtmlEncode(remarkValue))
@@ -398,17 +390,19 @@ Public Class POUploadHandler
 
         ' === 4. แยกข้อมูลเป็น INSERT และ UPDATE ===
         Dim insertTable As New DataTable()
-        insertTable.Columns.Add("Type", GetType(String))
-        insertTable.Columns.Add("Year", GetType(String))
-        insertTable.Columns.Add("Month", GetType(String))
-        insertTable.Columns.Add("Category", GetType(String))
-        insertTable.Columns.Add("Company", GetType(String))
-        insertTable.Columns.Add("Segment", GetType(String))
-        insertTable.Columns.Add("Brand", GetType(String))
-        insertTable.Columns.Add("Vendor", GetType(String))
+        insertTable.Columns.Add("DraftPO_No", GetType(String))
+        insertTable.Columns.Add("PO_Year", GetType(String))
+        insertTable.Columns.Add("PO_Month", GetType(String))
+        insertTable.Columns.Add("Category_Code", GetType(String))
+        insertTable.Columns.Add("Company_Code", GetType(String))
+        insertTable.Columns.Add("Segment_Code", GetType(String))
+        insertTable.Columns.Add("Brand_Doce", GetType(String))
+        insertTable.Columns.Add("Vendor_Code", GetType(String))
         insertTable.Columns.Add("Amount", GetType(String))
-        insertTable.Columns.Add("Version", GetType(String))
-        insertTable.Columns.Add("UploadBy", GetType(String))
+        insertTable.Columns.Add("AmountTHB", GetType(String))
+        insertTable.Columns.Add("AmountCCY", GetType(String))
+        insertTable.Columns.Add("CCY", GetType(String))
+        insertTable.Columns.Add("EXrate", GetType(String))
         insertTable.Columns.Add("Batch", GetType(String))
         insertTable.Columns.Add("CreateDT", GetType(DateTime))
 

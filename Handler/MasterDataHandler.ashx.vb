@@ -248,7 +248,7 @@ Public Class MasterDataHandler
         Dim dt As New DataTable()
         Using conn As New SqlConnection(connectionString93)
             conn.Open()
-            Dim query As String = "SELECT DISTINCT [Year] FROM [BMS].[dbo].[Template_Upload_Draft_OTB]"
+            Dim query As String = "SELECT DISTINCT [Year_Kept] AS 'Year' FROM [BMS].[dbo].[MS_Year]"
             Using cmd As New SqlCommand(query, conn)
                 Using reader As SqlDataReader = cmd.ExecuteReader()
                     dt.Load(reader)
