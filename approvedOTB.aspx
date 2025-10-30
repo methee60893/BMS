@@ -670,7 +670,9 @@
                                 <th>Status</th>
                                 <th>Approved Date</th>
                                 <th>SAP Rate</th>
-                                <th>Action By</th>
+                                <th>Created By</th>
+                                <th>SAP Status</th>
+                                <th>SAP Message</th>
                             </tr>
                         </thead>
                         <tbody id="tableViewBody">

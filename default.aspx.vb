@@ -5,7 +5,7 @@ Imports BMS.share_class
 Public Class _default
     Inherits System.Web.UI.Page
 
-    Public connectionString As String = "Server=10.3.1.216;Database=OneSystem;User Id=sa;Password=sql2022;TrustServerCertificate=true;"
+    Public connectionString As String = ConfigurationManager.ConnectionStrings("LoginConnectionString")?.ConnectionString
 
     Protected Sub Page_Load(ByVal sender As Object, ByVal e As System.EventArgs) Handles Me.Load
 

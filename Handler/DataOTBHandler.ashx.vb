@@ -7,6 +7,7 @@ Imports System.IO
 Imports System.Text
 Imports System.Web
 Imports System.Web.Script.Serialization
+Imports System.Web.Services.Description
 Imports ExcelDataReader
 Imports Newtonsoft.Json
 Imports OfficeOpenXml
@@ -15,7 +16,7 @@ Imports OfficeOpenXml.Style
 Public Class DataOTBHandler
     Implements IHttpHandler
 
-    Public Shared connectionString93 As String = "Data Source=10.3.0.93;Initial Catalog=BMS;Persist Security Info=True;User ID=sa;Password=sql2014"
+    Private Shared connectionString As String = ConfigurationManager.ConnectionStrings("BMSConnectionString")?.ConnectionString
 
     Sub ProcessRequest(ByVal context As HttpContext) Implements IHttpHandler.ProcessRequest
 
@@ -125,6 +126,9 @@ Public Class DataOTBHandler
                     ' เพิ่มใน ProcessRequest method
                 ElseIf context.Request("action") = "approveDraftOTB" Then
                     ApproveDraftOTB(context)
+                ElseIf context.Request("action") = "deleteDraftOTB" Then
+
+                    DeleteDraftOTB(context)
                 ElseIf context.Request("action") = "obtApprovelistbyfilter" Then
                     dt = GetOTBApproveDataWithFilter(OTBtype, OTByear, OTBmonth, OTBCompany, OTBCategory, OTBSegment, OTBBrand, OTBVendor, OTBVersion)
                     context.Response.Write(GenerateHtmlApprovedTable(dt))
@@ -173,6 +177,8 @@ Public Class DataOTBHandler
 
     End Sub
 
+
+
     ' *** ADDED: New function to create and send the Excel file ***
     Private Sub ExportDraftToExcel(context As HttpContext, dt As DataTable, filename As String)
         ' Set the license context for EPPlus
@@ -212,7 +218,7 @@ Public Class DataOTBHandler
         Dim sb As New StringBuilder()
 
         If dt.Rows.Count = 0 Then
-            sb.Append("<tr><td colspan='19' class='text-center text-muted'>No Draft OTB records found</td></tr>")
+            sb.Append("<tr><td colspan='20' class='text-center text-muted'>No Draft OTB records found</td></tr>")
         Else
             For i As Integer = 0 To dt.Rows.Count - 1
 
@@ -249,6 +255,7 @@ Public Class DataOTBHandler
                 Dim Remark As String = If(dt.Rows(i)("Remark") IsNot DBNull.Value, dt.Rows(i)("Remark").ToString(), "")
                 Dim Version As String = If(dt.Rows(i)("Version") IsNot DBNull.Value, dt.Rows(i)("Version").ToString(), "")
                 Dim OTBStatus As String = If(dt.Rows(i)("OTBStatus") IsNot DBNull.Value, dt.Rows(i)("OTBStatus").ToString(), "")
+                Dim CreateBy As String = If(dt.Rows(i)("UploadBy") IsNot DBNull.Value, dt.Rows(i)("UploadBy").ToString(), "")
 
 
                 sb.AppendFormat("<tr>
@@ -272,6 +279,7 @@ Public Class DataOTBHandler
                                 <td>{17}</td>
                                 <td>{18}</td>
                                 <td>{19}</td>
+                                <td>{20}</td>
                             </tr>",
                             HttpUtility.HtmlEncode(RunNo),
                             HttpUtility.HtmlEncode(CreateDT),
@@ -292,7 +300,8 @@ Public Class DataOTBHandler
                             HttpUtility.HtmlEncode(Diff),
                             If(OTBStatus.Equals("Draft"), "<span class=""badge-draft"">Draft</span>", "<span class=""badge-approved"">Approved</span>"),
                             HttpUtility.HtmlEncode(Version),
-                            HttpUtility.HtmlEncode(Remark))
+                            HttpUtility.HtmlEncode(Remark),
+                            HttpUtility.HtmlEncode(CreateBy))
             Next
         End If
         Return sb.ToString()
@@ -371,6 +380,10 @@ Public Class DataOTBHandler
 
                 ' Action By
                 sb.AppendFormat("<td>{0}</td>", HttpUtility.HtmlEncode(If(row("ActionBy") IsNot DBNull.Value, row("ActionBy").ToString(), "")))
+                ' SAP Status
+                sb.AppendFormat("<td>{0}</td>", HttpUtility.HtmlEncode(If(row("SAPStatus") IsNot DBNull.Value, row("SAPStatus").ToString(), "")))
+                ' SAP Message
+                sb.AppendFormat("<td>{0}</td>", HttpUtility.HtmlEncode(If(row("SAPErrorMessage") IsNot DBNull.Value, row("SAPErrorMessage").ToString(), "")))
 
                 sb.Append("</tr>")
             Next
@@ -510,7 +523,7 @@ Public Class DataOTBHandler
 
     Private Function GetOTBData() As DataTable
         Dim dt As New DataTable()
-        Using conn As New SqlConnection(connectionString93)
+        Using conn As New SqlConnection(connectionString)
             conn.Open()
             Dim query As String = "SELECT * FROM [Template_Upload_Draft_OTB]" ' ปรับเปลี่ยนตามตารางจริง
             Using cmd As New SqlCommand(query, conn)
@@ -524,7 +537,7 @@ Public Class DataOTBHandler
 
     Private Function GetOTBDraftDataWithFilter(OTBtype As String, OTByear As String, OTBmonth As String, OTBCompany As String, OTBCategory As String, OTBSegment As String, OTBBrand As String, OTBVendor As String) As DataTable
         Dim dt As New DataTable()
-        Using conn As New SqlConnection(connectionString93)
+        Using conn As New SqlConnection(connectionString)
             conn.Open()
             Dim query As String = "SELECT  [RunNo]
                                           ,[OTBVendor]
@@ -592,7 +605,7 @@ Public Class DataOTBHandler
     Private Sub ApproveDraftOTB(context As HttpContext)
         Try
             ' Get selected IDs
-            Dim idsString As String = If(String.IsNullOrWhiteSpace(context.Request.Form("draftIDs")), "", context.Request.Form("draftIDs").Trim())
+            Dim idsString As String = If(String.IsNullOrWhiteSpace(context.Request.Form("runNos")), "", context.Request.Form("runNos").Trim())
             Dim approvedBy As String = If(String.IsNullOrWhiteSpace(context.Request.Form("approvedBy")), "System", context.Request.Form("approvedBy").Trim())
             Dim remark As String = If(String.IsNullOrWhiteSpace(context.Request.Form("remark")), Nothing, context.Request.Form("remark").Trim())
 
@@ -641,6 +654,70 @@ Public Class DataOTBHandler
             .message = "Error approving records: " & ex.Message
         }
             context.Response.Write(JsonConvert.SerializeObject(errorResponse))
+        End Try
+    End Sub
+
+    Private Sub DeleteDraftOTB(context As HttpContext)
+        Try
+
+            context.Response.ContentType = "application/json"
+            Dim runNoJson As String = If(String.IsNullOrWhiteSpace(context.Request.Form("runNos")), "", context.Request.Form("runNos").Trim())
+
+            If String.IsNullOrEmpty(runNoJson) Then
+                Dim errorResponse As New With {
+                .success = False,
+                .message = "No records selected for approval"
+            }
+                context.Response.Write(JsonConvert.SerializeObject(errorResponse))
+                Return
+            End If
+
+            ' Convert comma-separated IDs to List
+            Dim runNos As New List(Of Integer)
+            Try
+                ' Deserialize JSON array ["842","843","844",...]
+                Dim jsonArray As List(Of String) = JsonConvert.DeserializeObject(Of List(Of String))(runNoJson)
+
+                For Each idStr As String In jsonArray
+                    Dim id As Integer
+                    If Integer.TryParse(idStr.Trim(), id) Then
+                        runNos.Add(id)
+                    End If
+                Next
+            Catch jsonEx As Exception
+                ' ถ้า deserialize ไม่ได้ ลองแบบเก่า (comma-separated)
+                For Each idStr As String In runNoJson.Split(","c)
+                    Dim id As Integer
+                    If Integer.TryParse(idStr.Trim().Replace("""", ""), id) Then
+                        runNos.Add(id)
+                    End If
+                Next
+            End Try
+
+            If runNos.Count = 0 Then
+                Dim errorResponse As New With {
+                .success = False,
+                .message = "No valid records to delete"
+            }
+                context.Response.Write(JsonConvert.SerializeObject(errorResponse))
+                Return
+            End If
+
+            ' Call Approve function
+            Dim result As Dictionary(Of String, Object) = ApprovedOTBManager.DeleteDraftOTB(runNos)
+            Dim response As New With {
+                   .success = If(result("Status").ToString() = "Success", True, False),
+                   .message = If(result.ContainsKey("Message"), result("Message").ToString(), $"Successfully approved {result("DeletedCount")} records"),
+                   .deletedCount = result("DeletedCount")
+            }
+            context.Response.Write(JsonConvert.SerializeObject(response))
+        Catch ex As Exception
+            Dim errorResponse As New With {
+                .success = False,
+                .message = "Error deleting draft OTB: " + ex.Message
+            }
+            context.Response.Write(JsonConvert.SerializeObject(errorResponse))
+
         End Try
     End Sub
 

@@ -2,8 +2,7 @@
 Imports System.Data.SqlClient
 
 Public Class OTBBudgetCalculator
-    Private Shared connectionString As String = "Data Source=10.3.0.93;Initial Catalog=BMS;Persist Security Info=True;User ID=sa;Password=sql2014"
-
+    Private Shared connectionString As String = ConfigurationManager.ConnectionStrings("BMSConnectionString")?.ConnectionString
     ''' <summary>
     ''' คำนวณ Current Total Approved Budget
     ''' = Original + Rev.diff + Extra + Switch In + Balance In + Carry In - Switch Out - Balance Out - Carry Out

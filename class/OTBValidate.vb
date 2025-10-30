@@ -3,8 +3,7 @@ Imports System.Data.SqlClient
 
 Public Class OTBValidate
 
-    Private Shared connectionString As String = "Data Source=10.3.0.93;Initial Catalog=BMS;Persist Security Info=True;User ID=sa;Password=sql2014"
-
+    Private Shared connectionString As String = ConfigurationManager.ConnectionStrings("BMSConnectionString")?.ConnectionString
 
     Private dtCategories As DataTable
     Private dtSegments As DataTable

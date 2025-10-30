@@ -6,11 +6,12 @@ Imports System.Globalization
 Imports System.IO
 Imports System.Text
 Imports System.Web
+Imports System.Web.Script.Serialization
 Imports ExcelDataReader
 
 Public Class UploadHandler : Implements IHttpHandler
 
-    Public Shared connectionString93 As String = "Data Source=10.3.0.93;Initial Catalog=BMS;Persist Security Info=True;User ID=sa;Password=sql2014"
+    Private Shared connectionString As String = ConfigurationManager.ConnectionStrings("BMSConnectionString")?.ConnectionString
 
     Public Sub ProcessRequest(ByVal context As HttpContext) Implements IHttpHandler.ProcessRequest
         context.Response.Clear()
@@ -20,6 +21,18 @@ Public Class UploadHandler : Implements IHttpHandler
         '  รับค่า uploadBy จาก form data
         Dim uploadBy As String = context.Request.Form("uploadBy")
         If String.IsNullOrEmpty(uploadBy) Then uploadBy = "unknown"
+
+        Dim action As String = context.Request("action")
+        If action = "savePreview" Then
+            Try
+                Dim jsonData As String = context.Request.Form("selectedData")
+                SaveFromPreview(jsonData, uploadBy, context) ' เรียก Method ใหม่
+            Catch ex As Exception
+                context.Response.StatusCode = 500
+                context.Response.Write($"<div class='alert alert-danger'>Error: {HttpUtility.HtmlEncode(ex.Message)}</div>")
+            End Try
+            Return ' ออกจากการทำงานทันที
+        End If
 
         If context.Request.Files.Count = 0 Then
             context.Response.Write("No file uploaded.")
@@ -329,8 +342,10 @@ Public Class UploadHandler : Implements IHttpHandler
                 sb.AppendFormat("<td class='text-end'>{0}</td>", HttpUtility.HtmlEncode(amountValue))
             End Try
 
+
+
             ' Current Budget (ยังไม่มีข้อมูล)
-            sb.Append("<td class='text-end'>0.00</td>")
+            sb.AppendFormat("<td class='text-end'>{0}</td>", HttpUtility.HtmlEncode(0.00))
 
             ' Remark
             sb.AppendFormat("<td>{0}</td>", HttpUtility.HtmlEncode(remarkValue))
@@ -514,7 +529,7 @@ Public Class UploadHandler : Implements IHttpHandler
         Next
 
         ' === 5. Execute INSERT และ UPDATE ===
-        Using conn As New SqlConnection(connectionString93)
+        Using conn As New SqlConnection(connectionString)
             conn.Open()
             Using transaction As SqlTransaction = conn.BeginTransaction()
                 Try
@@ -580,6 +595,186 @@ Public Class UploadHandler : Implements IHttpHandler
         context.Response.Write($"Successfully saved {savedCount} new rows and updated {updatedCount} rows to Draft OTB (Batch: {newBatch})")
     End Sub
 
+    Private Sub SaveFromPreview(jsonData As String, uploadBy As String, context As HttpContext)
+        ' === 0. แปลง JSON ===
+        If String.IsNullOrEmpty(jsonData) Then
+            Throw New Exception("No data selected.")
+        End If
+
+        Dim serializer As New JavaScriptSerializer()
+        Dim selectedRows As List(Of OTBUploadPreviewRow) = serializer.Deserialize(Of List(Of OTBUploadPreviewRow))(jsonData)
+
+        If selectedRows.Count = 0 Then
+            ' แม้ JS จะเช็คแล้ว แต่ Server ก็ควรเช็คด้วย
+            context.Response.Write("No rows were selected to save.")
+            Return
+        End If
+
+        ' === 1. สร้าง Validator (สำหรับตรวจสอบข้อมูล) ===
+        Dim validator As New OTBValidate()
+
+        ' === 2. ดึง Batch ใหม่ ===
+        Dim newBatch As String = GetNextBatchNumber()
+        Dim createDT As DateTime = DateTime.Now
+
+        ' === 3. แยกข้อมูลเป็น INSERT และ UPDATE ===
+        Dim insertTable As New DataTable()
+
+        insertTable.Columns.Add("Type", GetType(String))
+        insertTable.Columns.Add("Year", GetType(String))
+        insertTable.Columns.Add("Month", GetType(String))
+        insertTable.Columns.Add("Category", GetType(String))
+        insertTable.Columns.Add("Company", GetType(String))
+        insertTable.Columns.Add("Segment", GetType(String))
+        insertTable.Columns.Add("Brand", GetType(String))
+        insertTable.Columns.Add("Vendor", GetType(String))
+        insertTable.Columns.Add("Amount", GetType(String))
+        insertTable.Columns.Add("Version", GetType(String))
+        insertTable.Columns.Add("UploadBy", GetType(String))
+        insertTable.Columns.Add("Batch", GetType(String))
+        insertTable.Columns.Add("Remark", GetType(String))
+        insertTable.Columns.Add("CreateDT", GetType(DateTime))
+
+        Dim updateList As New List(Of Dictionary(Of String, Object))
+
+        Dim savedCount As Integer = 0
+        Dim updatedCount As Integer = 0
+
+        ' === 4. วนลูปข้อมูลที่ส่งมาจาก Preview (นี่คือส่วนที่เปลี่ยน) ===
+        For Each row As OTBUploadPreviewRow In selectedRows
+            Try
+                ' ดึงค่าจาก Object (ไม่ใช่ DataRow)
+                Dim typeValue As String = row.Type
+                Dim yearValue As String = row.Year
+                Dim monthValue As String = row.Month
+                Dim categoryValue As String = row.Category
+                Dim companyValue As String = row.Company
+                Dim segmentValue As String = row.Segment
+                Dim brandValue As String = row.Brand
+                Dim vendorValue As String = row.Vendor
+                Dim amountValue As String = row.Amount
+                Dim remarkValue As String = row.Remark
+                ' Validate (เหมือนเดิม)
+                Dim canUpdate As Boolean = False
+                Dim errorMsg As String = validator.ValidateAllWithDuplicateCheck(typeValue, yearValue, monthValue,
+                                                                            categoryValue, companyValue, segmentValue,
+                                                                            brandValue, vendorValue, amountValue, canUpdate)
+
+                ' ตรวจสอบ serious errors (เหมือนเดิม)
+                Dim hasSeriousError As Boolean = False
+                If Not String.IsNullOrEmpty(errorMsg) Then
+                    If errorMsg.Contains("No Original found") OrElse
+                   errorMsg.Contains("Data format error") OrElse
+                   errorMsg.Contains("is required") OrElse
+                   errorMsg.Contains("Not found") Then
+                        If Not errorMsg.Contains("(Will Update)") Then
+                            hasSeriousError = True
+                        End If
+                    End If
+                End If
+
+                ' บันทึกเฉพาะแถวที่ valid หรือ canUpdate (เหมือนเดิม) 
+                If Not hasSeriousError Then
+                    Dim amountDec As Decimal = Convert.ToDecimal(amountValue)
+                    Dim versionValue As String = CalculateVersionFromHistory(typeValue, yearValue, monthValue,
+                                                                         categoryValue, companyValue, segmentValue,
+                                                                         brandValue, vendorValue)
+
+                    If canUpdate Then
+                        ' === UPDATE Case ===
+                        Dim updateData As New Dictionary(Of String, Object)
+                        updateData.Add("Type", typeValue)
+                        updateData.Add("Year", yearValue)
+                        updateData.Add("Month", monthValue)
+                        updateData.Add("Category", categoryValue)
+                        updateData.Add("Company", companyValue)
+                        updateData.Add("Segment", segmentValue)
+                        updateData.Add("Brand", brandValue)
+                        updateData.Add("Vendor", vendorValue)
+                        updateData.Add("Amount", amountDec.ToString("0.00"))
+                        updateData.Add("UploadBy", uploadBy)
+                        updateData.Add("Batch", newBatch)
+                        updateData.Add("UpdateDT", createDT)
+                        updateList.Add(updateData)
+                        updatedCount += 1
+                    Else
+                        ' === INSERT Case ===
+                        Dim newRow As DataRow = insertTable.NewRow()
+                        newRow("Type") = typeValue
+                        newRow("Year") = yearValue
+                        newRow("Month") = monthValue
+                        newRow("Category") = categoryValue
+                        newRow("Company") = companyValue
+                        newRow("Segment") = segmentValue
+                        newRow("Brand") = brandValue
+                        newRow("Vendor") = vendorValue
+                        newRow("Amount") = amountDec.ToString("0.00")
+                        newRow("Version") = versionValue
+                        newRow("UploadBy") = uploadBy
+                        newRow("Batch") = newBatch
+                        newRow("CreateDT") = createDT
+                        insertTable.Rows.Add(newRow)
+                        savedCount += 1
+                    End If
+                End If
+
+            Catch ex As Exception
+                ' ข้ามแถวที่มีปัญหา
+                Continue For
+            End Try
+        Next
+
+        ' === 5. Execute INSERT และ UPDATE (เหมือนเดิม) ===
+        Using conn As New SqlConnection(connectionString)
+            conn.Open()
+            Using transaction As SqlTransaction = conn.BeginTransaction()
+                Try
+                    ' Bulk Insert
+                    If insertTable.Rows.Count > 0 Then
+                        Using bulkCopy As New SqlBulkCopy(conn, SqlBulkCopyOptions.Default, transaction)
+                            bulkCopy.DestinationTableName = "[dbo].[Template_Upload_Draft_OTB]"
+                            ' ... (Column Mappings) ... 
+                            For Each col As DataColumn In insertTable.Columns
+                                bulkCopy.ColumnMappings.Add(col.ColumnName, col.ColumnName)
+                            Next
+                            bulkCopy.WriteToServer(insertTable)
+                        End Using
+                    End If
+
+                    ' UPDATE แต่ละแถว
+                    For Each updateData As Dictionary(Of String, Object) In updateList
+                        ' ... (Query และ Parameters เหมือนเดิม) ...
+                        Dim updateQuery As String = "UPDATE [dbo].[Template_Upload_Draft_OTB] SET [Amount] = @Amount, [UploadBy] = @UploadBy, [Batch] = @Batch, [UpdateDT] = @UpdateDT WHERE [Type] = @Type AND [Year] = @Year AND [Month] = @Month AND [Category] = @Category AND [Company] = @Company AND [Segment] = @Segment AND [Brand] = @Brand AND [Vendor] = @Vendor AND (OTBStatus IS NULL OR OTBStatus = 'Draft')"
+                        Using cmd As New SqlCommand(updateQuery, conn, transaction)
+                            cmd.Parameters.AddWithValue("@Type", updateData("Type"))
+                            cmd.Parameters.AddWithValue("@Year", updateData("Year"))
+                            cmd.Parameters.AddWithValue("@Month", updateData("Month"))
+                            cmd.Parameters.AddWithValue("@Category", updateData("Category"))
+                            cmd.Parameters.AddWithValue("@Company", updateData("Company"))
+                            cmd.Parameters.AddWithValue("@Segment", updateData("Segment"))
+                            cmd.Parameters.AddWithValue("@Brand", updateData("Brand"))
+                            cmd.Parameters.AddWithValue("@Vendor", updateData("Vendor"))
+                            cmd.Parameters.AddWithValue("@Amount", updateData("Amount"))
+                            cmd.Parameters.AddWithValue("@UploadBy", updateData("UploadBy"))
+                            cmd.Parameters.AddWithValue("@Batch", updateData("Batch"))
+                            cmd.Parameters.AddWithValue("@UpdateDT", updateData("UpdateDT"))
+                            cmd.ExecuteNonQuery()
+                        End Using
+                    Next
+
+                    transaction.Commit()
+
+                Catch ex As Exception
+                    transaction.Rollback()
+                    Throw New Exception("Error saving data: " & ex.Message)
+                End Try
+            End Using
+        End Using
+
+        ' === 6. ส่งผลลัพธ์กลับ ===
+        context.Response.Write($"Successfully saved {savedCount} new rows and updated {updatedCount} rows to Draft OTB (Batch: {newBatch})")
+    End Sub
+
     Public ReadOnly Property IsReusable() As Boolean Implements IHttpHandler.IsReusable
         Get
             Return False
@@ -587,7 +782,7 @@ Public Class UploadHandler : Implements IHttpHandler
     End Property
 
     Private Function GetNextBatchNumber() As String
-        Dim connectionString As String = connectionString93
+
         Dim currentMax As Integer = 0
 
         Using conn As New SqlConnection(connectionString)
@@ -619,7 +814,7 @@ Public Class UploadHandler : Implements IHttpHandler
 
             ' ถ้าเป็น Revise → ต้องหา Version ล่าสุดของ Key นี้
             If type.Equals("Revise", StringComparison.OrdinalIgnoreCase) Then
-                Using conn As New SqlConnection(connectionString93)
+                Using conn As New SqlConnection(connectionString)
                     conn.Open()
 
                     ' Query หา Version ล่าสุดของ Key เดียวกัน

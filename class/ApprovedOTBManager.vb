@@ -3,8 +3,7 @@ Imports System.Data.SqlClient
 Imports System.Text
 
 Public Class ApprovedOTBManager
-    Private Shared connectionString As String = "Data Source=10.3.0.93;Initial Catalog=BMS;Persist Security Info=True;User ID=sa;Password=sql2014"
-
+    Private Shared connectionString As String = ConfigurationManager.ConnectionStrings("BMSConnectionString")?.ConnectionString
     ''' <summary>
     ''' Approve Draft OTB โดยส่ง IDs
     ''' </summary>
@@ -46,6 +45,44 @@ Public Class ApprovedOTBManager
             result.Add("Status", "Error")
             result.Add("ErrorMessage", ex.Message)
             result.Add("ApprovedCount", 0)
+        End Try
+
+        Return result
+    End Function
+
+    Public Shared Function DeleteDraftOTB(runNos As List(Of Integer)) As Dictionary(Of String, Object)
+        Dim result As New Dictionary(Of String, Object)
+
+        Try
+            ' แปลง List to comma-separated string
+            Dim idsString As String = String.Join(",", runNos)
+
+            Using conn As New SqlConnection(connectionString)
+                conn.Open()
+
+                Using cmd As New SqlCommand("SP_Deleted_Draft_OTB", conn)
+                    cmd.CommandType = CommandType.StoredProcedure
+                    cmd.CommandTimeout = 300
+
+                    cmd.Parameters.AddWithValue("@runNos", idsString)
+
+
+                    Using reader As SqlDataReader = cmd.ExecuteReader()
+                        If reader.Read() Then
+                            result.Add("DeletedCount", If(reader("DeletedCount") IsNot DBNull.Value, Convert.ToInt32(reader("DeletedCount")), 0))
+                            result.Add("Status", If(reader("Status") IsNot DBNull.Value, reader("Status").ToString(), ""))
+                            If reader("Status").ToString() = "Error" Then
+                                result.Add("Message", If(reader("Message") IsNot DBNull.Value, reader("Message").ToString(), "Unknown error"))
+                            End If
+                        End If
+                    End Using
+                End Using
+            End Using
+
+        Catch ex As Exception
+            result.Add("Status", "Error")
+            result.Add("ErrorMessage", ex.Message)
+            result.Add("DeletedCount", 0)
         End Try
 
         Return result

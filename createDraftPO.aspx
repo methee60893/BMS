@@ -601,16 +601,14 @@
                         <div class="form-row-display form-row-item">
                             <div class="form-group">
                                 <label>Year</label>
-                                <select class="form-select">
-                                    <option>2024</option>
-                                    <option selected>2025</option>
+                                <select id="DDYear" class="form-select">
+                               
                                 </select>
                             </div>
                             <div class="form-group">
                                 <label>Category</label>
-                                <select class="form-select">
-                                    <option selected>221 - FA Leather Goods</option>
-                                    <option>222 - FA Accessories</option>
+                                <select id="DDCategory" class="form-select">
+                                   
                                 </select>
                             </div>
                         </div>
@@ -619,26 +617,14 @@
                         <div class="form-row-display form-row-item">
                             <div class="form-group">
                                 <label>Month</label>
-                                <select class="form-select">
-                                    <option>Jan</option>
-                                    <option>Feb</option>
-                                    <option>Mar</option>
-                                    <option>Apr</option>
-                                    <option>May</option>
-                                    <option selected>Jun</option>
-                                    <option>Jul</option>
-                                    <option>Aug</option>
-                                    <option>Sep</option>
-                                    <option>Oct</option>
-                                    <option>Nov</option>
-                                    <option>Dec</option>
+                                <select id="DDMonth" class="form-select">
+                                  
                                 </select>
                             </div>
                             <div class="form-group">
                                 <label>Segment</label>
-                                <select class="form-select">
-                                    <option selected>O2000 - T/T Normal</option>
-                                    <option>O3000 - Local Credit</option>
+                                <select id="DDSegment" class="form-select">
+                                   
                                 </select>
                             </div>
                         </div>
@@ -647,18 +633,14 @@
                         <div class="form-row-display form-row-item">
                             <div class="form-group">
                                 <label>Company</label>
-                                <select class="form-select">
-                                    <option selected>KPC</option>
-                                    <option>KPD</option>
-                                    <option>KPT</option>
-                                    <option>KPS</option>
+                                <select id="DDCompany" class="form-select">
+                                  
                                 </select>
                             </div>
                             <div class="form-group">
                                 <label>Brand</label>
-                                <select class="form-select">
-                                    <option selected>HBS - HUGO BOSS</option>
-                                    <option>MCM - MCM</option>
+                                <select id="DDBrand" class="form-select">
+                                  
                                 </select>
                             </div>
                         </div>
@@ -671,9 +653,8 @@
                             </div>
                             <div class="form-group">
                                 <label>Vendor</label>
-                                <select class="form-select">
-                                    <option selected>1010900 - HUGO BOSS SOUTH</option>
-                                    <option>1011009 - MCM FASHION HK</option>
+                                <select id="DDVendor" class="form-select">
+                                    
                                 </select>
                             </div>
                         </div>
@@ -682,11 +663,11 @@
                         <div class="form-row-display form-row-item">
                             <div class="form-group">
                                 <label>Draft PO no.</label>
-                                <input type="text" class="form-control" placeholder="Enter PO number">
-                            </div>
+                                <input id="txtPONO" type="text" class="form-control" placeholder="Enter PO number">
+                            </div> 
                             <div class="form-group">
                                 <label>Amount (CCY)</label>
-                                <input type="text" class="form-control" placeholder="0.00">
+                                <input id="txtAmtCCY" type="text" class="form-control" pattern="^\d+(\.\d{1,2})?$" title="Enter a valid amount (e.g., 123 or 123.45)" placeholder="0.00">
                             </div>
                         </div>
 
@@ -694,7 +675,7 @@
                         <div class="form-row-display form-row-item">
                             <div class="form-group">
                                 <label>CCY</label>
-                                <select class="form-select">
+                                <select id="DDCCY" class="form-select">
                                     <option selected>USD</option>
                                     <option>THB</option>
                                     <option>EUR</option>
@@ -702,7 +683,7 @@
                             </div>
                             <div class="form-group">
                                 <label>Amount (THB)</label>
-                                <input type="text" class="form-control" placeholder="0.00">
+                                <input id="txtAmtTHB" type="text" class="form-control" placeholder="0.00" readonly>
                             </div>
                         </div>
 
@@ -710,17 +691,17 @@
                         <div class="form-row-display form-row-item">
                             <div class="form-group">
                                 <label>Exchange rate</label>
-                                <input type="text" class="form-control" placeholder="0.00">
+                                <input id="txtExRate" type="text" class="form-control" placeholder="0.00" pattern="^\d+(\.\d{1,2})?$" title="Enter a valid amount (e.g., 123 or 123.45)" >
                             </div>
                             <div class="form-group">
                                 <label>Remark</label>
-                                <input type="text" class="form-control" placeholder="Enter remark">
+                                <input id="txtRemark" type="text" class="form-control" placeholder="Enter remark">
                             </div>
                         </div>
 
                         <!-- Submit Button -->
                         <div class="text-center mt-4">
-                            <button class="btn-submit">
+                            <button  type="button" class="btn-submit" id="btnSubmit">
                                 <i class="bi bi-check-circle"></i> Submit
                             </button>
                         </div>
@@ -774,6 +755,23 @@
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
     <script>
+        let yearDropdown = document.getElementById("DDYear");
+        let monthDropdown = document.getElementById("DDMonth");
+        let companyDropdown = document.getElementById("DDCompany");
+        let segmentDropdown = document.getElementById("DDSegment");
+        let categoryDropdown = document.getElementById("DDCategory");
+        let brandDropdown = document.getElementById("DDBrand");
+        let vendorDropdown = document.getElementById("DDVendor");
+        let ccyDropdown = document.getElementById("DDCCY");
+
+        let txtPONO = document.getElementById("txtPONO");
+        let txtAmtCCY = document.getElementById("txtAmtCCY");
+        let txtAmtTHB = document.getElementById("txtAmtTHB");
+        let txtExRate = document.getElementById("txtExRate");
+        let txtRemark = document.getElementById("txtRemark");
+
+        let btnSubmitData = document.getElementById('btnSubmitData');
+        let btnSubmit = document.getElementById('btnSubmit');
 
         $(document).ready(function () {
             $('#btnUpload').on('click', function (e) {
@@ -867,6 +865,175 @@
             }
         }
 
+        let currencyCal = function () {
+            let result = 0.00;
+            let amtCCY = !isNaN(txtAmtCCY.value) ? txtAmtCCY.value : "";
+            let exRate = txtExRate.value;
+            exRate = (exRate == 0) ? 1 : parseFloat(exRate);
+            txtAmtTHB.value = amtCCY * exRate;
+        }
+
+        let initial = function () {
+            const firstMenuLink = document.querySelector('.menu-link');
+            if (firstMenuLink) {
+                firstMenuLink.classList.add('expanded');
+            }
+
+
+            //InitData master
+            InitMSData();
+            segmentDropdown.addEventListener('change', changeVendor);
+            txtAmtCCY.addEventListener('change', currencyCal);
+            txtExRate.addEventListener('change', currencyCal);
+
+            btnSubmit.addEventListener('click', function () {
+                // Implement submission logic here
+                alert('Submit button clicked');
+            });
+
+            // *** ADDED: Approve Button Click Event ***
+            //btnApprove.addEventListener('click', approveSelectedItems);
+        }
+        
+        let InitMSData = function () {
+            InitSegment(segmentDropdown);
+            InitCategoty(categoryDropdown);
+            InitBrand(brandDropdown);
+            InitVendor(vendorDropdown);
+            InitMSYear(yearDropdown);
+            InitMonth(monthDropdown);
+            InitCompany(companyDropdown);
+        }
+
+        let InitSegment = function (segmentDropdown) {
+            $.ajax({
+                url: 'Handler/MasterDataHandler.ashx?action=SegmentMSList',
+                type: 'POST',
+                processData: false,
+                contentType: false,
+                success: function (response) {
+                    segmentDropdown.innerHTML = response;
+                },
+                error: function (xhr, status, error) {
+                    console.log('Error getlist data: ' + error);
+                }
+            });
+        }
+
+        let InitMSYear = function (yearDropdown) {
+            $.ajax({
+                url: 'Handler/MasterDataHandler.ashx?action=YearMSList',
+                type: 'POST',
+                processData: false,
+                contentType: false,
+                success: function (response) {
+                    yearDropdown.innerHTML = response;
+                },
+                error: function (xhr, status, error) {
+                    console.log('Error getlist data: ' + error);
+                }
+            });
+        }
+
+        let InitMonth = function (monthDropdown) {
+            $.ajax({
+                url: 'Handler/MasterDataHandler.ashx?action=MonthMSList',
+                type: 'POST',
+                processData: false,
+                contentType: false,
+                success: function (response) {
+                    monthDropdown.innerHTML = response;
+                },
+                error: function (xhr, status, error) {
+                    console.log('Error getlist data: ' + error);
+                }
+            });
+        }
+        let InitCompany = function (companyDropdown) {
+            // Implement month initialization if needed
+            $.ajax({
+                url: 'Handler/MasterDataHandler.ashx?action=CompanyMSList',
+                type: 'POST',
+                processData: false,
+                contentType: false,
+                success: function (response) {
+                    companyDropdown.innerHTML = response;
+                },
+                error: function (xhr, status, error) {
+                    console.log('Error getlist data: ' + error);
+                }
+            });
+        }
+        let InitCategoty = function (categoryDropdown) {
+
+            $.ajax({
+                url: 'Handler/MasterDataHandler.ashx?action=CategoryMSList',
+                type: 'POST',
+                processData: false,
+                contentType: false,
+                success: function (response) {
+                    categoryDropdown.innerHTML = response;
+                },
+                error: function (xhr, status, error) {
+                    console.log('Error getlist data: ' + error);
+                }
+            });
+        }
+        let InitBrand = function (brandDropdown) {
+
+            $.ajax({
+                url: 'Handler/MasterDataHandler.ashx?action=BrandMSList',
+                type: 'POST',
+                processData: false,
+                contentType: false,
+                success: function (response) {
+                    brandDropdown.innerHTML = response;
+                },
+                error: function (xhr, status, error) {
+                    console.log('Error getlist data: ' + error);
+                }
+            });
+        }
+        let InitVendor = function (vendorDropdown) {
+
+            $.ajax({
+                url: 'Handler/MasterDataHandler.ashx?action=VendorMSList',
+                type: 'POST',
+                processData: false,
+                contentType: false,
+                success: function (response) {
+                    vendorDropdown.innerHTML = response;
+                },
+                error: function (xhr, status, error) {
+                    console.log('Error getlist data: ' + error);
+                }
+            });
+        }
+
+        let changeVendor = function () {
+            var segmentCode = segmentDropdown.value;
+            if (!segmentCode) {
+                // ถ้าไม่มีค่า ให้โหลด vendor ทั้งหมด
+                InitVendor(vendorDropdown);
+                return;
+            }
+            var formData = new FormData();
+            formData.append('segmentCode', segmentCode);
+            $.ajax({
+                url: 'Handler/MasterDataHandler.ashx?action=VendorMSListChg',
+                type: 'POST',
+                data: formData,
+                processData: false,
+                contentType: false,
+                success: function (response) {
+                    vendorDropdown.innerHTML = response;
+                },
+                error: function (xhr, status, error) {
+                    console.log('Error getlist data: ' + error);
+                }
+            });
+        }
+
         // Close sidebar when clicking outside
         document.addEventListener('click', function(event) {
             const sidebar = document.getElementById('sidebar');
@@ -878,6 +1045,9 @@
                 }
             }
         });
+
+        // Initialize
+        document.addEventListener('DOMContentLoaded', initial);
     </script>
 </body>
 </html>

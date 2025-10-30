@@ -7,11 +7,12 @@ Imports System.IO
 Imports System.Text
 Imports System.Web
 Imports ExcelDataReader
+Imports System.Configuration
 
 Public Class MasterDataHandler
     Implements IHttpHandler
 
-    Public Shared connectionString93 As String = "Data Source=10.3.0.93;Initial Catalog=BMS;Persist Security Info=True;User ID=sa;Password=sql2014"
+    Private Shared connectionString As String = ConfigurationManager.ConnectionStrings("BMSConnectionString")?.ConnectionString
 
     Sub ProcessRequest(ByVal context As HttpContext) Implements IHttpHandler.ProcessRequest
 
@@ -77,7 +78,7 @@ Public Class MasterDataHandler
 
     Private Function GetSegmentList() As String
         Dim dt As New DataTable()
-        Using conn As New SqlConnection(connectionString93)
+        Using conn As New SqlConnection(connectionString)
             conn.Open()
             Dim query As String = "SELECT DISTINCT [dbo].[MS_Segment].SegmentName, [dbo].[MS_Segment].SegmentCode FROM [BMS].[dbo].[Template_Upload_Draft_OTB]
                                    INNER JOIN [dbo].[MS_Segment] ON  [BMS].[dbo].[Template_Upload_Draft_OTB].[Segment] = [dbo].[MS_Segment].SegmentCode
@@ -94,7 +95,7 @@ Public Class MasterDataHandler
 
     Private Function GetMSVersionList(Optional OTBTypeCode As String = "Original") As String
         Dim dt As New DataTable()
-        Using conn As New SqlConnection(connectionString93)
+        Using conn As New SqlConnection(connectionString)
             conn.Open()
             Dim query As String = "SELECT  [VersionCode]
                                           ,[OTBTypeCode]
@@ -113,7 +114,7 @@ Public Class MasterDataHandler
 
     Private Function GetYearList() As String
         Dim dt As New DataTable()
-        Using conn As New SqlConnection(connectionString93)
+        Using conn As New SqlConnection(connectionString)
             conn.Open()
             Dim query As String = "SELECT DISTINCT [Year] FROM [BMS].[dbo].[Template_Upload_Draft_OTB]"
             Using cmd As New SqlCommand(query, conn)
@@ -127,7 +128,7 @@ Public Class MasterDataHandler
 
     Private Function GetMonthList() As String
         Dim dt As New DataTable()
-        Using conn As New SqlConnection(connectionString93)
+        Using conn As New SqlConnection(connectionString)
             conn.Open()
             Dim query As String = "SELECT DISTINCT [dbo].[MS_Month].[month_name_sh],[dbo].[MS_Month].[month_code] FROM [BMS].[dbo].[Template_Upload_Draft_OTB]
                                     INNER JOIN [dbo].[MS_Month] ON  [BMS].[dbo].[Template_Upload_Draft_OTB].[Month] =  [dbo].[MS_Month].[month_code]
@@ -144,7 +145,7 @@ Public Class MasterDataHandler
 
     Private Function GetCompanyList() As String
         Dim dt As New DataTable()
-        Using conn As New SqlConnection(connectionString93)
+        Using conn As New SqlConnection(connectionString)
             conn.Open()
             Dim query As String = "SELECT DISTINCT [dbo].[MS_Company].[CompanyNameShort], [dbo].[MS_Company].[CompanyCode] FROM [BMS].[dbo].[Template_Upload_Draft_OTB]
                                     INNER JOIN [dbo].[MS_Company] ON  [BMS].[dbo].[Template_Upload_Draft_OTB].[Company] = [dbo].[MS_Company].[CompanyCode]
@@ -161,7 +162,7 @@ Public Class MasterDataHandler
 
     Private Function GetCategoryList() As String
         Dim dt As New DataTable()
-        Using conn As New SqlConnection(connectionString93)
+        Using conn As New SqlConnection(connectionString)
             conn.Open()
             Dim query As String = "SELECT DISTINCT [dbo].[MS_Category].[Category], [dbo].[MS_Category].Cate FROM [BMS].[dbo].[Template_Upload_Draft_OTB]
                                     INNER JOIN [dbo].[MS_Category] ON  [BMS].[dbo].[Template_Upload_Draft_OTB].[Category] =  [dbo].[MS_Category].Cate
@@ -178,7 +179,7 @@ Public Class MasterDataHandler
 
     Private Function GetBrandList() As String
         Dim dt As New DataTable()
-        Using conn As New SqlConnection(connectionString93)
+        Using conn As New SqlConnection(connectionString)
             conn.Open()
             Dim query As String = "SELECT DISTINCT [dbo].[MS_Brand].[Brand Name], [dbo].[MS_Brand].[Brand Code] FROM [BMS].[dbo].[Template_Upload_Draft_OTB]
                                     INNER JOIN [dbo].[MS_Brand] ON  [BMS].[dbo].[Template_Upload_Draft_OTB].[Brand] = [dbo].[MS_Brand].[Brand Code]
@@ -195,7 +196,7 @@ Public Class MasterDataHandler
 
     Private Function GetVendorList() As String
         Dim dt As New DataTable()
-        Using conn As New SqlConnection(connectionString93)
+        Using conn As New SqlConnection(connectionString)
             conn.Open()
             Dim query As String = "SELECT DISTINCT [dbo].[MS_Vendor].[Vendor], [dbo].[MS_Vendor].[VendorCode] FROM [BMS].[dbo].[Template_Upload_Draft_OTB]
                                     INNER JOIN [dbo].[MS_Vendor] ON  [BMS].[dbo].[Template_Upload_Draft_OTB].[Vendor] = [dbo].[MS_Vendor].[VendorCode]
@@ -212,7 +213,7 @@ Public Class MasterDataHandler
 
     Private Function GetVendorListwithfilter(segmentCode As String) As String
         Dim dt As New DataTable()
-        Using conn As New SqlConnection(connectionString93)
+        Using conn As New SqlConnection(connectionString)
             conn.Open()
             Dim query As String = "SELECT DISTINCT [dbo].[MS_Vendor].[Vendor], [dbo].[MS_Vendor].[VendorCode] FROM [BMS].[dbo].[Template_Upload_Draft_OTB]
                                     INNER JOIN [dbo].[MS_Vendor] ON  [BMS].[dbo].[Template_Upload_Draft_OTB].[Vendor] = [dbo].[MS_Vendor].[VendorCode]
@@ -231,7 +232,7 @@ Public Class MasterDataHandler
 
     Private Function GetMSSegmentList() As String
         Dim dt As New DataTable()
-        Using conn As New SqlConnection(connectionString93)
+        Using conn As New SqlConnection(connectionString)
             conn.Open()
             Dim query As String = "SELECT [dbo].[MS_Segment].SegmentName, [dbo].[MS_Segment].SegmentCode FROM [dbo].[MS_Segment]
                                     "
@@ -246,7 +247,7 @@ Public Class MasterDataHandler
 
     Private Function GetMSYearList() As String
         Dim dt As New DataTable()
-        Using conn As New SqlConnection(connectionString93)
+        Using conn As New SqlConnection(connectionString)
             conn.Open()
             Dim query As String = "SELECT DISTINCT [Year_Kept] AS 'Year' FROM [BMS].[dbo].[MS_Year]"
             Using cmd As New SqlCommand(query, conn)
@@ -260,7 +261,7 @@ Public Class MasterDataHandler
 
     Private Function GetMSMonthList() As String
         Dim dt As New DataTable()
-        Using conn As New SqlConnection(connectionString93)
+        Using conn As New SqlConnection(connectionString)
             conn.Open()
             Dim query As String = "SELECT [dbo].[MS_Month].[month_name_sh],[dbo].[MS_Month].[month_code] FROM [dbo].[MS_Month]
                                     ORDER BY [dbo].[MS_Month].[month_code] ASC
@@ -276,7 +277,7 @@ Public Class MasterDataHandler
 
     Private Function GetMSCompanyList() As String
         Dim dt As New DataTable()
-        Using conn As New SqlConnection(connectionString93)
+        Using conn As New SqlConnection(connectionString)
             conn.Open()
             Dim query As String = "SELECT  [dbo].[MS_Company].[CompanyNameShort], [dbo].[MS_Company].[CompanyCode] FROM [dbo].[MS_Company]
                                     ORDER BY [dbo].[MS_Company].[CompanyCode] ASC
@@ -292,7 +293,7 @@ Public Class MasterDataHandler
 
     Private Function GetMSCategoryList() As String
         Dim dt As New DataTable()
-        Using conn As New SqlConnection(connectionString93)
+        Using conn As New SqlConnection(connectionString)
             conn.Open()
             Dim query As String = "SELECT  [dbo].[MS_Category].[Category], [dbo].[MS_Category].Cate FROM [dbo].[MS_Category]
                                     ORDER BY [dbo].[MS_Category].Cate ASC
@@ -308,7 +309,7 @@ Public Class MasterDataHandler
 
     Private Function GetMSBrandList() As String
         Dim dt As New DataTable()
-        Using conn As New SqlConnection(connectionString93)
+        Using conn As New SqlConnection(connectionString)
             conn.Open()
             Dim query As String = "SELECT [dbo].[MS_Brand].[Brand Name], [dbo].[MS_Brand].[Brand Code] FROM  [dbo].[MS_Brand]
                                     ORDER BY [dbo].[MS_Brand].[Brand Code] ASC
@@ -324,7 +325,7 @@ Public Class MasterDataHandler
 
     Private Function GetMSVendorList() As String
         Dim dt As New DataTable()
-        Using conn As New SqlConnection(connectionString93)
+        Using conn As New SqlConnection(connectionString)
             conn.Open()
             Dim query As String = "SELECT  [dbo].[MS_Vendor].[Vendor], [dbo].[MS_Vendor].[VendorCode] FROM [MS_Vendor]
                                     ORDER BY [dbo].[MS_Vendor].[VendorCode] ASC
@@ -340,7 +341,7 @@ Public Class MasterDataHandler
 
     Private Function GetMSVendorListwithfilter(segmentCode As String) As String
         Dim dt As New DataTable()
-        Using conn As New SqlConnection(connectionString93)
+        Using conn As New SqlConnection(connectionString)
             conn.Open()
             Dim query As String = "SELECT DISTINCT [dbo].[MS_Vendor].[Vendor], [dbo].[MS_Vendor].[VendorCode] FROM  [dbo].[MS_Vendor]
                                     WHERE [BMS].[dbo].[MS_Vendor].[SegmentCode] = @segmentCode

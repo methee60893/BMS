@@ -502,6 +502,72 @@
         .sidebar::-webkit-scrollbar-thumb:hover {
             background: #4a5f7f;
         }
+
+        .loading-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.6);
+    display: none;
+    justify-content: center;
+    align-items: center;
+    z-index: 9999;
+    backdrop-filter: blur(3px);
+}
+
+.loading-overlay.active {
+    display: flex;
+}
+
+.loading-content {
+    background: white;
+    padding: 30px 40px;
+    border-radius: 12px;
+    text-align: center;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+    animation: fadeInUp 0.3s ease;
+}
+
+@keyframes fadeInUp {
+    from {
+        opacity: 0;
+        transform: translateY(20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.loading-spinner {
+    width: 50px;
+    height: 50px;
+    border: 4px solid #f3f3f3;
+    border-top: 4px solid var(--primary-blue);
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+    margin: 0 auto 15px;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+.loading-text {
+    color: #2c3e50;
+    font-size: 1.1rem;
+    font-weight: 600;
+    margin: 0;
+}
+
+.loading-subtext {
+    color: #6c757d;
+    font-size: 0.9rem;
+    margin-top: 8px;
+}
     </style>
 </head>
 <body>
@@ -653,8 +719,9 @@
                         <div class="col-md-3">
                             <label class="form-label">Type</label>
                             <select id="DDType" class="form-select">
-                                <option value="Original" selected>Original</option>
-                                <option value="Revise" >Revised</option>
+                                <option value=''>-- กรุณาเลือก Type --</option>
+                                <option value="Original" >Original</option> 
+                                <option value="Revise" >Revise</option>
                             </select>
                         </div>
                         <div class="col-md-3">
@@ -755,6 +822,7 @@
                                 <th>Status</th>
                                 <th>Version</th>
                                 <th>Remark</th>
+                                <th>CreateBy</th>
                             </tr>
                         </thead>
                         <tbody id="tableViewBody">
@@ -763,19 +831,14 @@
                 </div>
             </div>
 
-            <!-- Bottom Action Buttons -->
-            <!--<div class="approval-buttons mt-4">
-                <button type="button" id="btnApprove" class="btn btn-approve btn-custom">
-                    <i class="bi bi-check-circle"></i> Approved
-                </button>
-                <button type="button" id="btnReject" class="btn btn-reject btn-custom">
-                    <i class="bi bi-x-circle"></i> Reject
-                </button>
-            </div>-->
+
             <div class="approval-buttons mt-4">
                 <button type="button" class="btn btn-success" id="btnApprove">
                     <i class="bi bi-check-circle"></i> Approve Selected
                 </button>
+                 <button type="button" class="btn btn-danger" id="btnDelete">
+                     <i class="bi bi-x-circle"></i> Delete Selected
+                 </button>
                 <button type="button" class="btn btn-secondary" id="btnSelectAll">
                     <i class="bi bi-check-all"></i> Select All
                 </button>
@@ -786,7 +849,16 @@
         </div>
     </div>
        </form>
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+
+    <div class="loading-overlay" id="loadingOverlay">
+    <div class="loading-content">
+        <div class="loading-spinner"></div>
+        <p class="loading-text">กำลังโหลดข้อมูล...</p>
+        <p class="loading-subtext">กรุณารอสักครู่</p>
+    </div>
+</div>
+</body>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
 <script>
     let mainForm = document.getElementById("mainForm");
@@ -801,8 +873,8 @@
     let btnClearFilter = document.getElementById("btnClearFilter");
     let btnView = document.getElementById("btnView");
     let btnExportTXN = document.getElementById("btnExportTXN");
-
     let btnApprove = document.getElementById('btnApprove');
+    let btnDelete = document.getElementById('btnDelete');
     let btnSelectAll = document.getElementById('btnSelectAll');
     let btnDeselectAll = document.getElementById('btnDeselectAll');
 
@@ -845,33 +917,68 @@
 
         $(document).on('click', '#btnSubmitData', function (e) {
             e.preventDefault(); // ป้องกัน default behavior (แม้จะเป็น button ก็ตาม)
-            console.log("Save button clicked");
+            console.log("Save from Preview button clicked");
 
             if (!confirm('Confirm to save this data to database?')) return;
 
-            var fileInput = $('#fileUpload')[0];
-            var file = fileInput.files[0];
+            var selectedRows = [];
+
+            $('#previewTableContainer input[name="selectedRows"]:checked').each(function () {
+                var cb = $(this);
+                // ดึงข้อมูลจาก data-attributes ที่เราเก็บไว้
+                var rowData = {
+                    Type: cb.data('type'),
+                    Year: cb.data('year'),
+                    Month: cb.data('month'),
+                    Category: cb.data('category'),
+                    Company: cb.data('company'),
+                    Segment: cb.data('segment'),
+                    Brand: cb.data('brand'),
+                    Vendor: cb.data('vendor'),
+                    Amount: cb.data('amount')
+                    // เราไม่จำเป็นต้องส่ง 'canUpdate' เพราะ Server จะ Validate ซ้ำอีกครั้ง
+                };
+                selectedRows.push(rowData);
+            });
+
+            if (selectedRows.length === 0) {
+                alert('Please select at least one row to save.');
+
+                return;
+            }
+
+            if (!confirm('Confirm to save ' + selectedRows.length + ' selected row(s) to database?')) return;
+
+
             var currentUser = '<%= HttpUtility.JavaScriptStringEncode(Session("user").ToString()) %>';
             var uploadBy = currentUser || 'unknown';
             console.log(uploadBy);
 
-            if (!file) return;
+           
+
+            
 
             var formData = new FormData();
-            formData.append('file', file);
-            formData.append('uploadBy', uploadBy); //  ส่ง uploadBy ไปด้วย
+            formData.append('uploadBy', uploadBy);
+            // แปลง Array ของข้อมูลเป็น JSON String แล้วส่งไป
+            formData.append('selectedData', JSON.stringify(selectedRows));
 
             $.ajax({
-                url: 'Handler/UploadHandler.ashx?action=save',
+                url: 'Handler/UploadHandler.ashx?action=savePreview',
                 type: 'POST',
                 data: formData,
                 processData: false,
                 contentType: false,
                 success: function (response) {
-                    alert('Data saved successfully!');
-                    $('#previewModal').modal('hide');
-                    $('#previewTableContainer').empty();
-                    $('#fileUpload').val('');
+                    if (response.includes("alert-danger")) {
+                        alert('Error saving data: ' + $(response).text());
+                    } else {
+                        alert(response);
+                        $('#previewModal').modal('hide');
+                        $('#previewTableContainer').empty();
+                        $('#fileUpload').val('');
+                        search(); 
+                    }
                 },
                 error: function (xhr, status, error) {
                     alert('Error saving data: ' + error);
@@ -879,6 +986,23 @@
             });
         });
     });
+
+    let showLoading = function (show = true, message = 'กำลังโหลดข้อมูล...', subMessage = 'กรุณารอสักครู่') {
+        const overlay = document.getElementById('loadingOverlay');
+        const loadingText = overlay.querySelector('.loading-text');
+        const loadingSubtext = overlay.querySelector('.loading-subtext');
+
+        if (show) {
+            loadingText.textContent = message;
+            loadingSubtext.textContent = subMessage;
+            overlay.classList.add('active');
+            document.body.style.overflow = 'hidden'; // ป้องกันการ scroll
+        } else {
+            overlay.classList.remove('active');
+            document.body.style.overflow = ''; // คืนค่าการ scroll
+        }
+    }
+
         
 
         // Toggle Sidebar
@@ -949,6 +1073,34 @@
 
             // *** ADDED: Approve Button Click Event ***
             btnApprove.addEventListener('click', approveSelectedItems);
+            btnDelete.addEventListener('click', deleteSelectedItems);
+    }
+
+    let deleteDraftOTB = function (runNo) {
+        if (!confirm('Are you sure you want to delete this Draft OTB?')) {
+            return;
+        }
+        var formData = new FormData();
+        formData.append('runNo', runNo);
+        $.ajax({
+            url: 'Handler/DataOTBHandler.ashx?action=deleteDraftOTB',
+            type: 'POST',
+            data: formData,
+            processData: false,
+            contentType: false,
+            success: function (response) {
+                if (response.trim() === "Success") {
+                    alert('Draft OTB deleted successfully!');
+                    search(); // โหลดข้อมูลตารางใหม่
+                } else {
+                    alert('Error deleting Draft OTB: ' + response);
+                }
+            },
+            error: function (xhr, status, error) {
+                console.log('Error deleting Draft OTB: ' + error);
+                alert('An error occurred while deleting the Draft OTB.');
+            }
+        });
     }
 
     // *** ADDED: Function to Approve Selected Items ***
@@ -986,6 +1138,7 @@
                 success: function (response) {
                     if (response.trim() === "Success") {
                         alert('Items approved successfully!');
+                        tableViewBody.innerHTML = "";
                         search(); // โหลดข้อมูลตารางใหม่
                     } else {
                         alert('Error approving items: ' + response);
@@ -996,42 +1149,95 @@
                     alert('An error occurred while approving items.');
                 }
             });
+    }
+
+    let deleteSelectedItems = function () {
+        let runNosToDelete = [];
+
+        $('input[name="checkselect"]:checked').each(function () {
+
+            let runNo = this.id.replace('checkselect', '');
+            runNosToDelete.push(runNo);
+        });
+
+        if (runNosToDelete.length === 0) {
+            alert('Please select items to approve.');
+            return;
         }
 
-        let search = function () {
-            var segmentCode = segmentDropdown.value; 
-            var cate = categoryDropdown.value;
-            var brandCode = brandDropdown.value;
-            var vendorCode = vendorDropdown.value;
-            var OTBtype = typeDropdown.value;
-            let OTByear = yearDropdown.value;
-            let OTBmonth = monthDropdown.value;
-            let OTBcompany = companyDropdown.value;
+        if (!confirm('Are you sure you want to delete ' + runNosToDelete.length + ' selected items?')) {
+            return;
+        }
 
-            var formData = new FormData();
-            formData.append('OTBtype', OTBtype);
-            formData.append('OTByear', OTByear);
-            formData.append('OTBmonth', OTBmonth);
-            formData.append('OTBCompany', OTBcompany);
-            formData.append('OTBCategory', cate);
-            formData.append('OTBSegment', segmentCode);
-            formData.append('OTBBrand', brandCode);
-            formData.append('OTBVendor', vendorCode);
+        var currentUser = '<%= HttpUtility.JavaScriptStringEncode(Session("user").ToString()) %>';
+        var approvedBy = currentUser || 'unknown';
 
+        var formData = new FormData();
+        formData.append('runNos', JSON.stringify(runNosToDelete)); // ส่งเป็น JSON String
+        formData.append('approvedBy', approvedBy);
 
-            $.ajax({
-                url: 'Handler/DataOTBHandler.ashx?action=obtlistbyfilter',
-                type: 'POST',
-                data: formData,
-                processData: false,
-                contentType: false,
-                success: function (response) {
-                    tableViewBody.innerHTML = response;
-                },
-                error: function (xhr, status, error) {
-                    console.log('Error getlist data: ' + error);
+        $.ajax({
+            url: 'Handler/DataOTBHandler.ashx?action=deleteDraftOTB',
+            type: 'POST',
+            data: formData,
+            processData: false,
+            contentType: false,
+            dataType: 'json',
+            success: function (response) {
+                if (response.success === true) {
+                    alert('Items deleted successfully!');
+                    tableViewBody.innerHTML = "";
+                    search(); // โหลดข้อมูลตารางใหม่
+                } else {
+                    alert('Error deleting items.');
                 }
-            });
+            },
+            error: function (xhr, status, error) {
+                console.log('Error deleting items: ' + error);
+                alert('An error occurred while deleting items.');
+            }
+        });
+    }
+
+
+    let search = function () {
+        var segmentCode = segmentDropdown.value;
+        var cate = categoryDropdown.value;
+        var brandCode = brandDropdown.value;
+        var vendorCode = vendorDropdown.value;
+        var OTBtype = typeDropdown.value;
+        let OTByear = yearDropdown.value;
+        let OTBmonth = monthDropdown.value;
+        let OTBcompany = companyDropdown.value;
+
+        var formData = new FormData();
+        formData.append('OTBtype', OTBtype);
+        formData.append('OTByear', OTByear);
+        formData.append('OTBmonth', OTBmonth);
+        formData.append('OTBCompany', OTBcompany);
+        formData.append('OTBCategory', cate);
+        formData.append('OTBSegment', segmentCode);
+        formData.append('OTBBrand', brandCode);
+        formData.append('OTBVendor', vendorCode);
+
+        showLoading(true, 'กำลังค้นหาข้อมูล...', 'กรุณารอสักครู่');
+
+        $.ajax({
+            url: 'Handler/DataOTBHandler.ashx?action=obtlistbyfilter',
+            type: 'POST',
+            data: formData,
+            processData: false,
+            contentType: false,
+            success: function (response) {
+                tableViewBody.innerHTML = response;
+                showLoading(false);
+            },
+            error: function (xhr, status, error) {
+                console.log('Error getlist data: ' + error);
+                showLoading(false);
+                alert('เกิดข้อผิดพลาดในการโหลดข้อมูล');
+            }
+        });
     }
 
     let exportTXN = function () {
@@ -1186,159 +1392,158 @@
         }
     }
 
-        let InitMSData = function () {
-            InitSegment(segmentDropdown);
-            InitCategoty(categoryDropdown);
-            InitBrand(brandDropdown);
-            InitVendor(vendorDropdown);
-            InitMSYear(yearDropdown);
-            InitMonth(monthDropdown);
-            InitCompany(companyDropdown);
-        }
+    let InitMSData = function () {
+        InitSegment(segmentDropdown);
+        InitCategoty(categoryDropdown);
+        InitBrand(brandDropdown);
+        InitVendor(vendorDropdown);
+        InitMSYear(yearDropdown);
+        InitMonth(monthDropdown);
+        InitCompany(companyDropdown);
+    }
 
-        let InitSegment = function (segmentDropdown) {
-            $.ajax({
-                url: 'Handler/MasterDataHandler.ashx?action=SegmentList',
-                type: 'POST',
-                processData: false,
-                contentType: false,
-                success: function (response) {
-                    segmentDropdown.innerHTML = response;
-                },
-                error: function (xhr, status, error) {
-                    console.log('Error getlist data: ' + error);
-                }
-            });
-        }
-
-        let InitMSYear = function (yearDropdown) {
-            $.ajax({
-                url: 'Handler/MasterDataHandler.ashx?action=YearList',
-                type: 'POST',
-                processData: false,
-                contentType: false,
-                success: function (response) {
-                    yearDropdown.innerHTML = response;
-                },
-                error: function (xhr, status, error) {
-                    console.log('Error getlist data: ' + error);
-                }
-            });
-        }
-
-        let InitMonth = function (monthDropdown) {
-            $.ajax({
-                url: 'Handler/MasterDataHandler.ashx?action=MonthList',
-                type: 'POST',
-                processData: false,
-                contentType: false,
-                success: function (response) {
-                    monthDropdown.innerHTML = response;
-                },
-                error: function (xhr, status, error) {
-                    console.log('Error getlist data: ' + error);
-                }
-            });
-        }  
-        let InitCompany = function (companyDropdown) {
-            // Implement month initialization if needed
-            $.ajax({
-                url: 'Handler/MasterDataHandler.ashx?action=CompanyList',
-                type: 'POST',
-                processData: false,
-                contentType: false,
-                success: function (response) {
-                    companyDropdown.innerHTML = response;
-                },
-                error: function (xhr, status, error) {
-                    console.log('Error getlist data: ' + error);
-                }
-            });
-        }  
-        let InitCategoty = function (categoryDropdown) {
-            
-            $.ajax({
-                url: 'Handler/MasterDataHandler.ashx?action=CategoryList',
-                type: 'POST',
-                processData: false,
-                contentType: false,
-                success: function (response) {
-                    categoryDropdown.innerHTML = response;
-                },
-                error: function (xhr, status, error) {
-                    console.log('Error getlist data: ' + error);
-                }
-            });
-        }
-        let InitBrand = function (brandDropdown) {
-            
-            $.ajax({
-                url: 'Handler/MasterDataHandler.ashx?action=BrandList',
-                type: 'POST',
-                processData: false,
-                contentType: false,
-                success: function (response) {
-                    brandDropdown.innerHTML = response;
-                },
-                error: function (xhr, status, error) {
-                    console.log('Error getlist data: ' + error);
-                }
-            });
-        }
-        let InitVendor = function (vendorDropdown) {
-            
-            $.ajax({
-                url: 'Handler/MasterDataHandler.ashx?action=VendorList',
-                type: 'POST',
-                processData: false,
-                contentType: false,
-                success: function (response) {
-                    vendorDropdown.innerHTML = response;
-                },
-                error: function (xhr, status, error) {
-                    console.log('Error getlist data: ' + error);
-                }
-            });
-        }
-
-        let changeVendor = function () {
-            var segmentCode = segmentDropdown.value; 
-            if (!segmentCode) {
-                // ถ้าไม่มีค่า ให้โหลด vendor ทั้งหมด
-                InitVendor(vendorDropdown);
-                return;
-            }
-            var formData = new FormData();
-            formData.append('segmentCode', segmentCode); 
-            $.ajax({
-                url: 'Handler/MasterDataHandler.ashx?action=VendorListChg',
-                type: 'POST',
-                data: formData,
-                processData: false,
-                contentType: false,
-                success: function (response) {
-                    vendorDropdown.innerHTML = response;
-                },
-                error: function (xhr, status, error) {
-                    console.log('Error getlist data: ' + error);
-                }
-            });
-        }
-
-        // Close sidebar when clicking outside on mobile
-        document.addEventListener('click', function(event) {
-            const sidebar = document.getElementById('sidebar');
-            const menuToggle = document.querySelector('.menu-toggle');
-            
-            if (!sidebar.contains(event.target) && !menuToggle.contains(event.target)) {
-                if (sidebar.classList.contains('active')) {
-                    toggleSidebar();
-                }
+    let InitSegment = function (segmentDropdown) {
+        $.ajax({
+            url: 'Handler/MasterDataHandler.ashx?action=SegmentList',
+            type: 'POST',
+            processData: false,
+            contentType: false,
+            success: function (response) {
+                segmentDropdown.innerHTML = response;
+            },
+            error: function (xhr, status, error) {
+                console.log('Error getlist data: ' + error);
             }
         });
-        // Initialize
-        document.addEventListener('DOMContentLoaded', initial);
+    }
+
+    let InitMSYear = function (yearDropdown) {
+        $.ajax({
+            url: 'Handler/MasterDataHandler.ashx?action=YearList',
+            type: 'POST',
+            processData: false,
+            contentType: false,
+            success: function (response) {
+                yearDropdown.innerHTML = response;
+            },
+            error: function (xhr, status, error) {
+                console.log('Error getlist data: ' + error);
+            }
+        });
+    }
+
+    let InitMonth = function (monthDropdown) {
+        $.ajax({
+            url: 'Handler/MasterDataHandler.ashx?action=MonthList',
+            type: 'POST',
+            processData: false,
+            contentType: false,
+            success: function (response) {
+                monthDropdown.innerHTML = response;
+            },
+            error: function (xhr, status, error) {
+                console.log('Error getlist data: ' + error);
+            }
+        });
+    }
+    let InitCompany = function (companyDropdown) {
+        // Implement month initialization if needed
+        $.ajax({
+            url: 'Handler/MasterDataHandler.ashx?action=CompanyList',
+            type: 'POST',
+            processData: false,
+            contentType: false,
+            success: function (response) {
+                companyDropdown.innerHTML = response;
+            },
+            error: function (xhr, status, error) {
+                console.log('Error getlist data: ' + error);
+            }
+        });
+    }
+    let InitCategoty = function (categoryDropdown) {
+
+        $.ajax({
+            url: 'Handler/MasterDataHandler.ashx?action=CategoryList',
+            type: 'POST',
+            processData: false,
+            contentType: false,
+            success: function (response) {
+                categoryDropdown.innerHTML = response;
+            },
+            error: function (xhr, status, error) {
+                console.log('Error getlist data: ' + error);
+            }
+        });
+    }
+    let InitBrand = function (brandDropdown) {
+
+        $.ajax({
+            url: 'Handler/MasterDataHandler.ashx?action=BrandList',
+            type: 'POST',
+            processData: false,
+            contentType: false,
+            success: function (response) {
+                brandDropdown.innerHTML = response;
+            },
+            error: function (xhr, status, error) {
+                console.log('Error getlist data: ' + error);
+            }
+        });
+    }
+    let InitVendor = function (vendorDropdown) {
+
+        $.ajax({
+            url: 'Handler/MasterDataHandler.ashx?action=VendorList',
+            type: 'POST',
+            processData: false,
+            contentType: false,
+            success: function (response) {
+                vendorDropdown.innerHTML = response;
+            },
+            error: function (xhr, status, error) {
+                console.log('Error getlist data: ' + error);
+            }
+        });
+    }
+
+    let changeVendor = function () {
+        var segmentCode = segmentDropdown.value;
+        if (!segmentCode) {
+            // ถ้าไม่มีค่า ให้โหลด vendor ทั้งหมด
+            InitVendor(vendorDropdown);
+            return;
+        }
+        var formData = new FormData();
+        formData.append('segmentCode', segmentCode);
+        $.ajax({
+            url: 'Handler/MasterDataHandler.ashx?action=VendorListChg',
+            type: 'POST',
+            data: formData,
+            processData: false,
+            contentType: false,
+            success: function (response) {
+                vendorDropdown.innerHTML = response;
+            },
+            error: function (xhr, status, error) {
+                console.log('Error getlist data: ' + error);
+            }
+        });
+    }
+
+    // Close sidebar when clicking outside on mobile
+    document.addEventListener('click', function (event) {
+        const sidebar = document.getElementById('sidebar');
+        const menuToggle = document.querySelector('.menu-toggle');
+
+        if (!sidebar.contains(event.target) && !menuToggle.contains(event.target)) {
+            if (sidebar.classList.contains('active')) {
+                toggleSidebar();
+            }
+        }
+    });
+    // Initialize
+    document.addEventListener('DOMContentLoaded', initial);
 </script>
-</body>
 </html>
             

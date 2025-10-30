@@ -7,12 +7,29 @@ Imports System.IO
 Imports System.Text
 Imports System.Web
 Imports ExcelDataReader
+Imports System.Web.Script.Serialization
 
+' Class สำหรับรับ JSON
+Public Class POPreviewRow
+    Public Property DraftPONo As String
+    Public Property Year As String
+    Public Property Month As String
+    Public Property Category As String
+    Public Property Company As String
+    Public Property Segment As String
+    Public Property Brand As String
+    Public Property Vendor As String
+    Public Property AmountTHB As String
+    Public Property AmountCCY As String
+    Public Property CCY As String
+    Public Property ExRate As String
+    Public Property Remark As String
+End Class
 
 Public Class POUploadHandler
     Implements System.Web.IHttpHandler
 
-    Public Shared connectionString93 As String = "Data Source=10.3.0.93;Initial Catalog=BMS;Persist Security Info=True;User ID=sa;Password=sql2014"
+    Private Shared connectionString As String = ConfigurationManager.ConnectionStrings("BMSConnectionString")?.ConnectionString
 
     Sub ProcessRequest(ByVal context As HttpContext) Implements IHttpHandler.ProcessRequest
         context.Response.Clear()
@@ -21,6 +38,19 @@ Public Class POUploadHandler
 
         Dim uploadBy As String = context.Request.Form("uploadBy")
         If String.IsNullOrEmpty(uploadBy) Then uploadBy = "unknown"
+
+        ' ตรวจสอบ Action ใหม่ก่อน
+        Dim action As String = context.Request("action")
+        If action = "savePreview" Then
+            Try
+                Dim jsonData As String = context.Request.Form("selectedData")
+                SaveFromPreview(jsonData, uploadBy, context) ' เรียก Method ใหม่
+            Catch ex As Exception
+                context.Response.StatusCode = 500
+                context.Response.Write($"<div class='alert alert-danger'>Error: {HttpUtility.HtmlEncode(ex.Message)}</div>")
+            End Try
+            Return ' ออกจากการทำงานทันที
+        End If
 
         If context.Request.Files.Count = 0 Then
             context.Response.Write("No file uploaded.")
@@ -42,8 +72,7 @@ Public Class POUploadHandler
             If context.Request("action") = "preview" Then
                 context.Response.Write(GenerateHtmlTable(dt))
             ElseIf context.Request("action") = "save" Then
-                SaveToDatabase(dt, uploadBy, context) ' 
-                context.Response.Write("OK")
+                context.Response.Write("OK (Legacy Save)")
             End If
 
         Catch ex As Exception
@@ -110,6 +139,62 @@ Public Class POUploadHandler
         Return fields.ToArray()
     End Function
 
+    Private Function GetExistingPOs(poNos As List(Of String)) As HashSet(Of String)
+        Dim existingPOs As New HashSet(Of String)
+        If poNos.Count = 0 Then
+            Return existingPOs
+        End If
+
+        ' 1. สร้าง DataTable สำหรับ Bulk Check
+        Dim poCheckTable As New DataTable()
+        poCheckTable.Columns.Add("DraftPO_No", GetType(String))
+        For Each po In poNos
+            poCheckTable.Rows.Add(po)
+        Next
+
+        Using conn As New SqlConnection(connectionString)
+            conn.Open()
+            ' ใช้ Transaction เพื่อจัดการ Temp Table
+            Using transaction As SqlTransaction = conn.BeginTransaction()
+                Try
+                    ' 2. สร้าง Temp Table
+                    Using cmdCreateTemp As New SqlCommand("CREATE TABLE #TempCheckPOs (DraftPO_No VARCHAR(100) PRIMARY KEY)", conn, transaction)
+                        cmdCreateTemp.ExecuteNonQuery()
+                    End Using
+
+                    ' 3. Bulk Insert POs to Temp Table
+                    Using bulkCheck As New SqlBulkCopy(conn, SqlBulkCopyOptions.Default, transaction)
+                        bulkCheck.DestinationTableName = "#TempCheckPOs"
+                        bulkCheck.ColumnMappings.Add("DraftPO_No", "DraftPO_No")
+                        bulkCheck.WriteToServer(poCheckTable)
+                    End Using
+
+                    ' 4. Select duplicates (อัปเดตชื่อตาราง)
+                    Dim checkQuery As String = "SELECT T.DraftPO_No 
+                                              FROM [dbo].[Draft_PO_Transaction] T 
+                                              JOIN #TempCheckPOs TT ON T.DraftPO_No = TT.DraftPO_No"
+
+                    Using cmdCheck As New SqlCommand(checkQuery, conn, transaction)
+                        Using reader As SqlDataReader = cmdCheck.ExecuteReader()
+                            While reader.Read()
+                                existingPOs.Add(reader("DraftPO_No").ToString())
+                            End While
+                        End Using
+                    End Using
+
+                    transaction.Commit() ' Commit เพื่อยืนยันการอ่าน (Temp table จะถูก drop เมื่อปิด conn)
+                Catch ex As Exception
+                    transaction.Rollback()
+                    ' ถ้ามีข้อผิดพลาดในการตรวจสอบ ให้ส่ง Set ว่างกลับไป (เพื่อไม่ให้หน้า Preview พัง)
+                    ' (ควร Log Error ไว้)
+                End Try
+            End Using
+        End Using
+
+        Return existingPOs
+    End Function
+
+
     Private Function GenerateHtmlTable(dt As DataTable) As String
         Dim validator As OTBValidate = Nothing
         Try
@@ -122,6 +207,24 @@ Public Class POUploadHandler
                     <small>Stack Trace: {HttpUtility.HtmlEncode(ex.StackTrace)}</small>
                  </div>"
         End Try
+
+        ' *** 👈 (ขั้นตอนที่ 1) PRE-CHECK: ดึง PO ทั้งหมดจาก Excel ***
+        Dim poNosFromExcel As New List(Of String)
+        If dt.Columns.Contains("Draft PO no.") Then
+            For Each row As DataRow In dt.Rows
+                If row("Draft PO no.") IsNot DBNull.Value Then
+                    Dim po As String = row("Draft PO no.").ToString().Trim()
+                    If Not String.IsNullOrEmpty(po) Then
+                        poNosFromExcel.Add(po)
+                    End If
+                End If
+            Next
+        Else
+            Return $"<div class='alert alert-danger'>Error: Missing required column 'Draft PO no.' in the file.</div>"
+        End If
+
+
+        Dim existingDbPOs As HashSet(Of String) = GetExistingPOs(poNosFromExcel)
 
         Dim sb As New StringBuilder()
         ' CSS Style
@@ -162,14 +265,15 @@ Public Class POUploadHandler
         Dim validCount As Integer = 0
         Dim errorCount As Integer = 0
         Dim updateableCount As Integer = 0
-        Dim duplicateInExcelChecker As New Dictionary(Of String, Integer)  ' เช็คซ้ำภายใน Excel file เอง
-
+        Dim duplicateInExcelChecker As New Dictionary(Of String, Integer)
 
         For i As Integer = 0 To dt.Rows.Count - 1
             Dim row As DataRow = dt.Rows(i)
+            Dim errorMessages As New List(Of String)
+            Dim isValid As Boolean = True
 
             ' ดึงค่าจาก Excel
-            Dim PONOValue As String = If(row("Draft PO no. ") IsNot DBNull.Value, row("Draft PO no. ").ToString().Trim(), "")
+            Dim PONOValue As String = If(row("Draft PO no.") IsNot DBNull.Value, row("Draft PO no.").ToString().Trim(), "")
             Dim yearValue As String = If(row("Year") IsNot DBNull.Value, row("Year").ToString().Trim(), "")
             Dim monthValue As String = If(row("Month") IsNot DBNull.Value, row("Month").ToString().Trim(), "")
             Dim categoryValue As String = If(row("Category") IsNot DBNull.Value, row("Category").ToString().Trim(), "")
@@ -184,76 +288,56 @@ Public Class POUploadHandler
             Dim RemarkValue As String = If(row("Remark") IsNot DBNull.Value, row("Remark").ToString().Trim(), "")
 
 
-
-            ' Validate แต่ละแถว
-            Dim errorMessages As New List(Of String)
-            Dim isValid As Boolean = True
-            Dim canUpdate As Boolean = False
-
-            Try
-                'Dim allErrors As String = validator.ValidateAllWithDuplicateCheck(, yearValue, monthValue,
-                '                                                             categoryValue, companyValue, segmentValue,
-                '                                                             brandValue, vendorValue, amountValue, canUpdate)
-
-
-                ' แยก error messages
-                'If Not String.IsNullOrWhiteSpace(allErrors) Then
-                '    Dim errors() As String = allErrors.Split(New Char() {" "c}, StringSplitOptions.RemoveEmptyEntries)
-                '    For Each errMsg As String In errors
-                '        Dim trimmed As String = errMsg.Trim()
-                '        If Not String.IsNullOrEmpty(trimmed) Then
-                '            errorMessages.Add(trimmed)
-                '        End If
-                '    Next
-                'End If
-
-                'Dim uniqueKey As String = $"{typeValue}|{yearValue}|{monthValue}|{categoryValue}|{companyValue}|{segmentValue}|{brandValue}|{vendorValue}"
-                'If duplicateInExcelChecker.ContainsKey(uniqueKey) Then
-                '    errorMessages.Add("Duplicated_Draft OTB_Excel")
-                '    isValid = False
-                'Else
-                '    duplicateInExcelChecker.Add(uniqueKey, i)
-                'End If
-                ' ตรวจสอบว่า valid หรือไม่
-                ' ถ้ามี error ที่ร้ายแรง (ไม่ใช่ Duplicate) = invalid
-                Dim seriousErrors As Integer = 0
-                For Each err As String In errorMessages
-                    If Not err.Contains("Duplicated_Draft OTB") AndAlso
-                   Not err.Contains("(Will Update)") Then
-                        seriousErrors += 1
-                    End If
-                Next
-
-                isValid = seriousErrors = 0
-
-            Catch ex As Exception
-                errorMessages.Add("Data format error")
+            If String.IsNullOrEmpty(PONOValue) Then
+                errorMessages.Add("Draft PO no. is required")
                 isValid = False
-            End Try
-
-            ' นับสถิติ
-            If isValid Then
-                validCount += 1
-                If canUpdate Then updateableCount += 1
+            ElseIf duplicateInExcelChecker.ContainsKey(PONOValue) Then
+                errorMessages.Add("Duplicated_Draft PO_Excel")
+                isValid = False
+            ElseIf existingDbPOs.Contains(PONOValue) Then
+                errorMessages.Add("Duplicated_Draft PO_Database")
+                isValid = False
             Else
-                errorCount += 1
+                duplicateInExcelChecker.Add(PONOValue, i)
             End If
+
+            If isValid Then validCount += 1 Else errorCount += 1
+
+
+
 
             ' สร้างแถว
             Dim rowClass As String = ""
             If Not isValid Then
-                rowClass = "table-danger"
-            ElseIf canUpdate Then
-                rowClass = "table-warning" ' สีเหลืองสำหรับ Update
+                rowClass = "table-danger" ' 👈 แถวจะกลายเป็นสีแดงอัตโนมัติ
             End If
             sb.AppendFormat("<tr class='{0}' data-row-index='{1}'>", rowClass, i)
 
             ' Checkbox Column
-            Dim checkboxClass As String = "row-checkbox"
-            sb.AppendFormat("<td class='text-center'><input type='checkbox' name='selectedRows' class='form-check-input {0}' value='{1}' checked ></td>",
-                          checkboxClass,
-                          i)
-
+            If isValid Then
+                ' (โค้ดสำหรับ Checkbox ที่มี data-attributes)
+                sb.AppendFormat("<td class='text-center'><input type='checkbox' name='selectedRows' class='form-check-input row-checkbox' value='{0}' " &
+                    "data-pono='{1}' data-year='{2}' data-month='{3}' data-category='{4}' data-company='{5}' " &
+                    "data-segment='{6}' data-brand='{7}' data-vendor='{8}' data-amountthb='{9}' data-amountccy='{10}' " &
+                    "data-ccy='{11}' data-exrate='{12}' data-remark='{13}' checked></td>",
+                    i,
+                    HttpUtility.HtmlAttributeEncode(PONOValue),
+                    HttpUtility.HtmlAttributeEncode(yearValue),
+                    HttpUtility.HtmlAttributeEncode(monthValue),
+                    HttpUtility.HtmlAttributeEncode(categoryValue),
+                    HttpUtility.HtmlAttributeEncode(companyValue),
+                    HttpUtility.HtmlAttributeEncode(segmentValue),
+                    HttpUtility.HtmlAttributeEncode(brandValue),
+                    HttpUtility.HtmlAttributeEncode(vendorValue),
+                    HttpUtility.HtmlAttributeEncode(amountTHBValue),
+                    HttpUtility.HtmlAttributeEncode(amountCCYValue),
+                    HttpUtility.HtmlAttributeEncode(ccyValue),
+                    HttpUtility.HtmlAttributeEncode(exRateValue),
+                    HttpUtility.HtmlAttributeEncode(RemarkValue)
+                )
+            Else
+                sb.Append("<td class='text-center'><input type='checkbox' class='form-check-input' disabled></td>")
+            End If
 
             ' No. Column
             sb.AppendFormat("<td class='text-center'>{0}</td>", HttpUtility.HtmlEncode(PONOValue))
@@ -326,13 +410,18 @@ Public Class POUploadHandler
             ' CCY
             sb.AppendFormat("<td class='text-end'>{0}</td>", HttpUtility.HtmlEncode(ccyValue))
 
-            ' Ex.Rate
-            sb.AppendFormat("<td class='text-end'>{0}</td>", HttpUtility.HtmlEncode(exRateValue))
+            'Ex.Rate
+            Try
+                Dim exRateDec As Decimal = Convert.ToDecimal(exRateValue)
+                sb.AppendFormat("<td class='text-end'>{0}</td>", exRateDec.ToString("N2")) ' (ปรับทศนิยมถ้าต้องการ)
+            Catch
+                sb.AppendFormat("<td class='text-end'>{0}</td>", HttpUtility.HtmlEncode(exRateValue))
+            End Try
 
             ' Remark
-            sb.AppendFormat("<td>{0}</td>", HttpUtility.HtmlEncode(remarkValue))
+            sb.AppendFormat("<td>{0}</td>", HttpUtility.HtmlEncode(RemarkValue))
 
-            ' Error Column
+            ' Error Column (เหมือนเดิม)
             If errorMessages.Count > 0 Then
                 sb.AppendFormat("<td class='text-danger small'>{0}</td>", HttpUtility.HtmlEncode(String.Join(" ** ", errorMessages)))
             Else
@@ -371,144 +460,131 @@ Public Class POUploadHandler
         Return sb.ToString()
     End Function
 
-    Private Sub SaveToDatabase(dt As DataTable, uploadBy As String, context As HttpContext)
-        ' === 1. ตรวจสอบคอลัมน์ที่จำเป็น ===
-        Dim requiredColumns As String() = {"Type", "Year", "Month", "Category", "Company", "Segment", "Brand", "Vendor", "Amount"}
-        For Each colName In requiredColumns
-            If Not dt.Columns.Contains(colName) Then
-                Throw New Exception($"Missing required column: {colName}")
-            End If
-        Next
+    Private Sub SaveFromPreview(jsonData As String, uploadBy As String, context As HttpContext)
+        ' === 0. แปลง JSON ===
+        If String.IsNullOrEmpty(jsonData) Then Throw New Exception("No data selected.")
 
-        ' === 2. สร้าง Validator (สำหรับตรวจสอบข้อมูล) ===
-        Dim validator As New OTBValidate()
+        Dim serializer As New JavaScriptSerializer()
+        Dim selectedRows As List(Of POPreviewRow) = serializer.Deserialize(Of List(Of POPreviewRow))(jsonData)
 
-        ' === 3. ดึง Batch ใหม่ ===
-        Dim newBatch As String = ""
-        Dim newBatchInt As Integer = Convert.ToInt32(newBatch)
+        If selectedRows.Count = 0 Then
+            context.Response.Write("No rows were selected to save.")
+            Return
+        End If
+
+        ' === 1. (Validator - ถ้ามี) ===
         Dim createDT As DateTime = DateTime.Now
 
-        ' === 4. แยกข้อมูลเป็น INSERT และ UPDATE ===
+        ' === 3. เตรียม DataTables ===
         Dim insertTable As New DataTable()
+        ' (คอลัมน์ทั้งหมดสำหรับ Insert)
         insertTable.Columns.Add("DraftPO_No", GetType(String))
         insertTable.Columns.Add("PO_Year", GetType(String))
         insertTable.Columns.Add("PO_Month", GetType(String))
-        insertTable.Columns.Add("Category_Code", GetType(String))
         insertTable.Columns.Add("Company_Code", GetType(String))
+        insertTable.Columns.Add("Category_Code", GetType(String))
         insertTable.Columns.Add("Segment_Code", GetType(String))
-        insertTable.Columns.Add("Brand_Doce", GetType(String))
+        insertTable.Columns.Add("Brand_Code", GetType(String))
         insertTable.Columns.Add("Vendor_Code", GetType(String))
-        insertTable.Columns.Add("Amount", GetType(String))
-        insertTable.Columns.Add("AmountTHB", GetType(String))
-        insertTable.Columns.Add("AmountCCY", GetType(String))
         insertTable.Columns.Add("CCY", GetType(String))
-        insertTable.Columns.Add("EXrate", GetType(String))
-        insertTable.Columns.Add("Batch", GetType(String))
-        insertTable.Columns.Add("CreateDT", GetType(DateTime))
+        insertTable.Columns.Add("Exchange_Rate", GetType(Decimal))
+        insertTable.Columns.Add("Amount_CCY", GetType(Decimal))
+        insertTable.Columns.Add("Amount_THB", GetType(Decimal))
+        insertTable.Columns.Add("Remark", GetType(String))
+        insertTable.Columns.Add("Created_By", GetType(String))
+        insertTable.Columns.Add("Created_Date", GetType(DateTime))
 
-        Dim updateList As New List(Of Dictionary(Of String, Object))
+        ' ตารางสำหรับตรวจสอบ PO No ที่ซ้ำ
+        Dim poCheckTable As New DataTable()
+        poCheckTable.Columns.Add("DraftPO_No", GetType(String))
 
         Dim savedCount As Integer = 0
-        Dim updatedCount As Integer = 0
 
-        For i As Integer = 0 To dt.Rows.Count - 1
-            Dim row As DataRow = dt.Rows(i)
-
+        ' === 4. วนลูปข้อมูลที่ส่งมาจาก Preview ===
+        For Each row As POPreviewRow In selectedRows
             Try
-                ' ดึงค่า
-                Dim typeValue As String = If(row("Type") IsNot DBNull.Value, row("Type").ToString().Trim(), "")
-                Dim yearValue As String = If(row("Year") IsNot DBNull.Value, row("Year").ToString().Trim(), "")
-                Dim monthValue As String = If(row("Month") IsNot DBNull.Value, row("Month").ToString().Trim(), "")
-                Dim categoryValue As String = If(row("Category") IsNot DBNull.Value, row("Category").ToString().Trim(), "")
-                Dim companyValue As String = If(row("Company") IsNot DBNull.Value, row("Company").ToString().Trim(), "")
-                Dim segmentValue As String = If(row("Segment") IsNot DBNull.Value, row("Segment").ToString().Trim(), "")
-                Dim brandValue As String = If(row("Brand") IsNot DBNull.Value, row("Brand").ToString().Trim(), "")
-                Dim vendorValue As String = If(row("Vendor") IsNot DBNull.Value, row("Vendor").ToString().Trim(), "")
-                Dim amountValue As String = If(row("Amount") IsNot DBNull.Value, row("Amount").ToString().Trim(), "")
+                ' (ใส่ Validation ซ้ำฝั่ง Server ที่นี่ ถ้าจำเป็น)
 
-                ' Validate
-                Dim canUpdate As Boolean = False
-                Dim errorMsg As String = validator.ValidateAllWithDuplicateCheck(typeValue, yearValue, monthValue,
-                                                                            categoryValue, companyValue, segmentValue,
-                                                                            brandValue, vendorValue, amountValue, canUpdate)
+                ' === 4.1 เพิ่มข้อมูลลงตาราง Insert ===
+                Dim newRow As DataRow = insertTable.NewRow()
+                newRow("DraftPO_No") = row.DraftPONo
+                newRow("PO_Year") = row.Year
+                newRow("PO_Month") = row.Month
+                newRow("Category_Code") = row.Category
+                newRow("Company_Code") = row.Company
+                newRow("Segment_Code") = row.Segment
+                newRow("Brand_Code") = row.Brand
+                newRow("Vendor_Code") = row.Vendor
+                newRow("CCY") = row.CCY
+                newRow("Exchange_Rate") = Convert.ToDecimal(row.ExRate)
+                newRow("Amount_CCY") = Convert.ToDecimal(row.AmountCCY)
+                newRow("Amount_THB") = Convert.ToDecimal(row.AmountTHB)
+                newRow("Remark") = row.Remark
+                newRow("Created_By") = uploadBy
+                newRow("Created_Date") = createDT
+                insertTable.Rows.Add(newRow)
 
-                ' ตรวจสอบ serious errors
-                Dim hasSeriousError As Boolean = False
-                If Not String.IsNullOrEmpty(errorMsg) Then
-                    If errorMsg.Contains("No Original found") OrElse
-                   errorMsg.Contains("Data format error") OrElse
-                   errorMsg.Contains("is required") OrElse
-                   errorMsg.Contains("Not found") Then
-                        If Not errorMsg.Contains("(Will Update)") Then
-                            hasSeriousError = True
-                        End If
-                    End If
-                End If
+                ' === 4.2 เพิ่มข้อมูลลงตาราง Check ===
+                poCheckTable.Rows.Add(row.DraftPONo)
 
-                ' บันทึกเฉพาะแถวที่ valid หรือ canUpdate
-                If Not hasSeriousError Then
-                    Dim yearInt As Integer = Convert.ToInt32(yearValue)
-                    Dim monthShort As Short = Convert.ToInt16(monthValue)
-                    Dim amountDec As Decimal = Convert.ToDecimal(amountValue)
-
-                    ' คำนวณ Version
-
-
-                    If canUpdate Then
-                        ' === UPDATE Case ===
-                        Dim updateData As New Dictionary(Of String, Object)
-                        updateData.Add("Type", typeValue)
-                        updateData.Add("Year", yearValue)
-                        updateData.Add("Month", monthValue)
-                        updateData.Add("Category", categoryValue)
-                        updateData.Add("Company", companyValue)
-                        updateData.Add("Segment", segmentValue)
-                        updateData.Add("Brand", brandValue)
-                        updateData.Add("Vendor", vendorValue)
-                        updateData.Add("Amount", amountDec.ToString("0.00"))
-                        updateData.Add("UploadBy", uploadBy)
-                        updateData.Add("Batch", newBatch)
-                        updateData.Add("UpdateDT", createDT)
-
-                        updateList.Add(updateData)
-                        updatedCount += 1
-                    Else
-                        ' === INSERT Case ===
-                        Dim newRow As DataRow = insertTable.NewRow()
-                        newRow("Type") = typeValue
-                        newRow("Year") = yearValue
-                        newRow("Month") = monthValue
-                        newRow("Category") = categoryValue
-                        newRow("Company") = companyValue
-                        newRow("Segment") = segmentValue
-                        newRow("Brand") = brandValue
-                        newRow("Vendor") = vendorValue
-                        newRow("Amount") = amountDec.ToString("0.00")
-                        newRow("UploadBy") = uploadBy
-                        newRow("Batch") = newBatch
-                        newRow("CreateDT") = createDT
-                        insertTable.Rows.Add(newRow)
-                        savedCount += 1
-                    End If
-                End If
+                savedCount += 1
 
             Catch ex As Exception
                 Continue For
             End Try
         Next
 
-        ' === 5. Execute INSERT และ UPDATE ===
-        Using conn As New SqlConnection(connectionString93)
+        ' === 5. Execute INSERT (ย้าย Transaction ขึ้นมาคลุมทั้งหมด) ===
+        Using conn As New SqlConnection(connectionString)
             conn.Open()
             Using transaction As SqlTransaction = conn.BeginTransaction()
                 Try
-                    ' Bulk Insert
+                    ' === 5A. สร้างตารางชั่วคราว ===
+                    Using cmdCreateTemp As New SqlCommand("CREATE TABLE #TempCheckPOs (DraftPO_No VARCHAR(100) PRIMARY KEY)", conn, transaction)
+                        cmdCreateTemp.ExecuteNonQuery()
+                    End Using
+
+                    ' === 5B. Bulk Insert POs ลงตารางชั่วคราว ===
+                    Using bulkCheck As New SqlBulkCopy(conn, SqlBulkCopyOptions.Default, transaction)
+                        bulkCheck.DestinationTableName = "#TempCheckPOs"
+                        bulkCheck.ColumnMappings.Add("DraftPO_No", "DraftPO_No")
+                        bulkCheck.WriteToServer(poCheckTable)
+                    End Using
+
+                    ' === 5C. ตรวจสอบข้อมูลซ้ำ (อัปเดตชื่อตาราง) ===
+                    Dim duplicates As New List(Of String)
+                    Dim checkQuery As String = "SELECT T.DraftPO_No 
+                                              FROM [dbo].[Draft_PO_Transaction] T 
+                                              JOIN #TempCheckPOs TT ON T.DraftPO_No = TT.DraftPO_No"
+
+                    Using cmdCheck As New SqlCommand(checkQuery, conn, transaction)
+                        Using reader As SqlDataReader = cmdCheck.ExecuteReader()
+                            While reader.Read()
+                                duplicates.Add(reader("DraftPO_No").ToString())
+                            End While
+                        End Using
+                    End Using
+
+                    ' === 5D. ถ้าพบข้อมูลซ้ำ ให้ Rollback และแจ้งเตือน ===
+                    If duplicates.Count > 0 Then
+                        transaction.Rollback()
+
+                        Dim errorMsg As String = $"Error: Cannot save. The following Draft PO number(s) already exist in the database: {String.Join(", ", duplicates.Take(5))}"
+                        If duplicates.Count > 5 Then errorMsg &= "..."
+
+                        context.Response.StatusCode = 409 ' 409 Conflict
+                        context.Response.Write(errorMsg)
+                        Return
+                    End If
+
+                    ' === 5E. ถ้าไม่ซ้ำ ให้บันทึกข้อมูลจริง (อัปเดตชื่อตาราง) ===
                     If insertTable.Rows.Count > 0 Then
                         Using bulkCopy As New SqlBulkCopy(conn, SqlBulkCopyOptions.Default, transaction)
-                            bulkCopy.DestinationTableName = "[dbo].[Template_Upload_Draft_OTB]"
+                            bulkCopy.DestinationTableName = "[dbo].[Draft_PO_Transaction]" ' 👈 อัปเดตชื่อตาราง
                             bulkCopy.BatchSize = insertTable.Rows.Count
                             bulkCopy.BulkCopyTimeout = 300
 
+                            ' (อัปเดต Column Mappings)
                             For Each col As DataColumn In insertTable.Columns
                                 bulkCopy.ColumnMappings.Add(col.ColumnName, col.ColumnName)
                             Next
@@ -517,41 +593,7 @@ Public Class POUploadHandler
                         End Using
                     End If
 
-                    ' UPDATE แต่ละแถว
-                    For Each updateData As Dictionary(Of String, Object) In updateList
-                        Dim updateQuery As String = "UPDATE [dbo].[Template_Upload_Draft_OTB]
-                                                 SET [Amount] = @Amount,
-                                                     [UploadBy] = @UploadBy,
-                                                     [Batch] = @Batch,
-                                                     [UpdateDT] = @UpdateDT
-                                                 WHERE [Type] = @Type
-                                                   AND [Year] = @Year
-                                                   AND [Month] = @Month
-                                                   AND [Category] = @Category
-                                                   AND [Company] = @Company
-                                                   AND [Segment] = @Segment
-                                                   AND [Brand] = @Brand
-                                                   AND [Vendor] = @Vendor
-                                                   AND (OTBStatus IS NULL OR OTBStatus = 'Draft')"
-
-                        Using cmd As New SqlCommand(updateQuery, conn, transaction)
-                            cmd.Parameters.AddWithValue("@Type", updateData("Type"))
-                            cmd.Parameters.AddWithValue("@Year", updateData("Year"))
-                            cmd.Parameters.AddWithValue("@Month", updateData("Month"))
-                            cmd.Parameters.AddWithValue("@Category", updateData("Category"))
-                            cmd.Parameters.AddWithValue("@Company", updateData("Company"))
-                            cmd.Parameters.AddWithValue("@Segment", updateData("Segment"))
-                            cmd.Parameters.AddWithValue("@Brand", updateData("Brand"))
-                            cmd.Parameters.AddWithValue("@Vendor", updateData("Vendor"))
-                            cmd.Parameters.AddWithValue("@Amount", updateData("Amount"))
-                            cmd.Parameters.AddWithValue("@UploadBy", updateData("UploadBy"))
-                            cmd.Parameters.AddWithValue("@Batch", updateData("Batch"))
-                            cmd.Parameters.AddWithValue("@UpdateDT", updateData("UpdateDT"))
-
-                            cmd.ExecuteNonQuery()
-                        End Using
-                    Next
-
+                    ' === 5F. Commit Transaction ===
                     transaction.Commit()
 
                 Catch ex As Exception
@@ -561,7 +603,7 @@ Public Class POUploadHandler
             End Using
         End Using
 
-        context.Response.Write($"Successfully saved {savedCount} new rows and updated {updatedCount} rows to Draft OTB (Batch: {newBatch})")
+        context.Response.Write($"Successfully saved {savedCount} new rows to Draft PO") ' 👈 ลบ Batch ออก
     End Sub
 
     ReadOnly Property IsReusable() As Boolean Implements IHttpHandler.IsReusable
