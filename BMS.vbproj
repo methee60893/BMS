@@ -96,10 +96,12 @@
     <Reference Include="System.Runtime.CompilerServices.Unsafe, Version=6.0.3.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a, processorArchitecture=MSIL">
       <HintPath>packages\System.Runtime.CompilerServices.Unsafe.6.1.2\lib\net462\System.Runtime.CompilerServices.Unsafe.dll</HintPath>
     </Reference>
+    <Reference Include="System.Runtime.Serialization" />
     <Reference Include="System.Security" />
     <Reference Include="System.Security.Cryptography.Xml, Version=9.0.0.10, Culture=neutral, PublicKeyToken=cc7b13ffcd2ddd51, processorArchitecture=MSIL">
       <HintPath>packages\System.Security.Cryptography.Xml.9.0.10\lib\net462\System.Security.Cryptography.Xml.dll</HintPath>
     </Reference>
+    <Reference Include="System.ServiceModel" />
     <Reference Include="System.Web.Extensions" />
     <Reference Include="System.Xml.Linq" />
     <Reference Include="System.Web.DynamicData" />
@@ -138,6 +140,45 @@
   <ItemGroup>
     <Content Include="actualPO.aspx" />
     <Content Include="approvedOTB.aspx" />
+    <Content Include="Connected Services\KBMSAPI\BMS.KBMSAPI.GetApiInfoResponse.datasource">
+      <DependentUpon>Reference.svcmap</DependentUpon>
+    </Content>
+    <Content Include="Connected Services\KBMSAPI\BMS.KBMSAPI.GetPOByDateResponse.datasource">
+      <DependentUpon>Reference.svcmap</DependentUpon>
+    </Content>
+    <Content Include="Connected Services\KBMSAPI\BMS.KBMSAPI.GetPOResponse.datasource">
+      <DependentUpon>Reference.svcmap</DependentUpon>
+    </Content>
+    <Content Include="Connected Services\KBMSAPI\BMS.KBMSAPI.GetPOSimpleResponse.datasource">
+      <DependentUpon>Reference.svcmap</DependentUpon>
+    </Content>
+    <Content Include="Connected Services\KBMSAPI\BMS.KBMSAPI.HealthCheckResponse.datasource">
+      <DependentUpon>Reference.svcmap</DependentUpon>
+    </Content>
+    <Content Include="Connected Services\KBMSAPI\BMS.KBMSAPI.HelloWorldResponse.datasource">
+      <DependentUpon>Reference.svcmap</DependentUpon>
+    </Content>
+    <Content Include="Connected Services\KBMSAPI\BMS.KBMSAPI.SimpleApiResponse.datasource">
+      <DependentUpon>Reference.svcmap</DependentUpon>
+    </Content>
+    <Content Include="Connected Services\KBMSAPI\BMS.KBMSAPI.TestNoAuthResponse.datasource">
+      <DependentUpon>Reference.svcmap</DependentUpon>
+    </Content>
+    <Content Include="Connected Services\KBMSAPI\BMS.KBMSAPI.TestSAPConnectionResponse.datasource">
+      <DependentUpon>Reference.svcmap</DependentUpon>
+    </Content>
+    <Content Include="Connected Services\KBMSAPI\BMS.KBMSAPI.UpdateOTBPlanResponse.datasource">
+      <DependentUpon>Reference.svcmap</DependentUpon>
+    </Content>
+    <Content Include="Connected Services\KBMSAPI\BMS.KBMSAPI.UploadOTBPlanResponse.datasource">
+      <DependentUpon>Reference.svcmap</DependentUpon>
+    </Content>
+    <None Include="Connected Services\KBMSAPI\configuration91.svcinfo" />
+    <None Include="Connected Services\KBMSAPI\configuration.svcinfo" />
+    <None Include="Connected Services\KBMSAPI\Reference.svcmap">
+      <Generator>WCF Proxy Generator</Generator>
+      <LastGenOutput>Reference.vb</LastGenOutput>
+    </None>
     <Content Include="createDraftPO.aspx" />
     <Content Include="createOTBswitching.aspx" />
     <Content Include="dashboard.aspx" />
@@ -173,8 +214,12 @@
     <Compile Include="class\OTBBudgetCalculator.vb" />
     <Compile Include="class\OTBUploadPreviewRow.vb" />
     <Compile Include="class\OTBValidate.vb" />
-    <Compile Include="class\SAPManagement.vb" />
     <Compile Include="class\share_class.vb" />
+    <Compile Include="Connected Services\KBMSAPI\Reference.vb">
+      <AutoGen>True</AutoGen>
+      <DesignTime>True</DesignTime>
+      <DependentUpon>Reference.svcmap</DependentUpon>
+    </Compile>
     <Compile Include="createDraftPO.aspx.designer.vb">
       <DependentUpon>createDraftPO.aspx</DependentUpon>
     </Compile>
@@ -232,6 +277,15 @@
     <Compile Include="Handler\ValidateHandler.ashx.vb">
       <DependentUpon>ValidateHandler.ashx</DependentUpon>
     </Compile>
+    <Compile Include="Helper\KBMSApiHelper.vb" />
+    <Compile Include="JsonObject\OTBSwitchJsonRequestRow.vb" />
+    <Compile Include="JsonObject\OTBSwitchJsonResponseRow.vb" />
+    <Compile Include="JsonObject\OTBUploadJsonRequestRow.vb" />
+    <Compile Include="JsonObject\OTBUploadJsonResponseRow.vb" />
+    <Compile Include="JsonObject\ResponseOTBSwitchData.vb" />
+    <Compile Include="JsonObject\RequestOTBSwitchData.vb" />
+    <Compile Include="JsonObject\ResponseOTBUploadResult.vb" />
+    <Compile Include="JsonObject\ResponseOTBStatus.vb" />
     <Compile Include="master_brand.aspx.designer.vb">
       <DependentUpon>master_brand.aspx</DependentUpon>
     </Compile>
@@ -325,6 +379,7 @@
     <Content Include="Handler\ValidateHandler.ashx" />
     <Content Include="Handler\SaveOTBHandler.ashx" />
     <Content Include="Handler\POUploadHandler.ashx" />
+    <None Include="Connected Services\KBMSAPI\KBMSApi.wsdl" />
     <None Include="My Project\Application.myapp">
       <Generator>MyApplicationCodeGenerator</Generator>
       <LastGenOutput>Application.Designer.vb</LastGenOutput>
@@ -346,6 +401,15 @@
   <ItemGroup>
     <Folder Include="App_GlobalResources\" />
     <Folder Include="App_LocalResources\" />
+  </ItemGroup>
+  <ItemGroup>
+    <WCFMetadata Include="Connected Services\" />
+  </ItemGroup>
+  <ItemGroup>
+    <WebReferences Include="Web References\" />
+  </ItemGroup>
+  <ItemGroup>
+    <WCFMetadataStorage Include="Connected Services\KBMSAPI\" />
   </ItemGroup>
   <PropertyGroup>
     <VisualStudioVersion Condition="'$(VisualStudioVersion)' == ''">10.0</VisualStudioVersion>

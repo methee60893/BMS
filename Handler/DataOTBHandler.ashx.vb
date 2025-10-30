@@ -605,6 +605,7 @@ Public Class DataOTBHandler
     Private Sub ApproveDraftOTB(context As HttpContext)
         Try
             ' Get selected IDs
+            context.Response.ContentType = "application/json"
             Dim idsString As String = If(String.IsNullOrWhiteSpace(context.Request.Form("runNos")), "", context.Request.Form("runNos").Trim())
             Dim approvedBy As String = If(String.IsNullOrWhiteSpace(context.Request.Form("approvedBy")), "System", context.Request.Form("approvedBy").Trim())
             Dim remark As String = If(String.IsNullOrWhiteSpace(context.Request.Form("remark")), Nothing, context.Request.Form("remark").Trim())
@@ -619,25 +620,29 @@ Public Class DataOTBHandler
             End If
 
             ' Convert comma-separated IDs to List
-            Dim draftIDs As New List(Of Integer)
-            For Each idStr As String In idsString.Split(","c)
-                Dim id As Integer
-                If Integer.TryParse(idStr.Trim(), id) Then
-                    draftIDs.Add(id)
-                End If
-            Next
+            Dim runNos As New List(Of Integer)
+            Try
+                ' Deserialize JSON array ["842","843","844",...]
+                Dim jsonArray As List(Of String) = JsonConvert.DeserializeObject(Of List(Of String))(idsString)
 
-            If draftIDs.Count = 0 Then
-                Dim errorResponse As New With {
-                .success = False,
-                .message = "Invalid draft IDs"
-            }
-                context.Response.Write(JsonConvert.SerializeObject(errorResponse))
-                Return
-            End If
+                For Each idStr As String In jsonArray
+                    Dim id As Integer
+                    If Integer.TryParse(idStr.Trim(), id) Then
+                        runNos.Add(id)
+                    End If
+                Next
+            Catch jsonEx As Exception
+                ' ถ้า deserialize ไม่ได้ ลองแบบเก่า (comma-separated)
+                For Each idStr As String In idsString.Split(","c)
+                    Dim id As Integer
+                    If Integer.TryParse(idStr.Trim().Replace("""", ""), id) Then
+                        runNos.Add(id)
+                    End If
+                Next
+            End Try
 
             ' Call Approve function
-            Dim result As Dictionary(Of String, Object) = ApprovedOTBManager.ApproveDraftOTB(draftIDs, approvedBy, remark)
+            Dim result As Dictionary(Of String, Object) = ApprovedOTBManager.ApproveDraftOTB(runNos, approvedBy, remark)
 
             Dim response As New With {
             .success = If(result("Status").ToString() = "Success", True, False),

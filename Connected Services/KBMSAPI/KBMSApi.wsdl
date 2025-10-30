@@ -1,0 +1,441 @@
+<?xml version="1.0" encoding="utf-8"?>
+<wsdl:definitions xmlns:soap12="http://schemas.xmlsoap.org/wsdl/soap12/" xmlns:s="http://www.w3.org/2001/XMLSchema" xmlns:tm="http://microsoft.com/wsdl/mime/textMatching/" xmlns:soapenc="http://schemas.xmlsoap.org/soap/encoding/" xmlns:http="http://schemas.xmlsoap.org/wsdl/http/" xmlns:tns="http://kingpower.com/kbms/" xmlns:mime="http://schemas.xmlsoap.org/wsdl/mime/" xmlns:soap="http://schemas.xmlsoap.org/wsdl/soap/" targetNamespace="http://kingpower.com/kbms/" xmlns:wsdl="http://schemas.xmlsoap.org/wsdl/">
+  <wsdl:types>
+    <s:schema elementFormDefault="qualified" targetNamespace="http://kingpower.com/kbms/">
+      <s:element name="GetPO">
+        <s:complexType>
+          <s:sequence>
+            <s:element minOccurs="0" maxOccurs="1" name="modifiedDate" type="s:string" />
+            <s:element minOccurs="1" maxOccurs="1" name="top" type="s:int" />
+            <s:element minOccurs="1" maxOccurs="1" name="skip" type="s:int" />
+            <s:element minOccurs="0" maxOccurs="1" name="orderby" type="s:string" />
+          </s:sequence>
+        </s:complexType>
+      </s:element>
+      <s:element name="GetPOResponse">
+        <s:complexType>
+          <s:sequence>
+            <s:element minOccurs="0" maxOccurs="1" name="GetPOResult" type="tns:SimpleApiResponse" />
+          </s:sequence>
+        </s:complexType>
+      </s:element>
+      <s:complexType name="SimpleApiResponse">
+        <s:sequence>
+          <s:element minOccurs="1" maxOccurs="1" name="Success" type="s:boolean" />
+          <s:element minOccurs="0" maxOccurs="1" name="Message" type="s:string" />
+          <s:element minOccurs="0" maxOccurs="1" name="Data" type="s:string" />
+          <s:element minOccurs="0" maxOccurs="1" name="ErrorCode" type="s:string" />
+          <s:element minOccurs="1" maxOccurs="1" name="RecordCount" type="s:int" />
+        </s:sequence>
+      </s:complexType>
+      <s:element name="UploadOTBPlan">
+        <s:complexType>
+          <s:sequence>
+            <s:element minOccurs="0" maxOccurs="1" name="planDataJson" type="s:string" />
+          </s:sequence>
+        </s:complexType>
+      </s:element>
+      <s:element name="UploadOTBPlanResponse">
+        <s:complexType>
+          <s:sequence>
+            <s:element minOccurs="0" maxOccurs="1" name="UploadOTBPlanResult" type="tns:SimpleApiResponse" />
+          </s:sequence>
+        </s:complexType>
+      </s:element>
+      <s:element name="UpdateOTBPlan">
+        <s:complexType>
+          <s:sequence>
+            <s:element minOccurs="0" maxOccurs="1" name="switchRequestJson" type="s:string" />
+          </s:sequence>
+        </s:complexType>
+      </s:element>
+      <s:element name="UpdateOTBPlanResponse">
+        <s:complexType>
+          <s:sequence>
+            <s:element minOccurs="0" maxOccurs="1" name="UpdateOTBPlanResult" type="tns:SimpleApiResponse" />
+          </s:sequence>
+        </s:complexType>
+      </s:element>
+      <s:element name="GetPOSimple">
+        <s:complexType />
+      </s:element>
+      <s:element name="GetPOSimpleResponse">
+        <s:complexType>
+          <s:sequence>
+            <s:element minOccurs="0" maxOccurs="1" name="GetPOSimpleResult" type="tns:SimpleApiResponse" />
+          </s:sequence>
+        </s:complexType>
+      </s:element>
+      <s:element name="GetPOByDate">
+        <s:complexType>
+          <s:sequence>
+            <s:element minOccurs="0" maxOccurs="1" name="modifiedDate" type="s:string" />
+          </s:sequence>
+        </s:complexType>
+      </s:element>
+      <s:element name="GetPOByDateResponse">
+        <s:complexType>
+          <s:sequence>
+            <s:element minOccurs="0" maxOccurs="1" name="GetPOByDateResult" type="tns:SimpleApiResponse" />
+          </s:sequence>
+        </s:complexType>
+      </s:element>
+      <s:element name="HealthCheck">
+        <s:complexType />
+      </s:element>
+      <s:element name="HealthCheckResponse">
+        <s:complexType>
+          <s:sequence>
+            <s:element minOccurs="0" maxOccurs="1" name="HealthCheckResult" type="tns:SimpleApiResponse" />
+          </s:sequence>
+        </s:complexType>
+      </s:element>
+      <s:element name="HelloWorld">
+        <s:complexType />
+      </s:element>
+      <s:element name="HelloWorldResponse">
+        <s:complexType>
+          <s:sequence>
+            <s:element minOccurs="0" maxOccurs="1" name="HelloWorldResult" type="s:string" />
+          </s:sequence>
+        </s:complexType>
+      </s:element>
+      <s:element name="TestNoAuth">
+        <s:complexType />
+      </s:element>
+      <s:element name="TestNoAuthResponse">
+        <s:complexType>
+          <s:sequence>
+            <s:element minOccurs="0" maxOccurs="1" name="TestNoAuthResult" type="tns:SimpleApiResponse" />
+          </s:sequence>
+        </s:complexType>
+      </s:element>
+      <s:element name="TestSAPConnection">
+        <s:complexType />
+      </s:element>
+      <s:element name="TestSAPConnectionResponse">
+        <s:complexType>
+          <s:sequence>
+            <s:element minOccurs="0" maxOccurs="1" name="TestSAPConnectionResult" type="tns:SimpleApiResponse" />
+          </s:sequence>
+        </s:complexType>
+      </s:element>
+      <s:element name="GetApiInfo">
+        <s:complexType />
+      </s:element>
+      <s:element name="GetApiInfoResponse">
+        <s:complexType>
+          <s:sequence>
+            <s:element minOccurs="0" maxOccurs="1" name="GetApiInfoResult" type="tns:SimpleApiResponse" />
+          </s:sequence>
+        </s:complexType>
+      </s:element>
+    </s:schema>
+  </wsdl:types>
+  <wsdl:message name="GetPOSoapIn">
+    <wsdl:part name="parameters" element="tns:GetPO" />
+  </wsdl:message>
+  <wsdl:message name="GetPOSoapOut">
+    <wsdl:part name="parameters" element="tns:GetPOResponse" />
+  </wsdl:message>
+  <wsdl:message name="UploadOTBPlanSoapIn">
+    <wsdl:part name="parameters" element="tns:UploadOTBPlan" />
+  </wsdl:message>
+  <wsdl:message name="UploadOTBPlanSoapOut">
+    <wsdl:part name="parameters" element="tns:UploadOTBPlanResponse" />
+  </wsdl:message>
+  <wsdl:message name="UpdateOTBPlanSoapIn">
+    <wsdl:part name="parameters" element="tns:UpdateOTBPlan" />
+  </wsdl:message>
+  <wsdl:message name="UpdateOTBPlanSoapOut">
+    <wsdl:part name="parameters" element="tns:UpdateOTBPlanResponse" />
+  </wsdl:message>
+  <wsdl:message name="GetPOSimpleSoapIn">
+    <wsdl:part name="parameters" element="tns:GetPOSimple" />
+  </wsdl:message>
+  <wsdl:message name="GetPOSimpleSoapOut">
+    <wsdl:part name="parameters" element="tns:GetPOSimpleResponse" />
+  </wsdl:message>
+  <wsdl:message name="GetPOByDateSoapIn">
+    <wsdl:part name="parameters" element="tns:GetPOByDate" />
+  </wsdl:message>
+  <wsdl:message name="GetPOByDateSoapOut">
+    <wsdl:part name="parameters" element="tns:GetPOByDateResponse" />
+  </wsdl:message>
+  <wsdl:message name="HealthCheckSoapIn">
+    <wsdl:part name="parameters" element="tns:HealthCheck" />
+  </wsdl:message>
+  <wsdl:message name="HealthCheckSoapOut">
+    <wsdl:part name="parameters" element="tns:HealthCheckResponse" />
+  </wsdl:message>
+  <wsdl:message name="HelloWorldSoapIn">
+    <wsdl:part name="parameters" element="tns:HelloWorld" />
+  </wsdl:message>
+  <wsdl:message name="HelloWorldSoapOut">
+    <wsdl:part name="parameters" element="tns:HelloWorldResponse" />
+  </wsdl:message>
+  <wsdl:message name="TestNoAuthSoapIn">
+    <wsdl:part name="parameters" element="tns:TestNoAuth" />
+  </wsdl:message>
+  <wsdl:message name="TestNoAuthSoapOut">
+    <wsdl:part name="parameters" element="tns:TestNoAuthResponse" />
+  </wsdl:message>
+  <wsdl:message name="TestSAPConnectionSoapIn">
+    <wsdl:part name="parameters" element="tns:TestSAPConnection" />
+  </wsdl:message>
+  <wsdl:message name="TestSAPConnectionSoapOut">
+    <wsdl:part name="parameters" element="tns:TestSAPConnectionResponse" />
+  </wsdl:message>
+  <wsdl:message name="GetApiInfoSoapIn">
+    <wsdl:part name="parameters" element="tns:GetApiInfo" />
+  </wsdl:message>
+  <wsdl:message name="GetApiInfoSoapOut">
+    <wsdl:part name="parameters" element="tns:GetApiInfoResponse" />
+  </wsdl:message>
+  <wsdl:portType name="KBMSApiSoap">
+    <wsdl:operation name="GetPO">
+      <wsdl:documentation xmlns:wsdl="http://schemas.xmlsoap.org/wsdl/">Get Purchase Orders filtered by modification date</wsdl:documentation>
+      <wsdl:input message="tns:GetPOSoapIn" />
+      <wsdl:output message="tns:GetPOSoapOut" />
+    </wsdl:operation>
+    <wsdl:operation name="UploadOTBPlan">
+      <wsdl:documentation xmlns:wsdl="http://schemas.xmlsoap.org/wsdl/">Upload OTB (Open-to-Buy) plan data</wsdl:documentation>
+      <wsdl:input message="tns:UploadOTBPlanSoapIn" />
+      <wsdl:output message="tns:UploadOTBPlanSoapOut" />
+    </wsdl:operation>
+    <wsdl:operation name="UpdateOTBPlan">
+      <wsdl:documentation xmlns:wsdl="http://schemas.xmlsoap.org/wsdl/">Update or switch OTB payment plans between segments</wsdl:documentation>
+      <wsdl:input message="tns:UpdateOTBPlanSoapIn" />
+      <wsdl:output message="tns:UpdateOTBPlanSoapOut" />
+    </wsdl:operation>
+    <wsdl:operation name="GetPOSimple">
+      <wsdl:documentation xmlns:wsdl="http://schemas.xmlsoap.org/wsdl/">Get Purchase Orders - Simple version with defaults</wsdl:documentation>
+      <wsdl:input message="tns:GetPOSimpleSoapIn" />
+      <wsdl:output message="tns:GetPOSimpleSoapOut" />
+    </wsdl:operation>
+    <wsdl:operation name="GetPOByDate">
+      <wsdl:documentation xmlns:wsdl="http://schemas.xmlsoap.org/wsdl/">Get Purchase Orders with date filter only</wsdl:documentation>
+      <wsdl:input message="tns:GetPOByDateSoapIn" />
+      <wsdl:output message="tns:GetPOByDateSoapOut" />
+    </wsdl:operation>
+    <wsdl:operation name="HealthCheck">
+      <wsdl:documentation xmlns:wsdl="http://schemas.xmlsoap.org/wsdl/">Health check endpoint to verify API is running</wsdl:documentation>
+      <wsdl:input message="tns:HealthCheckSoapIn" />
+      <wsdl:output message="tns:HealthCheckSoapOut" />
+    </wsdl:operation>
+    <wsdl:operation name="HelloWorld">
+      <wsdl:documentation xmlns:wsdl="http://schemas.xmlsoap.org/wsdl/">Test endpoint - returns Hello World</wsdl:documentation>
+      <wsdl:input message="tns:HelloWorldSoapIn" />
+      <wsdl:output message="tns:HelloWorldSoapOut" />
+    </wsdl:operation>
+    <wsdl:operation name="TestNoAuth">
+      <wsdl:documentation xmlns:wsdl="http://schemas.xmlsoap.org/wsdl/">Test endpoint without authentication</wsdl:documentation>
+      <wsdl:input message="tns:TestNoAuthSoapIn" />
+      <wsdl:output message="tns:TestNoAuthSoapOut" />
+    </wsdl:operation>
+    <wsdl:operation name="TestSAPConnection">
+      <wsdl:documentation xmlns:wsdl="http://schemas.xmlsoap.org/wsdl/">Test SAP OData connection</wsdl:documentation>
+      <wsdl:input message="tns:TestSAPConnectionSoapIn" />
+      <wsdl:output message="tns:TestSAPConnectionSoapOut" />
+    </wsdl:operation>
+    <wsdl:operation name="GetApiInfo">
+      <wsdl:documentation xmlns:wsdl="http://schemas.xmlsoap.org/wsdl/">Get API documentation and available endpoints</wsdl:documentation>
+      <wsdl:input message="tns:GetApiInfoSoapIn" />
+      <wsdl:output message="tns:GetApiInfoSoapOut" />
+    </wsdl:operation>
+  </wsdl:portType>
+  <wsdl:binding name="KBMSApiSoap" type="tns:KBMSApiSoap">
+    <soap:binding transport="http://schemas.xmlsoap.org/soap/http" />
+    <wsdl:operation name="GetPO">
+      <soap:operation soapAction="http://kingpower.com/kbms/GetPO" style="document" />
+      <wsdl:input>
+        <soap:body use="literal" />
+      </wsdl:input>
+      <wsdl:output>
+        <soap:body use="literal" />
+      </wsdl:output>
+    </wsdl:operation>
+    <wsdl:operation name="UploadOTBPlan">
+      <soap:operation soapAction="http://kingpower.com/kbms/UploadOTBPlan" style="document" />
+      <wsdl:input>
+        <soap:body use="literal" />
+      </wsdl:input>
+      <wsdl:output>
+        <soap:body use="literal" />
+      </wsdl:output>
+    </wsdl:operation>
+    <wsdl:operation name="UpdateOTBPlan">
+      <soap:operation soapAction="http://kingpower.com/kbms/UpdateOTBPlan" style="document" />
+      <wsdl:input>
+        <soap:body use="literal" />
+      </wsdl:input>
+      <wsdl:output>
+        <soap:body use="literal" />
+      </wsdl:output>
+    </wsdl:operation>
+    <wsdl:operation name="GetPOSimple">
+      <soap:operation soapAction="http://kingpower.com/kbms/GetPOSimple" style="document" />
+      <wsdl:input>
+        <soap:body use="literal" />
+      </wsdl:input>
+      <wsdl:output>
+        <soap:body use="literal" />
+      </wsdl:output>
+    </wsdl:operation>
+    <wsdl:operation name="GetPOByDate">
+      <soap:operation soapAction="http://kingpower.com/kbms/GetPOByDate" style="document" />
+      <wsdl:input>
+        <soap:body use="literal" />
+      </wsdl:input>
+      <wsdl:output>
+        <soap:body use="literal" />
+      </wsdl:output>
+    </wsdl:operation>
+    <wsdl:operation name="HealthCheck">
+      <soap:operation soapAction="http://kingpower.com/kbms/HealthCheck" style="document" />
+      <wsdl:input>
+        <soap:body use="literal" />
+      </wsdl:input>
+      <wsdl:output>
+        <soap:body use="literal" />
+      </wsdl:output>
+    </wsdl:operation>
+    <wsdl:operation name="HelloWorld">
+      <soap:operation soapAction="http://kingpower.com/kbms/HelloWorld" style="document" />
+      <wsdl:input>
+        <soap:body use="literal" />
+      </wsdl:input>
+      <wsdl:output>
+        <soap:body use="literal" />
+      </wsdl:output>
+    </wsdl:operation>
+    <wsdl:operation name="TestNoAuth">
+      <soap:operation soapAction="http://kingpower.com/kbms/TestNoAuth" style="document" />
+      <wsdl:input>
+        <soap:body use="literal" />
+      </wsdl:input>
+      <wsdl:output>
+        <soap:body use="literal" />
+      </wsdl:output>
+    </wsdl:operation>
+    <wsdl:operation name="TestSAPConnection">
+      <soap:operation soapAction="http://kingpower.com/kbms/TestSAPConnection" style="document" />
+      <wsdl:input>
+        <soap:body use="literal" />
+      </wsdl:input>
+      <wsdl:output>
+        <soap:body use="literal" />
+      </wsdl:output>
+    </wsdl:operation>
+    <wsdl:operation name="GetApiInfo">
+      <soap:operation soapAction="http://kingpower.com/kbms/GetApiInfo" style="document" />
+      <wsdl:input>
+        <soap:body use="literal" />
+      </wsdl:input>
+      <wsdl:output>
+        <soap:body use="literal" />
+      </wsdl:output>
+    </wsdl:operation>
+  </wsdl:binding>
+  <wsdl:binding name="KBMSApiSoap12" type="tns:KBMSApiSoap">
+    <soap12:binding transport="http://schemas.xmlsoap.org/soap/http" />
+    <wsdl:operation name="GetPO">
+      <soap12:operation soapAction="http://kingpower.com/kbms/GetPO" style="document" />
+      <wsdl:input>
+        <soap12:body use="literal" />
+      </wsdl:input>
+      <wsdl:output>
+        <soap12:body use="literal" />
+      </wsdl:output>
+    </wsdl:operation>
+    <wsdl:operation name="UploadOTBPlan">
+      <soap12:operation soapAction="http://kingpower.com/kbms/UploadOTBPlan" style="document" />
+      <wsdl:input>
+        <soap12:body use="literal" />
+      </wsdl:input>
+      <wsdl:output>
+        <soap12:body use="literal" />
+      </wsdl:output>
+    </wsdl:operation>
+    <wsdl:operation name="UpdateOTBPlan">
+      <soap12:operation soapAction="http://kingpower.com/kbms/UpdateOTBPlan" style="document" />
+      <wsdl:input>
+        <soap12:body use="literal" />
+      </wsdl:input>
+      <wsdl:output>
+        <soap12:body use="literal" />
+      </wsdl:output>
+    </wsdl:operation>
+    <wsdl:operation name="GetPOSimple">
+      <soap12:operation soapAction="http://kingpower.com/kbms/GetPOSimple" style="document" />
+      <wsdl:input>
+        <soap12:body use="literal" />
+      </wsdl:input>
+      <wsdl:output>
+        <soap12:body use="literal" />
+      </wsdl:output>
+    </wsdl:operation>
+    <wsdl:operation name="GetPOByDate">
+      <soap12:operation soapAction="http://kingpower.com/kbms/GetPOByDate" style="document" />
+      <wsdl:input>
+        <soap12:body use="literal" />
+      </wsdl:input>
+      <wsdl:output>
+        <soap12:body use="literal" />
+      </wsdl:output>
+    </wsdl:operation>
+    <wsdl:operation name="HealthCheck">
+      <soap12:operation soapAction="http://kingpower.com/kbms/HealthCheck" style="document" />
+      <wsdl:input>
+        <soap12:body use="literal" />
+      </wsdl:input>
+      <wsdl:output>
+        <soap12:body use="literal" />
+      </wsdl:output>
+    </wsdl:operation>
+    <wsdl:operation name="HelloWorld">
+      <soap12:operation soapAction="http://kingpower.com/kbms/HelloWorld" style="document" />
+      <wsdl:input>
+        <soap12:body use="literal" />
+      </wsdl:input>
+      <wsdl:output>
+        <soap12:body use="literal" />
+      </wsdl:output>
+    </wsdl:operation>
+    <wsdl:operation name="TestNoAuth">
+      <soap12:operation soapAction="http://kingpower.com/kbms/TestNoAuth" style="document" />
+      <wsdl:input>
+        <soap12:body use="literal" />
+      </wsdl:input>
+      <wsdl:output>
+        <soap12:body use="literal" />
+      </wsdl:output>
+    </wsdl:operation>
+    <wsdl:operation name="TestSAPConnection">
+      <soap12:operation soapAction="http://kingpower.com/kbms/TestSAPConnection" style="document" />
+      <wsdl:input>
+        <soap12:body use="literal" />
+      </wsdl:input>
+      <wsdl:output>
+        <soap12:body use="literal" />
+      </wsdl:output>
+    </wsdl:operation>
+    <wsdl:operation name="GetApiInfo">
+      <soap12:operation soapAction="http://kingpower.com/kbms/GetApiInfo" style="document" />
+      <wsdl:input>
+        <soap12:body use="literal" />
+      </wsdl:input>
+      <wsdl:output>
+        <soap12:body use="literal" />
+      </wsdl:output>
+    </wsdl:operation>
+  </wsdl:binding>
+  <wsdl:service name="KBMSApi">
+    <wsdl:port name="KBMSApiSoap" binding="tns:KBMSApiSoap">
+      <soap:address location="https://bms.kingpower.com/KBMSApi/KBMSApi.asmx" />
+    </wsdl:port>
+    <wsdl:port name="KBMSApiSoap12" binding="tns:KBMSApiSoap12">
+      <soap12:address location="https://bms.kingpower.com/KBMSApi/KBMSApi.asmx" />
+    </wsdl:port>
+  </wsdl:service>
+</wsdl:definitions>
