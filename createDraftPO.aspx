@@ -44,9 +44,9 @@
             box-shadow: 2px 0 10px rgba(0,0,0,0.3);
         }
 
-        .sidebar.active {
-            left: 0;
-        }
+            .sidebar.active {
+                left: 0;
+            }
 
         .sidebar-overlay {
             position: fixed;
@@ -59,9 +59,9 @@
             display: none;
         }
 
-        .sidebar-overlay.active {
-            display: block;
-        }
+            .sidebar-overlay.active {
+                display: block;
+            }
 
         .sidebar-header {
             padding: 25px 20px;
@@ -73,11 +73,11 @@
             border-bottom: 2px solid #34495e;
         }
 
-        .sidebar-header h3 {
-            margin: 0;
-            font-size: 1.8rem;
-            font-weight: 700;
-        }
+            .sidebar-header h3 {
+                margin: 0;
+                font-size: 1.8rem;
+                font-weight: 700;
+            }
 
         .close-sidebar {
             background: transparent;
@@ -95,9 +95,9 @@
             transition: background 0.3s;
         }
 
-        .close-sidebar:hover {
-            background: rgba(255,255,255,0.1);
-        }
+            .close-sidebar:hover {
+                background: rgba(255,255,255,0.1);
+            }
 
         .sidebar-menu {
             list-style: none;
@@ -119,32 +119,32 @@
             font-size: 0.95rem;
         }
 
-        .menu-link:hover {
-            background: var(--sidebar-hover);
-            color: white;
-            padding-left: 25px;
-        }
+            .menu-link:hover {
+                background: var(--sidebar-hover);
+                color: white;
+                padding-left: 25px;
+            }
 
-        .menu-link.active {
-            background: var(--orange-header);
-            color: white;
-            border-left: 4px solid #fff;
-        }
+            .menu-link.active {
+                background: var(--orange-header);
+                color: white;
+                border-left: 4px solid #fff;
+            }
 
-        .menu-link i {
-            font-size: 1.2rem;
-            min-width: 35px;
-        }
+            .menu-link i {
+                font-size: 1.2rem;
+                min-width: 35px;
+            }
 
-        .menu-link .bi-chevron-down {
-            margin-left: auto;
-            font-size: 1rem;
-            transition: transform 0.3s;
-        }
+            .menu-link .bi-chevron-down {
+                margin-left: auto;
+                font-size: 1rem;
+                transition: transform 0.3s;
+            }
 
-        .menu-link.expanded .bi-chevron-down {
-            transform: rotate(180deg);
-        }
+            .menu-link.expanded .bi-chevron-down {
+                transform: rotate(180deg);
+            }
 
         .submenu {
             list-style: none;
@@ -155,20 +155,20 @@
             background: rgba(0,0,0,0.2);
         }
 
-        .submenu.show {
-            max-height: 600px;
-        }
+            .submenu.show {
+                max-height: 600px;
+            }
 
-        .submenu .menu-link {
-            padding-left: 55px;
-            font-size: 0.9rem;
-            padding-top: 12px;
-            padding-bottom: 12px;
-        }
+            .submenu .menu-link {
+                padding-left: 55px;
+                font-size: 0.9rem;
+                padding-top: 12px;
+                padding-bottom: 12px;
+            }
 
-        .submenu .menu-link:hover {
-            padding-left: 60px;
-        }
+                .submenu .menu-link:hover {
+                    padding-left: 60px;
+                }
 
         /* Main Wrapper */
         .main-wrapper {
@@ -203,10 +203,10 @@
             gap: 10px;
         }
 
-        .menu-toggle:hover {
-            background: #094580;
-            transform: scale(1.05);
-        }
+            .menu-toggle:hover {
+                background: #094580;
+                transform: scale(1.05);
+            }
 
         .page-title {
             color: #2c3e50;
@@ -269,23 +269,23 @@
             flex: 1;
         }
 
-        .tab-button.active {
-            background: var(--primary-blue);
-        }
+            .tab-button.active {
+                background: var(--primary-blue);
+            }
 
-        .tab-button:hover {
-            background: var(--primary-blue);
-            opacity: 0.9;
-        }
+            .tab-button:hover {
+                background: var(--primary-blue);
+                opacity: 0.9;
+            }
 
         /* Tab Content */
         .tab-content {
             display: none;
         }
 
-        .tab-content.active {
-            display: block;
-        }
+            .tab-content.active {
+                display: block;
+            }
 
         /* Form Container */
         .form-container {
@@ -325,10 +325,10 @@
             font-size: 0.95rem;
         }
 
-        .form-control:focus, .form-select:focus {
-            border-color: var(--primary-blue);
-            box-shadow: 0 0 0 0.2rem rgba(11,86,164,0.15);
-        }
+            .form-control:focus, .form-select:focus {
+                border-color: var(--primary-blue);
+                box-shadow: 0 0 0 0.2rem rgba(11,86,164,0.15);
+            }
 
         .info-display {
             background: var(--light-blue-bg);
@@ -354,27 +354,27 @@
             align-items: start;
         }
 
-        .form-row-display .form-group {
-            display: flex;
-            gap: 15px;
-            align-items: center;
-            flex: 1;
-        }
+            .form-row-display .form-group {
+                display: flex;
+                gap: 15px;
+                align-items: center;
+                flex: 1;
+            }
 
-        .form-row-display .form-group label {
-            min-width: 100px;
-            margin-bottom: 0;
-            font-weight: 600;
-        }
+                .form-row-display .form-group label {
+                    min-width: 100px;
+                    margin-bottom: 0;
+                    font-weight: 600;
+                }
 
-        .form-row-display .form-group .info-display {
-            flex: 1;
-        }
+                .form-row-display .form-group .info-display {
+                    flex: 1;
+                }
 
-        .form-row-display .form-group input,
-        .form-row-display .form-group select {
-            flex: 1;
-        }
+                .form-row-display .form-group input,
+                .form-row-display .form-group select {
+                    flex: 1;
+                }
 
         /* Buttons */
         .btn-submit {
@@ -389,11 +389,11 @@
             cursor: pointer;
         }
 
-        .btn-submit:hover {
-            background: #094580;
-            transform: translateY(-2px);
-            box-shadow: 0 4px 12px rgba(11,86,164,0.3);
-        }
+            .btn-submit:hover {
+                background: #094580;
+                transform: translateY(-2px);
+                box-shadow: 0 4px 12px rgba(11,86,164,0.3);
+            }
 
         .btn-upload {
             background: var(--green-btn);
@@ -407,10 +407,10 @@
             cursor: pointer;
         }
 
-        .btn-upload:hover {
-            background: #218838;
-            transform: translateY(-2px);
-        }
+            .btn-upload:hover {
+                background: #218838;
+                transform: translateY(-2px);
+            }
 
         /* Upload Section */
         .upload-section {
@@ -430,15 +430,15 @@
             gap: 15px;
         }
 
-        .file-input-group label {
-            min-width: 80px;
-            font-weight: 600;
-            margin-bottom: 0;
-        }
+            .file-input-group label {
+                min-width: 80px;
+                font-weight: 600;
+                margin-bottom: 0;
+            }
 
-        .file-input-group input[type="file"] {
-            flex: 1;
-        }
+            .file-input-group input[type="file"] {
+                flex: 1;
+            }
 
         /* Responsive */
         @media (max-width: 768px) {
@@ -465,9 +465,9 @@
                 align-items: stretch;
             }
 
-            .file-input-group label {
-                min-width: auto;
-            }
+                .file-input-group label {
+                    min-width: auto;
+                }
         }
 
         /* Scrollbar */
@@ -492,7 +492,7 @@
     <!-- Sidebar -->
     <div class="sidebar" id="sidebar">
         <div class="sidebar-header">
-            <h3><i class="bi bi-building"></i> BMS</h3>
+            <h3><i class="bi bi-building"></i>BMS</h3>
             <button class="close-sidebar" onclick="toggleSidebar()">
                 <i class="bi bi-x-lg"></i>
             </button>
@@ -582,10 +582,10 @@
             <!-- Tabs -->
             <div class="custom-tabs">
                 <button class="tab-button active" onclick="switchTab('txn')">
-                    <i class="bi bi-pencil-square"></i> Create by TXN
+                    <i class="bi bi-pencil-square"></i>Create by TXN
                 </button>
                 <button class="tab-button" onclick="switchTab('upload')">
-                    <i class="bi bi-cloud-upload"></i> Upload file
+                    <i class="bi bi-cloud-upload"></i>Upload file
                 </button>
             </div>
 
@@ -602,13 +602,11 @@
                             <div class="form-group">
                                 <label>Year</label>
                                 <select id="DDYear" class="form-select">
-                               
                                 </select>
                             </div>
                             <div class="form-group">
                                 <label>Category</label>
                                 <select id="DDCategory" class="form-select">
-                                   
                                 </select>
                             </div>
                         </div>
@@ -618,13 +616,11 @@
                             <div class="form-group">
                                 <label>Month</label>
                                 <select id="DDMonth" class="form-select">
-                                  
                                 </select>
                             </div>
                             <div class="form-group">
                                 <label>Segment</label>
                                 <select id="DDSegment" class="form-select">
-                                   
                                 </select>
                             </div>
                         </div>
@@ -634,13 +630,11 @@
                             <div class="form-group">
                                 <label>Company</label>
                                 <select id="DDCompany" class="form-select">
-                                  
                                 </select>
                             </div>
                             <div class="form-group">
                                 <label>Brand</label>
                                 <select id="DDBrand" class="form-select">
-                                  
                                 </select>
                             </div>
                         </div>
@@ -654,7 +648,6 @@
                             <div class="form-group">
                                 <label>Vendor</label>
                                 <select id="DDVendor" class="form-select">
-                                    
                                 </select>
                             </div>
                         </div>
@@ -664,7 +657,7 @@
                             <div class="form-group">
                                 <label>Draft PO no.</label>
                                 <input id="txtPONO" type="text" class="form-control" placeholder="Enter PO number">
-                            </div> 
+                            </div>
                             <div class="form-group">
                                 <label>Amount (CCY)</label>
                                 <input id="txtAmtCCY" type="text" class="form-control" pattern="^\d+(\.\d{1,2})?$" title="Enter a valid amount (e.g., 123 or 123.45)" placeholder="0.00">
@@ -691,7 +684,7 @@
                         <div class="form-row-display form-row-item">
                             <div class="form-group">
                                 <label>Exchange rate</label>
-                                <input id="txtExRate" type="text" class="form-control" placeholder="0.00" pattern="^\d+(\.\d{1,2})?$" title="Enter a valid amount (e.g., 123 or 123.45)" >
+                                <input id="txtExRate" type="text" class="form-control" placeholder="0.00" pattern="^\d+(\.\d{1,2})?$" title="Enter a valid amount (e.g., 123 or 123.45)">
                             </div>
                             <div class="form-group">
                                 <label>Remark</label>
@@ -701,8 +694,8 @@
 
                         <!-- Submit Button -->
                         <div class="text-center mt-4">
-                            <button  type="button" class="btn-submit" id="btnSubmit">
-                                <i class="bi bi-check-circle"></i> Submit
+                            <button type="button" class="btn-submit" id="btnSubmit">
+                                <i class="bi bi-check-circle"></i>Submit
                             </button>
                         </div>
                     </div>
@@ -717,12 +710,12 @@
                             <div class="upload-title">
                                 Create Draft PO by upload
                             </div>
-                            
+
                             <div class="file-input-group">
                                 <label>File</label>
-                                <input type="file"  id="fileUpload" class="form-control" accept=".xlsx,.xls,.csv">
+                                <input type="file" id="fileUpload" class="form-control" accept=".xlsx,.xls,.csv">
                                 <button type="button" id="btnUpload" class="btn-upload">
-                                    <i class="bi bi-upload"></i> Upload
+                                    <i class="bi bi-upload"></i>Upload
                                 </button>
                             </div>
                         </div>
@@ -733,23 +726,133 @@
     </div>
 
     <!-- Modal -->
-<div class="modal fade" id="previewModal" tabindex="-1" aria-labelledby="previewModalLabel" aria-hidden="true">
-    <div class="modal-dialog modal-xl">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title" id="previewModalLabel">Preview Data</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-            </div>
-            <div class="modal-body">
-                <div id="previewTableContainer"></div>
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                <button type="button" id="btnSubmitData" class="btn btn-primary">Submit to Database</button>
+    <div class="modal fade" id="previewModal" tabindex="-1" aria-labelledby="previewModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-xl">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="previewModalLabel">Preview Data</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div id="previewTableContainer"></div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" id="btnSubmitData" class="btn btn-primary">Submit to Database</button>
+                </div>
             </div>
         </div>
     </div>
-</div>
+
+    <div class="modal fade" id="previewPOTXNModal" tabindex="-1" aria-labelledby="previewPOTXNModalLabel" data-bs-backdrop="static" data-bs-keyboard="false">
+        <div class="modal-dialog modal-xl">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="previewPOTXNModalLabel">Preview Data</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div id="previewPOTXNContainer">
+                        <div class="form-container">
+                            <div class="form-section">
+                                <div class="section-title">
+                                    Create Draft PO by transaction
+                                </div>
+
+                                <!-- Row 1 -->
+                                <div class="form-row-display form-row-item">
+                                    <div class="form-group">
+                                        <label>Year</label>
+                                        <input id="tsYear" type="text" class="form-control" readonly>
+                                    </div>
+                                    <div class="form-group">
+                                        <label>Category</label>
+                                        <input id="tsCategory" type="text" class="form-control" readonly>
+                                    </div>
+                                </div>
+
+                                <!-- Row 2 -->
+                                <div class="form-row-display form-row-item">
+                                    <div class="form-group">
+                                        <label>Month</label>
+                                        <input id="tsMonth" type="text" class="form-control" readonly>
+                                    </div>
+                                    <div class="form-group">
+                                        <label>Segment</label>
+                                        <input id="tsSegment" type="text" class="form-control" readonly>
+                                    </div>
+                                </div>
+
+                                <!-- Row 3 -->
+                                <div class="form-row-display form-row-item">
+                                    <div class="form-group">
+                                        <label>Company</label>
+                                        <input id="tsCompany" type="text" class="form-control" readonly>
+                                    </div>
+                                    <div class="form-group">
+                                        <label>Brand</label>
+                                        <input id="tsBrand" type="text" class="form-control" readonly>
+                                    </div>
+                                </div>
+
+                                <!-- Row 4 -->
+                                <div class="form-row-display form-row-item">
+                                    <div class="form-group" style="visibility: hidden;">
+                                        <label>-</label>
+                                        <div class="info-display">-</div>
+                                    </div>
+                                    <div class="form-group">
+                                        <label>Vendor</label>
+                                        <input id="tsVendor" type="text" class="form-control" readonly>
+                                    </div>
+                                </div>
+
+                                <!-- Row 5 -->
+                                <div class="form-row-display form-row-item">
+                                    <div class="form-group">
+                                        <label>Draft PO no.</label>
+                                        <input id="tsPONO" type="text" class="form-control" placeholder="Enter PO number">
+                                    </div>
+                                    <div class="form-group">
+                                        <label>Amount (CCY)</label>
+                                        <input id="tsAmtCCY" type="text" class="form-control" placeholder="0.00">
+                                    </div>
+                                </div>
+
+                                <!-- Row 6 -->
+                                <div class="form-row-display form-row-item">
+                                    <div class="form-group">
+                                        <label>CCY</label>
+                                        <input id="tsCCY" type="text" class="form-control" placeholder="Enter PO number">
+                                    </div>
+                                    <div class="form-group">
+                                        <label>Amount (THB)</label>
+                                        <input id="tsAmtTHB" type="text" class="form-control" placeholder="0.00" readonly>
+                                    </div>
+                                </div>
+
+                                <!-- Row 7 -->
+                                <div class="form-row-display form-row-item">
+                                    <div class="form-group">
+                                        <label>Exchange rate</label>
+                                        <input id="tsExRate" type="text" class="form-control" placeholder="0.00" pattern="^\d+(\.\d{1,2})?$" title="Enter a valid amount (e.g., 123 or 123.45)">
+                                    </div>
+                                    <div class="form-group">
+                                        <label>Remark</label>
+                                        <input id="tsRemark" type="text" class="form-control" placeholder="Enter remark">
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" id="btnConfirmExtra" class="btn btn-primary">Confirm</button>
+            </div>
+        </div>
+    </div>
 
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
@@ -781,33 +884,33 @@
                 var fileInput = $('#fileUpload')[0];
                 var file = fileInput.files[0];
                 var currentUser = '<%= HttpUtility.JavaScriptStringEncode(Session("user").ToString()) %>';
-                        var uploadBy = currentUser || 'unknown';
-                        console.log(uploadBy);
+                var uploadBy = currentUser || 'unknown';
+                console.log(uploadBy);
 
-                        if (!file) {
-                            alert('Please select a file.');
-                            return;
-                        }
+                if (!file) {
+                    alert('Please select a file.');
+                    return;
+                }
 
-                        var formData = new FormData();
-                        formData.append('file', file);
-                        formData.append('uploadBy', uploadBy); //  ส่งไปกับ request
+                var formData = new FormData();
+                formData.append('file', file);
+                formData.append('uploadBy', uploadBy); //  ส่งไปกับ request
 
-                        $.ajax({
-                            url: 'Handler/POUploadHandler.ashx?action=preview',
-                            type: 'POST',
-                            data: formData,
-                            processData: false,
-                            contentType: false,
-                            success: function (response) {
-                                $('#previewTableContainer').html(response);
-                                $('#previewModal').modal('show');
-                            },
-                            error: function (xhr, status, error) {
-                                alert('Error loading preview: ' + error);
-                            }
-                        });
-                    });
+                $.ajax({
+                    url: 'Handler/POUploadHandler.ashx?action=preview',
+                    type: 'POST',
+                    data: formData,
+                    processData: false,
+                    contentType: false,
+                    success: function (response) {
+                        $('#previewTableContainer').html(response);
+                        $('#previewModal').modal('show');
+                    },
+                    error: function (xhr, status, error) {
+                        alert('Error loading preview: ' + error);
+                    }
+                });
+            });
 
         });
 
@@ -815,7 +918,7 @@
         function toggleSidebar() {
             const sidebar = document.getElementById('sidebar');
             const overlay = document.getElementById('sidebarOverlay');
-            
+
             sidebar.classList.toggle('active');
             overlay.classList.toggle('active');
         }
@@ -824,10 +927,10 @@
         function toggleSubmenu(event, submenuId) {
             event.preventDefault();
             event.stopPropagation();
-            
+
             const submenu = document.getElementById(submenuId);
             const menuLink = event.currentTarget;
-            
+
             submenu.classList.toggle('show');
             menuLink.classList.toggle('expanded');
         }
@@ -835,14 +938,14 @@
         // Load Page
         function loadPage(event, pageName) {
             event.preventDefault();
-            
+
             document.querySelectorAll('.submenu .menu-link').forEach(link => {
                 link.classList.remove('active');
             });
-            
+
             event.currentTarget.classList.add('active');
             document.getElementById('pageTitle').textContent = pageName;
-            
+
             if (window.innerWidth <= 768) {
                 toggleSidebar();
             }
@@ -852,12 +955,12 @@
         function switchTab(tab) {
             const tabs = document.querySelectorAll('.tab-button');
             tabs.forEach(t => t.classList.remove('active'));
-            
+
             const tabContents = document.querySelectorAll('.tab-content');
             tabContents.forEach(tc => tc.classList.remove('active'));
-            
+
             event.target.closest('.tab-button').classList.add('active');
-            
+
             if (tab === 'txn') {
                 document.getElementById('txnTab').classList.add('active');
             } else if (tab === 'upload') {
@@ -888,13 +991,13 @@
 
             btnSubmit.addEventListener('click', function () {
                 // Implement submission logic here
-                alert('Submit button clicked');
+
             });
 
             // *** ADDED: Approve Button Click Event ***
             //btnApprove.addEventListener('click', approveSelectedItems);
         }
-        
+
         let InitMSData = function () {
             InitSegment(segmentDropdown);
             InitCategoty(categoryDropdown);
@@ -1034,11 +1137,49 @@
             });
         }
 
+       
+
+        let InsertPreview = function () {
+            var formData = new FormData();
+            formData.append('segmentCode', "");
+            $.ajax({
+                url: 'Handler/DataPOHandler.ashx?action=InsertPreview',
+                type: 'POST',
+                data: formData,
+                processData: false,
+                contentType: false,
+                success: function (response) {
+                    
+                },
+                error: function (xhr, status, error) {
+                    console.log('Error getlist data: ' + error);
+                }
+            });
+        }
+
+        let PoPreview = function () {
+            var formData = new FormData();
+            formData.append('segmentCode', "");
+            $.ajax({
+                url: 'Handler/DataPOHandler.ashx?action=PoPreview',
+                type: 'POST',
+                data: formData,
+                processData: false,
+                contentType: false,
+                success: function (response) {
+
+                },
+                error: function (xhr, status, error) {
+                    console.log('Error getlist data: ' + error);
+                }
+            });
+        }
+
         // Close sidebar when clicking outside
-        document.addEventListener('click', function(event) {
+        document.addEventListener('click', function (event) {
             const sidebar = document.getElementById('sidebar');
             const menuToggle = document.querySelector('.menu-toggle');
-            
+
             if (!sidebar.contains(event.target) && !menuToggle.contains(event.target)) {
                 if (sidebar.classList.contains('active')) {
                     toggleSidebar();

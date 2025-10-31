@@ -208,7 +208,7 @@ Public Class POUploadHandler
                  </div>"
         End Try
 
-        ' *** 👈 (ขั้นตอนที่ 1) PRE-CHECK: ดึง PO ทั้งหมดจาก Excel ***
+        ' ***  (ขั้นตอนที่ 1) PRE-CHECK: ดึง PO ทั้งหมดจาก Excel ***
         Dim poNosFromExcel As New List(Of String)
         If dt.Columns.Contains("Draft PO no.") Then
             For Each row As DataRow In dt.Rows

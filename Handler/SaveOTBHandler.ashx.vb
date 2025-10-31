@@ -4,6 +4,7 @@ Imports System.Data
 Imports System.Data.SqlClient
 Imports System.Text
 Imports Newtonsoft.Json
+Imports System.Threading.Tasks
 
 Public Class SaveOTBHandler
     Implements IHttpHandler
@@ -11,6 +12,7 @@ Public Class SaveOTBHandler
     Private Shared connectionString As String = ConfigurationManager.ConnectionStrings("BMSConnectionString")?.ConnectionString
 
     Sub ProcessRequest(ByVal context As HttpContext) Implements IHttpHandler.ProcessRequest
+
         context.Response.Clear()
         context.Response.ContentType = "application/json"
         context.Response.ContentEncoding = Encoding.UTF8
@@ -79,9 +81,43 @@ Public Class SaveOTBHandler
             End If
             ' (กรณี dateFrom = dateTo จะใช้ Default "D" (Switch) ซึ่งถูกต้องตามเงื่อนไข 1)
 
+            Dim sapRequest As New OtbSwitchRequest()
+            ' sapRequest.TestMode = "X" ' (ถ้าต้องการ Test)
+            Dim switchItem As New OtbSwitchItem With {
+                .DocYearFrom = yearFrom.ToString(),
+                .PeriodFrom = monthFrom.ToString(),
+                .FmAreaFrom = companyFrom.ToString(),
+                .CatFrom = categoryFrom.ToString(),
+                .SegmentFrom = segmentFrom.ToString(),
+                .TypeFrom = fromCode, ' <--- ใช้ Code ที่คำนวณได้
+                .BrandFrom = brandFrom,
+                .VendorFrom = vendorFrom.ToString(),
+                .Budget = amount.ToString("F2"),
+                .DocYearTo = yearTo.ToString(),
+                .PeriodTo = monthTo.ToString(),
+                .FmAreaTo = companyTo.ToString(),
+                .CatTo = categoryTo.ToString(),
+                .SegmentTo = segmentTo.ToString(),
+                .TypeTo = toCode, ' <--- ใช้ Code ที่คำนวณได้
+                .BrandTo = brandTo,
+                .VendorTo = vendorTo.ToString()
+            }
+            sapRequest.Data.Add(switchItem)
 
-            ' 3. สร้าง Query เพื่อ Insert ลงตาราง OTB_Switching_Transaction
-            ' (อ้างอิงจาก schema 'image_c8cffd.png')
+            Dim sapResponse As SapApiResponse(Of SapSwitchResultItem) = Task.Run(Async Function()
+                                                                                     Return Await SapApiHelper.SwitchOtbPlanAsync(sapRequest)
+                                                                                 End Function).Result
+
+            If sapResponse Is Nothing OrElse sapResponse.Status.ErrorCount > 0 Then
+                Dim errorMsg As String = "SAP Error (Unknown)"
+                If sapResponse IsNot Nothing AndAlso sapResponse.Results.Count > 0 Then
+                    ' ดึง Message จาก SAP
+                    errorMsg = sapResponse.Results(0).Message
+                End If
+                ' หยุดทันที ห้าม Save DB
+                Throw New Exception(errorMsg)
+            End If
+
             Dim query As String = "
                 INSERT INTO [dbo].[OTB_Switching_Transaction] (
                     [Year], [Month], [Company], [Category], [Segment], [Brand], [Vendor], 
@@ -173,6 +209,48 @@ Public Class SaveOTBHandler
             Dim amount As Decimal = Convert.ToDecimal(context.Request.Form("amount"))
             Dim createdBy As String = If(String.IsNullOrEmpty(context.Request.Form("createdBy")), "System", context.Request.Form("createdBy"))
             Dim remark As String = If(String.IsNullOrEmpty(context.Request.Form("remark")), "", context.Request.Form("remark"))
+
+
+            Dim sapRequest As New OtbSwitchRequest()
+            ' sapRequest.TestMode = "X" ' (ถ้าต้องการ Test)
+
+            ' *** นี่คือส่วนที่แก้ไข ***
+            ' เราสร้าง Item โดยใส่ข้อมูลแค่ฝั่ง From (Type "E")
+            ' และปล่อยฝั่ง To ทั้งหมดให้เป็น Nothing
+            Dim switchItem As New OtbSwitchItem With {
+                .DocYearFrom = year.ToString(),
+                .PeriodFrom = month.ToString(),
+                .FmAreaFrom = company.ToString(),
+                .CatFrom = category.ToString(),
+                .SegmentFrom = segment.ToString(),
+                .TypeFrom = "E", ' <--- Type E
+                .BrandFrom = brand,
+                .VendorFrom = vendor.ToString(),
+                .Budget = amount.ToString("F2"),
+                .DocYearTo = Nothing,
+                .PeriodTo = Nothing,
+                .FmAreaTo = Nothing,
+                .CatTo = Nothing,
+                .SegmentTo = Nothing,
+                .TypeTo = Nothing,
+                .BrandTo = Nothing,
+                .VendorTo = Nothing
+            }
+            sapRequest.Data.Add(switchItem)
+
+            Dim sapResponse As SapApiResponse(Of SapSwitchResultItem) = Task.Run(Async Function()
+                                                                                     Return Await SapApiHelper.SwitchOtbPlanAsync(sapRequest)
+                                                                                 End Function).Result
+
+            If sapResponse Is Nothing OrElse sapResponse.Status.ErrorCount > 0 Then
+                Dim errorMsg As String = "SAP Error (Unknown)"
+                If sapResponse IsNot Nothing AndAlso sapResponse.Results.Count > 0 Then
+                    ' ดึง Message จาก SAP
+                    errorMsg = sapResponse.Results(0).Message
+                End If
+                ' หยุดทันที ห้าม Save DB
+                Throw New Exception(errorMsg)
+            End If
 
             ' 2. สร้าง Query (Type 'E')
             Dim query As String = "

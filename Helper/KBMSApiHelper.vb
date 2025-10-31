@@ -21,12 +21,17 @@ Public Class KBMSApiHelper
     End Function
 
     ' ===== UpdateOTBPlan =====
-    Public Shared Function UpdateOTBPlan(jsonData As String) As SimpleApiResponse
+    Public Shared Function UpdateOTBPlan(OTBSwitchRequest As OTBSwitchJsonRequestRow) As SimpleApiResponse
         Try
 
+            Dim jsonData As String = ""
+
             Dim result = _client.UpdateOTBPlan(jsonData)
+
             Return result
+
         Catch ex As Exception
+
             Return New SimpleApiResponse With {
                 .Message = ex.Message,
                 .Success = False,

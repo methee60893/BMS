@@ -839,6 +839,79 @@
             }
         }
 
+        let PreviewEdit = function () {
+            var formData = new FormData();
+            formData.append('segmentCode', "");
+            $.ajax({
+                url: 'Handler/DataPOHandler.ashx?action=PreviewEdit',
+                type: 'POST',
+                data: formData,
+                processData: false,
+                contentType: false,
+                success: function (response) {
+
+                },
+                error: function (xhr, status, error) {
+                    console.log('Error getlist data: ' + error);
+                }
+            });
+        }
+
+        let EditDraftPO = function () {
+            var formData = new FormData();
+            formData.append('segmentCode', "");
+            $.ajax({
+                url: 'Handler/DataPOHandler.ashx?action=EditDraftPO',
+                type: 'POST',
+                data: formData,
+                processData: false,
+                contentType: false,
+                success: function (response) {
+
+                },
+                error: function (xhr, status, error) {
+                    console.log('Error getlist data: ' + error);
+                }
+            });
+        }
+
+        let PoListFilter = function () {
+
+            var formData = new FormData();
+
+            $.ajax({
+                url: 'Handler/DataPOHandler.ashx?action=PoListFilter',
+                type: 'POST',
+                data: formData,
+                processData: false,
+                contentType: false,
+                success: function (response) {
+
+                },
+                error: function (xhr, status, error) {
+                    console.log('Error getlist data: ' + error);
+                }
+            });
+        }
+
+        let PoListPreview = function () {
+            var formData = new FormData();
+            formData.append('segmentCode', "");
+            $.ajax({
+                url: 'Handler/DataPOHandler.ashx?action=PoListPreview',
+                type: 'POST',
+                data: formData,
+                processData: false,
+                contentType: false,
+                success: function (response) {
+
+                },
+                error: function (xhr, status, error) {
+                    console.log('Error getlist data: ' + error);
+                }
+            });
+        }
+
         // Close sidebar when clicking outside
         document.addEventListener('click', function(event) {
             const sidebar = document.getElementById('sidebar');

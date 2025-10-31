@@ -12,6 +12,7 @@ Imports ExcelDataReader
 Imports Newtonsoft.Json
 Imports OfficeOpenXml
 Imports OfficeOpenXml.Style
+Imports System.Threading.Tasks
 
 Public Class DataOTBHandler
     Implements IHttpHandler
@@ -259,28 +260,28 @@ Public Class DataOTBHandler
 
 
                 sb.AppendFormat("<tr>
-                                <td><input type=""checkbox"" id=""checkselect{0}"" name=""checkselect"" class=""form-check-input"" checked></td>
-                                <td>{1}</td>
-                                <td>{2}</td>
-                                <td>{3}</td>
-                                <td>{4}</td>
-                                <td>{5}</td>
-                                <td>{6}</td>
-                                <td>{7}</td>
-                                <td>{8}</td>
-                                <td>{9}</td>
-                                <td>{10}</td>
-                                <td>{11}</td>
-                                <td>{12}</td>
-                                <td>{13}</td>    
-                                <td class=""text-end"">{14}</td>
-                                <td class=""text-end"">{15}</td>
-                                <td class=""text-end"">{16}</td>
-                                <td>{17}</td>
-                                <td>{18}</td>
-                                <td>{19}</td>
-                                <td>{20}</td>
-                            </tr>",
+                                    <td><input type=""checkbox"" id=""checkselect{0}"" name=""checkselect"" class=""form-check-input"" checked></td>
+                                    <td>{1}</td>
+                                    <td>{2}</td>
+                                    <td>{3}</td>
+                                    <td>{4}</td>
+                                    <td>{5}</td>
+                                    <td>{6}</td>
+                                    <td>{7}</td>
+                                    <td>{8}</td>
+                                    <td>{9}</td>
+                                    <td>{10}</td>
+                                    <td>{11}</td>
+                                    <td>{12}</td>
+                                    <td>{13}</td>    
+                                    <td class=""text-end"">{14}</td>
+                                    <td class=""text-end"">{15}</td>
+                                    <td class=""text-end"">{16}</td>
+                                    <td>{17}</td>
+                                    <td>{18}</td>
+                                    <td>{19}</td>
+                                    <td>{20}</td>
+                                </tr>",
                             HttpUtility.HtmlEncode(RunNo),
                             HttpUtility.HtmlEncode(CreateDT),
                             HttpUtility.HtmlEncode(OTBType),
@@ -622,7 +623,7 @@ Public Class DataOTBHandler
             ' Convert comma-separated IDs to List
             Dim runNos As New List(Of Integer)
             Try
-                ' Deserialize JSON array ["842","843","844",...]
+
                 Dim jsonArray As List(Of String) = JsonConvert.DeserializeObject(Of List(Of String))(idsString)
 
                 For Each idStr As String In jsonArray
@@ -640,6 +641,34 @@ Public Class DataOTBHandler
                     End If
                 Next
             End Try
+
+            Dim draftData As DataTable = GetOTBDraftDataByRunNos(runNos)
+
+            If draftData.Rows.Count = 0 Then
+                Throw New Exception("Could not find draft records to approve.")
+            End If
+
+            Dim plansToUpload As New List(Of OtbPlanUploadItem)()
+            For Each row As DataRow In draftData.Rows
+                plansToUpload.Add(New OtbPlanUploadItem With {
+                    .Version = If(row("Version") IsNot DBNull.Value, row("Version").ToString(), "R1"), ' (ใช้ R1 ถ้าไม่มี)
+                    .CompCode = If(row("OTBCompany") IsNot DBNull.Value, row("OTBCompany").ToString(), ""),
+                    .Category = If(row("OTBCategory") IsNot DBNull.Value, row("OTBCategory").ToString(), ""),
+                    .VendorCode = If(row("OTBVendor") IsNot DBNull.Value, row("OTBVendor").ToString(), ""),
+                    .SegmentCode = If(row("OTBSegment") IsNot DBNull.Value, row("OTBSegment").ToString(), ""),
+                    .BrandCode = If(row("OTBBrand") IsNot DBNull.Value, row("OTBBrand").ToString(), ""),
+                    .Amount = If(row("Amount") IsNot DBNull.Value, Convert.ToDecimal(row("Amount")).ToString("F2"), "0.00"),
+                    .Year = If(row("OTBYear") IsNot DBNull.Value, row("OTBYear").ToString(), ""),
+                    .Month = If(row("OTBMonth") IsNot DBNull.Value, row("OTBMonth").ToString(), ""),
+                    .Remark = If(row("Remark") IsNot DBNull.Value, row("Remark").ToString(), "")
+                })
+            Next
+
+            Dim sapResponse As SapApiResponse(Of SapUploadResultItem) = Task.Run(Async Function()
+                                                                                     Return Await SapApiHelper.UploadOtbPlanAsync(plansToUpload)
+                                                                                 End Function).Result
+
+
 
             ' Call Approve function
             Dim result As Dictionary(Of String, Object) = ApprovedOTBManager.ApproveDraftOTB(runNos, approvedBy, remark)
@@ -677,10 +706,9 @@ Public Class DataOTBHandler
                 Return
             End If
 
-            ' Convert comma-separated IDs to List
             Dim runNos As New List(Of Integer)
             Try
-                ' Deserialize JSON array ["842","843","844",...]
+
                 Dim jsonArray As List(Of String) = JsonConvert.DeserializeObject(Of List(Of String))(runNoJson)
 
                 For Each idStr As String In jsonArray
@@ -690,7 +718,6 @@ Public Class DataOTBHandler
                     End If
                 Next
             Catch jsonEx As Exception
-                ' ถ้า deserialize ไม่ได้ ลองแบบเก่า (comma-separated)
                 For Each idStr As String In runNoJson.Split(","c)
                     Dim id As Integer
                     If Integer.TryParse(idStr.Trim().Replace("""", ""), id) Then
@@ -708,7 +735,6 @@ Public Class DataOTBHandler
                 Return
             End If
 
-            ' Call Approve function
             Dim result As Dictionary(Of String, Object) = ApprovedOTBManager.DeleteDraftOTB(runNos)
             Dim response As New With {
                    .success = If(result("Status").ToString() = "Success", True, False),
@@ -747,6 +773,41 @@ Public Class DataOTBHandler
         End Select
     End Function
 
+    ''' <summary>
+    ''' (ฟังก์ชันใหม่) ดึงข้อมูล Draft OTB จาก List ของ RunNo
+    ''' </summary>
+    Private Function GetOTBDraftDataByRunNos(runNos As List(Of Integer)) As DataTable
+        Dim dt As New DataTable()
+        If runNos Is Nothing OrElse runNos.Count = 0 Then
+            Return dt
+        End If
+
+        Dim paramNames As New List(Of String)()
+        For i As Integer = 0 To runNos.Count - 1
+            paramNames.Add($"@p{i}")
+        Next
+
+        Dim query As String = $"
+            SELECT [Version], [OTBCompany], [OTBCategory], [OTBVendor], 
+                   [OTBSegment], [OTBBrand], [Amount], [OTBYear], 
+                   [OTBMonth], [Remark]
+            FROM [BMS].[dbo].[View_OTB_Draft]
+            WHERE RunNo IN ({String.Join(",", paramNames)})"
+
+        Using conn As New SqlConnection(connectionString)
+            conn.Open()
+            Using cmd As New SqlCommand(query, conn)
+                For i As Integer = 0 To runNos.Count - 1
+                    cmd.Parameters.AddWithValue(paramNames(i), runNos(i))
+                Next
+
+                Using reader As SqlDataReader = cmd.ExecuteReader()
+                    dt.Load(reader)
+                End Using
+            End Using
+        End Using
+        Return dt
+    End Function
     ReadOnly Property IsReusable() As Boolean Implements IHttpHandler.IsReusable
         Get
             Return False
