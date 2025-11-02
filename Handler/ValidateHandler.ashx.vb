@@ -20,6 +20,10 @@ Public Class ValidateHandler
                 ValidateSwitchingData(context)
             ElseIf context.Request("action") = "validateExtra" Then
                 ValidateExtraData(context)
+            ElseIf context.Request("action") = "validateDraftPO" Then
+                ValidateDraftPO(context)
+            ElseIf context.Request("action") = "validateDraftPOEdit" Then
+                ValidateDraftPOEdit(context)
             End If
         Catch ex As Exception
             Dim errorResponse As New With {
@@ -29,6 +33,38 @@ Public Class ValidateHandler
             }
             context.Response.Write(JsonConvert.SerializeObject(errorResponse))
         End Try
+    End Sub
+
+    Private Sub ValidateDraftPO(context As HttpContext)
+        ' เรียกใช้ Class POValidate ที่สร้างขึ้นใหม่
+        Dim errors As Dictionary(Of String, String) = POValidate.ValidateDraftPO(context)
+
+        Dim isValid As Boolean = (errors.Count = 0)
+
+        ' Return Response
+        Dim response As New With {
+            .success = isValid,
+            .message = If(isValid, "Validation passed", "Validation failed"),
+            .errors = errors
+        }
+
+        context.Response.Write(JsonConvert.SerializeObject(response))
+    End Sub
+
+    Private Sub ValidateDraftPOEdit(context As HttpContext)
+        ' เรียกใช้ Class POValidate (Function ใหม่)
+        Dim errors As Dictionary(Of String, String) = POValidate.ValidateDraftPOEdit(context)
+
+        Dim isValid As Boolean = (errors.Count = 0)
+
+        ' Return Response
+        Dim response As New With {
+            .success = isValid,
+            .message = If(isValid, "Validation passed", "Validation failed"),
+            .errors = errors
+        }
+
+        context.Response.Write(JsonConvert.SerializeObject(response))
     End Sub
 
     Private Sub ValidateSwitchingData(context As HttpContext)

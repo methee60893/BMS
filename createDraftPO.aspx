@@ -592,113 +592,116 @@
             <!-- Create by TXN Tab Content -->
             <div class="tab-content active" id="txnTab">
                 <div class="form-container">
-                    <div class="form-section">
-                        <div class="section-title">
-                            Create Draft PO by transaction
-                        </div>
+                    <form id="poTxnForm">
+                        <div class="form-section">
+                            <div class="section-title">
+                                Create Draft PO by transaction
+                            </div>
 
-                        <!-- Row 1 -->
-                        <div class="form-row-display form-row-item">
-                            <div class="form-group">
-                                <label>Year</label>
-                                <select id="DDYear" class="form-select">
-                                </select>
+                            <!-- Row 1 -->
+                            <div class="form-row-display form-row-item">
+                                <div class="form-group">
+                                    <label>Year</label>
+                                    <select id="DDYear" class="form-select">
+                                    </select>
+                                </div>
+                                <div class="form-group">
+                                    <label>Category</label>
+                                    <select id="DDCategory" class="form-select">
+                                    </select>
+                                </div>
                             </div>
-                            <div class="form-group">
-                                <label>Category</label>
-                                <select id="DDCategory" class="form-select">
-                                </select>
-                            </div>
-                        </div>
 
-                        <!-- Row 2 -->
-                        <div class="form-row-display form-row-item">
-                            <div class="form-group">
-                                <label>Month</label>
-                                <select id="DDMonth" class="form-select">
-                                </select>
+                            <!-- Row 2 -->
+                            <div class="form-row-display form-row-item">
+                                <div class="form-group">
+                                    <label>Month</label>
+                                    <select id="DDMonth" class="form-select">
+                                    </select>
+                                </div>
+                                <div class="form-group">
+                                    <label>Segment</label>
+                                    <select id="DDSegment" class="form-select">
+                                    </select>
+                                </div>
                             </div>
-                            <div class="form-group">
-                                <label>Segment</label>
-                                <select id="DDSegment" class="form-select">
-                                </select>
-                            </div>
-                        </div>
 
-                        <!-- Row 3 -->
-                        <div class="form-row-display form-row-item">
-                            <div class="form-group">
-                                <label>Company</label>
-                                <select id="DDCompany" class="form-select">
-                                </select>
+                            <!-- Row 3 -->
+                            <div class="form-row-display form-row-item">
+                                <div class="form-group">
+                                    <label>Company</label>
+                                    <select id="DDCompany" class="form-select">
+                                    </select>
+                                </div>
+                                <div class="form-group">
+                                    <label>Brand</label>
+                                    <select id="DDBrand" class="form-select">
+                                    </select>
+                                </div>
                             </div>
-                            <div class="form-group">
-                                <label>Brand</label>
-                                <select id="DDBrand" class="form-select">
-                                </select>
-                            </div>
-                        </div>
 
-                        <!-- Row 4 -->
-                        <div class="form-row-display form-row-item">
-                            <div class="form-group" style="visibility: hidden;">
-                                <label>-</label>
-                                <div class="info-display">-</div>
+                            <!-- Row 4 -->
+                            <div class="form-row-display form-row-item">
+                                <div class="form-group" style="visibility: hidden;">
+                                    <label>-</label>
+                                    <div class="info-display">-</div>
+                                </div>
+                                <div class="form-group">
+                                    <label>Vendor</label>
+                                    <select id="DDVendor" class="form-select">
+                                    </select>
+                                </div>
                             </div>
-                            <div class="form-group">
-                                <label>Vendor</label>
-                                <select id="DDVendor" class="form-select">
-                                </select>
-                            </div>
-                        </div>
 
-                        <!-- Row 5 -->
-                        <div class="form-row-display form-row-item">
-                            <div class="form-group">
-                                <label>Draft PO no.</label>
-                                <input id="txtPONO" type="text" class="form-control" placeholder="Enter PO number">
+                            <!-- Row 5 -->
+                            <div class="form-row-display form-row-item">
+                                <div class="form-group">
+                                    <label>Draft PO no.</label>
+                                    <input id="txtPONO" type="text" class="form-control" placeholder="Enter PO number">
+                                </div>
+                                <div class="form-group">
+                                    <label>Amount (CCY)</label>
+                                    <input id="txtAmtCCY" type="text" class="form-control" pattern="^\d+(\.\d{1,2})?$" title="Enter a valid amount (e.g., 123 or 123.45)" placeholder="0.00">
+                                </div>
                             </div>
-                            <div class="form-group">
-                                <label>Amount (CCY)</label>
-                                <input id="txtAmtCCY" type="text" class="form-control" pattern="^\d+(\.\d{1,2})?$" title="Enter a valid amount (e.g., 123 or 123.45)" placeholder="0.00">
-                            </div>
-                        </div>
 
-                        <!-- Row 6 -->
-                        <div class="form-row-display form-row-item">
-                            <div class="form-group">
-                                <label>CCY</label>
-                                <select id="DDCCY" class="form-select">
-                                    <option selected>USD</option>
-                                    <option>THB</option>
-                                    <option>EUR</option>
-                                </select>
+                            <!-- Row 6 -->
+                            <div class="form-row-display form-row-item">
+                                <div class="form-group">
+                                    <label>CCY</label>
+                                    <select id="DDCCY" class="form-select">
+                                        <option selected>USD</option>
+                                        <option>THB</option>
+                                        <option>EUR</option>
+                                    </select>
+                                </div>
+                                <div class="form-group">
+                                    <label>Amount (THB)</label>
+                                    <input id="txtAmtTHB" type="text" class="form-control" placeholder="0.00" readonly>
+                                </div>
                             </div>
-                            <div class="form-group">
-                                <label>Amount (THB)</label>
-                                <input id="txtAmtTHB" type="text" class="form-control" placeholder="0.00" readonly>
-                            </div>
-                        </div>
 
-                        <!-- Row 7 -->
-                        <div class="form-row-display form-row-item">
-                            <div class="form-group">
-                                <label>Exchange rate</label>
-                                <input id="txtExRate" type="text" class="form-control" placeholder="0.00" pattern="^\d+(\.\d{1,2})?$" title="Enter a valid amount (e.g., 123 or 123.45)">
+                            <!-- Row 7 -->
+                            <div class="form-row-display form-row-item">
+                                <div class="form-group">
+                                    <label>Exchange rate</label>
+                                    <input id="txtExRate" type="text" class="form-control" placeholder="0.00" pattern="^\d+(\.\d{1,2})?$" title="Enter a valid amount (e.g., 123 or 123.45)">
+                                </div>
+                                <div class="form-group">
+                                    <label>Remark</label>
+                                    <input id="txtRemark" type="text" class="form-control" placeholder="Enter remark">
+                                </div>
                             </div>
-                            <div class="form-group">
-                                <label>Remark</label>
-                                <input id="txtRemark" type="text" class="form-control" placeholder="Enter remark">
-                            </div>
-                        </div>
 
-                        <!-- Submit Button -->
-                        <div class="text-center mt-4">
-                            <button type="button" class="btn-submit" id="btnSubmit">
-                                <i class="bi bi-check-circle"></i>Submit
-                            </button>
+                            <!-- Submit Button -->
+                            <div class="text-center mt-4">
+                                <button type="button" class="btn-submit" id="btnSubmit">
+                                    <i class="bi bi-check-circle"></i>Submit
+                                </button>
+                            </div>
                         </div>
-                    </div>
+                    </form>
+                    
                 </div>
             </div>
 
@@ -846,10 +849,57 @@
                         </div>
                     </div>
                 </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" id="btnConfirm" class="btn btn-primary">Confirm</button>
+                </div>
             </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                <button type="button" id="btnConfirmExtra" class="btn btn-primary">Confirm</button>
+            
+        </div>
+    </div>
+
+        <!-- ADDED: Error Validation Modal -->
+    <div class="modal fade" id="errorValidationModal" tabindex="-1" data-bs-backdrop="static" data-bs-keyboard="false">
+        <div class="modal-dialog modal-dialog-centered modal-lg">
+            <div class="modal-content">
+                <div class="modal-header bg-danger text-white">
+                    <h5 class="modal-title">
+                        <i class="bi bi-exclamation-triangle-fill me-2"></i>
+                        Validation Error
+                    </h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="alert alert-danger d-flex align-items-center mb-3" role="alert">
+                        <i class="bi bi-x-circle-fill fs-4 me-3"></i>
+                        <div>
+                            <strong>Please correct the following errors:</strong>
+                            <p class="mb-0 mt-1" id="errorSummaryText">Some fields require your attention</p>
+                        </div>
+                    </div>
+                    <div id="errorListContainer" class="error-list-container"></div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                        <i class="bi bi-arrow-left me-2"></i>Go Back to Fix
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- ADDED: Success Modal -->
+    <div class="modal fade" id="successModal" tabindex="-1" data-bs-backdrop="static" data-bs-keyboard="false">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-body text-center p-4">
+                    <i class="bi bi-check-circle-fill text-success" style="font-size: 4rem; margin-bottom: 1rem;"></i>
+                    <h4 class="modal-title mb-2" id="successModalTitle">Success!</h4>
+                    <p id="successModalMessage">Your Draft PO has been saved successfully.</p>
+                    <button type="button" class="btn btn-success mt-2" data-bs-dismiss="modal" style="min-width: 100px;">
+                        OK
+                    </button>
+                </div>
             </div>
         </div>
     </div>
@@ -875,6 +925,11 @@
 
         let btnSubmitData = document.getElementById('btnSubmitData');
         let btnSubmit = document.getElementById('btnSubmit');
+
+        // ADDED: Modal instances
+        let previewPOTXNModal;
+        let errorValidationModal;
+        let successModal;
 
         $(document).ready(function () {
             $('#btnUpload').on('click', function (e) {
@@ -970,10 +1025,23 @@
 
         let currencyCal = function () {
             let result = 0.00;
-            let amtCCY = !isNaN(txtAmtCCY.value) ? txtAmtCCY.value : "";
-            let exRate = txtExRate.value;
-            exRate = (exRate == 0) ? 1 : parseFloat(exRate);
-            txtAmtTHB.value = amtCCY * exRate;
+            let amtCCY = parseFloat(txtAmtCCY.value) || 0;
+            let exRate = parseFloat(txtExRate.value) || 0;
+
+            // Auto-set ExRate to 1 if CCY is THB
+            if (ccyDropdown.value === 'THB') {
+                txtExRate.value = "1.00";
+                exRate = 1.00;
+                txtExRate.readOnly = true;
+            } else {
+                txtExRate.readOnly = false;
+                // if exRate was 1, clear it so user can input
+                if (exRate === 1.00 && txtExRate.value === "1.00") {
+                    //txtExRate.value = ""; 
+                }
+            }
+
+            txtAmtTHB.value = (amtCCY * exRate).toFixed(2);
         }
 
         let initial = function () {
@@ -985,17 +1053,20 @@
 
             //InitData master
             InitMSData();
+
+            previewPOTXNModal = new bootstrap.Modal(document.getElementById('previewPOTXNModal'));
+            errorValidationModal = new bootstrap.Modal(document.getElementById('errorValidationModal'));
+            successModal = new bootstrap.Modal(document.getElementById('successModal'));
+
+
             segmentDropdown.addEventListener('change', changeVendor);
             txtAmtCCY.addEventListener('change', currencyCal);
             txtExRate.addEventListener('change', currencyCal);
+            ccyDropdown.addEventListener('change', currencyCal);
+            btnSubmit.addEventListener('click', handleSubmitPOTXN);
 
-            btnSubmit.addEventListener('click', function () {
-                // Implement submission logic here
-
-            });
-
-            // *** ADDED: Approve Button Click Event ***
-            //btnApprove.addEventListener('click', approveSelectedItems);
+            // ADDED: Confirm button logic
+            document.getElementById('btnConfirm').addEventListener('click', handleConfirmSavePOTXN);
         }
 
         let InitMSData = function () {
@@ -1174,6 +1245,251 @@
                 }
             });
         }
+
+        // ==========================================
+        // ===== NEW: PO TXN SUBMIT FUNCTIONS =====
+        // ==========================================
+
+        /**
+         * Step 1: Handle the "Submit" button click.
+         * Validates data via handler, then shows preview or error modal.
+         */
+        async function handleSubmitPOTXN(e) {
+            e.preventDefault();
+            clearValidationErrors();
+            showLoading(true, "Validating...");
+
+            const formData = new FormData();
+            formData.append('year', yearDropdown.value);
+            formData.append('month', monthDropdown.value);
+            formData.append('company', companyDropdown.value);
+            formData.append('category', categoryDropdown.value);
+            formData.append('segment', segmentDropdown.value);
+            formData.append('brand', brandDropdown.value);
+            formData.append('vendor', vendorDropdown.value);
+            formData.append('pono', txtPONO.value);
+            formData.append('amtCCY', txtAmtCCY.value);
+            formData.append('ccy', ccyDropdown.value);
+            formData.append('exRate', txtExRate.value);
+            formData.append('remark', txtRemark.value);
+
+            try {
+                const response = await fetch('Handler/ValidateHandler.ashx?action=validateDraftPO', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+
+                const result = await response.json();
+                showLoading(false);
+
+                if (result.success) {
+                    populatePOTXNPreview();
+                    previewPOTXNModal.show();
+                } else {
+                    showErrorModal(result.errors);
+                    showValidationErrorsOnForm(result.errors);
+                }
+            } catch (error) {
+                showLoading(false);
+                console.error('Validation fetch error:', error);
+                showErrorModal({ 'general': 'A system error occurred: ' + error.message });
+            }
+        }
+
+        /**
+         * Step 2: Populate the preview modal with form data.
+         */
+        function populatePOTXNPreview() {
+            // Helper to get selected text from a dropdown
+            const getSelectedText = (el) => el.options[el.selectedIndex]?.text || el.value;
+
+            document.getElementById("tsYear").value = getSelectedText(yearDropdown);
+            document.getElementById("tsMonth").value = getSelectedText(monthDropdown);
+            document.getElementById("tsCompany").value = getSelectedText(companyDropdown);
+            document.getElementById("tsCategory").value = getSelectedText(categoryDropdown);
+            document.getElementById("tsSegment").value = getSelectedText(segmentDropdown);
+            document.getElementById("tsBrand").value = getSelectedText(brandDropdown);
+            document.getElementById("tsVendor").value = getSelectedText(vendorDropdown);
+            document.getElementById("tsPONO").value = txtPONO.value;
+            document.getElementById("tsAmtCCY").value = parseFloat(txtAmtCCY.value || 0).toFixed(2);
+            document.getElementById("tsCCY").value = getSelectedText(ccyDropdown);
+            document.getElementById("tsExRate").value = parseFloat(txtExRate.value || 0).toFixed(4);
+            document.getElementById("tsAmtTHB").value = txtAmtTHB.value;
+            document.getElementById("tsRemark").value = txtRemark.value;
+        }
+
+        /**
+         * Step 3: Handle the "Confirm & Save" button click from the preview modal.
+         * Saves data via handler, then shows success or error.
+         */
+        async function handleConfirmSavePOTXN() {
+            showLoading(true, "Saving...");
+
+            // Data is sent from the *preview modal* inputs to ensure it matches what user confirmed
+            const formData = new FormData();
+            formData.append('year', yearDropdown.value); // Send value, not text
+            formData.append('month', monthDropdown.value);
+            formData.append('company', companyDropdown.value);
+            formData.append('category', categoryDropdown.value);
+            formData.append('segment', segmentDropdown.value);
+            formData.append('brand', brandDropdown.value);
+            formData.append('vendor', vendorDropdown.value);
+            formData.append('pono', document.getElementById("tsPONO").value);
+            formData.append('amtCCY', document.getElementById("tsAmtCCY").value);
+            formData.append('ccy', ccyDropdown.value); // Send value
+            formData.append('exRate', document.getElementById("tsExRate").value);
+            formData.append('amtTHB', document.getElementById("tsAmtTHB").value);
+            formData.append('remark', document.getElementById("tsRemark").value);
+            // createdBy will be handled by the server using Session
+
+            try {
+                const response = await fetch('Handler/DataPOHandler.ashx?action=saveDraftPOTXN', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+
+                const result = await response.json();
+                showLoading(false);
+                previewPOTXNModal.hide();
+
+                if (result.success) {
+                    successModal.show();
+                    clearPOForm();
+                } else {
+                    // Show save error in the main error modal
+                    showErrorModal({ 'general': 'Failed to save data: ' + result.message });
+                }
+
+            } catch (error) {
+                showLoading(false);
+                previewPOTXNModal.hide();
+                console.error('Save fetch error:', error);
+                showErrorModal({ 'general': 'A system error occurred during save: ' + error.message });
+            }
+        }
+
+        /**
+         * Clears the main PO form after successful save.
+         */
+        function clearPOForm() {
+            document.getElementById('poTxnForm').reset();
+            // Reset calculated fields
+            txtAmtTHB.value = "0.00";
+            // Manually trigger change on dropdowns to reset dependent fields if necessary
+            segmentDropdown.dispatchEvent(new Event('change'));
+            ccyDropdown.dispatchEvent(new Event('change'));
+            // Clear any lingering validation
+            clearValidationErrors();
+        }
+
+        function showLoading(show, text = "Loading...") {
+            let overlay = document.getElementById('loadingOverlay');
+            if (show) {
+                if (!overlay) {
+                    const loadingHtml = `
+                        <div id="loadingOverlay" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); z-index: 9998; display: flex; flex-direction: column; align-items: center; justify-content: center; transition: opacity 0.3s;">
+                            <div class="spinner-border text-light" role="status" style="width: 3rem; height: 3rem;">
+                                <span class="visually-hidden">Loading...</span>
+                            </div>
+                            <p class="text-light mt-3 mb-0" id="loadingOverlayText" style="font-size: 1.1rem;">${text}</p>
+                        </div>`;
+                    document.body.insertAdjacentHTML('beforeend', loadingHtml);
+                }
+                document.getElementById('loadingOverlayText').textContent = text;
+            } else {
+                if (overlay) {
+                    overlay.style.opacity = '0';
+                    setTimeout(() => overlay.remove(), 300);
+                }
+            }
+        }
+
+        function clearValidationErrors() {
+            document.querySelectorAll('.has-error').forEach(el => el.classList.remove('has-error'));
+            document.querySelectorAll('.validation-message').forEach(el => {
+                el.textContent = '';
+                el.style.display = 'none';
+            });
+        }
+
+        function showValidationErrorsOnForm(errors) {
+            for (const field in errors) {
+                const el = document.querySelector(`.form-control[id="txt${field.toUpperCase()}"], .form-select[id="DD${field.charAt(0).toUpperCase() + field.slice(1)}"]`);
+                const msgEl = document.querySelector(`.validation-message[data-field="${field}"]`);
+
+                if (el) {
+                    el.classList.add('has-error');
+                }
+                if (msgEl) {
+                    msgEl.textContent = errors[field];
+                    msgEl.style.display = 'block';
+                }
+            }
+        }
+
+        function showErrorModal(errors, transactionType = 'Draft PO') {
+            const errorCount = Object.keys(errors).length;
+            const summaryText = document.getElementById('errorSummaryText');
+            summaryText.innerHTML = `Found ${errorCount} validation error${errorCount > 1 ? 's' : ''} in your ${transactionType}.`;
+
+            const errorListContainer = document.getElementById('errorListContainer');
+            let errorHtml = '';
+
+            // Map internal field IDs to user-friendly names
+            const fieldInfo = {
+                'year': 'Year', 'month': 'Month', 'company': 'Company', 'category': 'Category',
+                'segment': 'Segment', 'brand': 'Brand', 'vendor': 'Vendor', 'pono': 'Draft PO No.',
+                'amtCCY': 'Amount (CCY)', 'ccy': 'CCY', 'exRate': 'Exchange rate',
+                'general': 'General Error'
+            };
+
+            for (const field in errors) {
+                const message = errors[field];
+                const fieldName = fieldInfo[field] || field;
+                const fieldId = field === 'pono' ? 'txtPONO' : field === 'amtCCY' ? 'txtAmtCCY' : field === 'exRate' ? 'txtExRate' : `DD${field.charAt(0).toUpperCase() + field.slice(1)}`;
+
+                errorHtml += `
+                    <div class="error-item" data-field="${fieldId}">
+                        <div class="error-item-icon"><i class="bi bi-x-circle"></i></div>
+                        <div class="error-item-content">
+                            <div class="error-field-name">
+                                <span class="error-section-badge">${fieldName}</span>
+                            </div>
+                            <p class="error-message">${message}</p>
+                        </div>
+                    </div>`;
+            }
+
+            errorListContainer.innerHTML = errorHtml;
+            errorValidationModal.show();
+
+            // Add click-to-focus behavior
+            document.querySelectorAll('.error-item[data-field]').forEach(item => {
+                item.style.cursor = 'pointer';
+                item.addEventListener('click', function () {
+                    const fieldId = this.getAttribute('data-field');
+                    const fieldElement = document.getElementById(fieldId);
+                    if (fieldElement) {
+                        errorValidationModal.hide();
+                        setTimeout(() => {
+                            fieldElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                            fieldElement.focus();
+                            fieldElement.classList.add('pulse-error');
+                            setTimeout(() => fieldElement.classList.remove('pulse-error'), 1000);
+                        }, 300);
+                    }
+                });
+            });
+        }
+
 
         // Close sidebar when clicking outside
         document.addEventListener('click', function (event) {

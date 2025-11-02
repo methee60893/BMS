@@ -1,8 +1,14 @@
 ﻿Imports System.Web
 Imports System.Web.Services
+Imports System.Data
+Imports System.Data.SqlClient
+Imports System.Text
+Imports Newtonsoft.Json
+Imports System.Globalization
+Imports System.Web.SessionState
 
 Public Class DataPOHandler
-    Implements System.Web.IHttpHandler
+    Implements System.Web.IHttpHandler, IRequiresSessionState
 
     Private Shared connectionString As String = ConfigurationManager.ConnectionStrings("BMSConnectionString")?.ConnectionString
 
@@ -49,7 +55,14 @@ Public Class DataPOHandler
             dtExport.Columns.Add("StatusDate", GetType(String))
             dtExport.Columns.Add("Remark", GetType(String))
             dtExport.Columns.Add("ActionBy", GetType(String))
-
+        ElseIf action = "savedraftpotxn" Then
+            SaveDraftPOTXN(context)
+        ElseIf action = "getdraftpolist" Then
+            GetDraftPOList(context)
+        ElseIf action = "getdraftpodetails" Then
+            GetDraftPODetails(context)
+        ElseIf action = "savedraftpoedit" Then
+            SaveDraftPOEdit(context)
         Else
             context.Response.Clear()
             context.Response.ContentType = "text/html"
@@ -68,20 +81,324 @@ Public Class DataPOHandler
             Dim draftCCY As String = If(String.IsNullOrWhiteSpace(context.Request.QueryString("draftCCY")), "", context.Request.QueryString("draftCCY").Trim())
             Dim draftExhangeRate As String = If(String.IsNullOrWhiteSpace(context.Request.QueryString("draftExhangeRate")), "", context.Request.QueryString("draftExhangeRate").Trim())
             Dim draftRemark As String = If(String.IsNullOrWhiteSpace(context.Request.QueryString("draftRemark")), "", context.Request.QueryString("draftRemark").Trim())
-
-            If context.Request("action") = "PoListFilter" Then
-
-            ElseIf context.Request("action") = "PoListPreview" Then
-
-            ElseIf context.Request("action") = "InsertPreview" Then
-
-            ElseIf context.Request("action") = "PreviewEdit" Then
-
-            ElseIf context.Request("action") = "EditDraftPO" Then
-
-            End If
         End If
     End Sub
+
+    ' =================================================
+    ' ===== ADDED: GetDraftPOList FUNCTION =====
+    ' =================================================
+    Private Sub GetDraftPOList(context As HttpContext)
+        Try
+            Dim year As String = If(String.IsNullOrWhiteSpace(context.Request.Form("year")), "", context.Request.Form("year").Trim())
+            Dim month As String = If(String.IsNullOrWhiteSpace(context.Request.Form("month")), "", context.Request.Form("month").Trim())
+            Dim company As String = If(String.IsNullOrWhiteSpace(context.Request.Form("company")), "", context.Request.Form("company").Trim())
+            Dim category As String = If(String.IsNullOrWhiteSpace(context.Request.Form("category")), "", context.Request.Form("category").Trim())
+            Dim segment As String = If(String.IsNullOrWhiteSpace(context.Request.Form("segment")), "", context.Request.Form("segment").Trim())
+            Dim brand As String = If(String.IsNullOrWhiteSpace(context.Request.Form("brand")), "", context.Request.Form("brand").Trim())
+            Dim vendor As String = If(String.IsNullOrWhiteSpace(context.Request.Form("vendor")), "", context.Request.Form("vendor").Trim())
+
+            Dim dt As New DataTable()
+            Using conn As New SqlConnection(connectionString)
+                conn.Open()
+                ' --- Query จาก View (ถ้ามี) หรือ Join ตาราง Master ---
+                ' --- (ตัวอย่างนี้ใช้ Join) ---
+                Dim query As New StringBuilder()
+                query.Append("SELECT DISTINCT")
+                query.Append("   po.DraftPO_ID, ")
+                query.Append("   po.Created_Date, ") ' (หรือ Status_Date ถ้าต้องการ)
+                query.Append("   po.DraftPO_No, ")
+                query.Append("   po.PO_Type, ")
+                query.Append("   po.PO_Year, ")
+                query.Append("   m.month_name_sh AS PO_Month_Name, ") ' (Join MS_Month)
+                query.Append("   po.Category_Code, ")
+                query.Append("   c.Category AS Category_Name, ") ' (Join MS_Category)
+                query.Append("   po.Company_Code, ")
+                query.Append("   po.Segment_Code, ")
+                query.Append("   s.SegmentName AS Segment_Name, ") ' (Join MS_Segment)
+                query.Append("   po.Brand_Code, ")
+                query.Append("   b.[Brand Name] AS Brand_Name, ") ' (Join MS_Brand)
+                query.Append("   po.Vendor_Code, ")
+                query.Append("   v.Vendor AS Vendor_Name, ") ' (Join MS_Vendor)
+                query.Append("   po.Amount_THB, ")
+                query.Append("   po.Amount_CCY, ")
+                query.Append("   po.CCY, ")
+                query.Append("   po.Exchange_Rate, ")
+                query.Append("   po.Actual_PO_Ref, ")
+                query.Append("   po.Status, ")
+                query.Append("   po.Status_Date, ")
+                query.Append("   po.Remark, ")
+                query.Append("   po.Status_By ") ' (หรือ Created_By)
+                query.Append("FROM [BMS].[dbo].[Draft_PO_Transaction] po ")
+                query.Append("LEFT JOIN [BMS].[dbo].[MS_Month] m ON po.PO_Month = m.month_code ")
+                query.Append("LEFT JOIN [BMS].[dbo].[MS_Category] c ON po.Category_Code = c.Cate ")
+                query.Append("LEFT JOIN [BMS].[dbo].[MS_Segment] s ON po.Segment_Code = s.SegmentCode ")
+                query.Append("LEFT JOIN [BMS].[dbo].[MS_Brand] b ON po.Brand_Code = b.[Brand Code] ")
+                query.Append("LEFT JOIN [BMS].[dbo].[MS_Vendor] v ON po.Vendor_Code = v.VendorCode AND po.Segment_Code = v.SegmentCode ")
+                query.Append("WHERE 1=1 ")
+
+                Using cmd As New SqlCommand()
+                    If Not String.IsNullOrEmpty(year) Then
+                        query.Append("AND po.PO_Year = @Year ")
+                        cmd.Parameters.AddWithValue("@Year", year)
+                    End If
+                    If Not String.IsNullOrEmpty(month) Then
+                        query.Append("AND po.PO_Month = @Month ")
+                        cmd.Parameters.AddWithValue("@Month", month)
+                    End If
+                    If Not String.IsNullOrEmpty(company) Then
+                        query.Append("AND po.Company_Code = @Company ")
+                        cmd.Parameters.AddWithValue("@Company", company)
+                    End If
+                    If Not String.IsNullOrEmpty(category) Then
+                        query.Append("AND po.Category_Code = @Category ")
+                        cmd.Parameters.AddWithValue("@Category", category)
+                    End If
+                    If Not String.IsNullOrEmpty(segment) Then
+                        query.Append("AND po.Segment_Code = @Segment ")
+                        cmd.Parameters.AddWithValue("@Segment", segment)
+                    End If
+                    If Not String.IsNullOrEmpty(brand) Then
+                        query.Append("AND po.Brand_Code = @Brand ")
+                        cmd.Parameters.AddWithValue("@Brand", brand)
+                    End If
+                    If Not String.IsNullOrEmpty(vendor) Then
+                        query.Append("AND po.Vendor_Code = @Vendor ")
+                        cmd.Parameters.AddWithValue("@Vendor", vendor)
+                    End If
+
+                    query.Append("ORDER BY po.Created_Date DESC ")
+
+                    cmd.CommandText = query.ToString()
+                    cmd.Connection = conn
+
+                    Using reader As SqlDataReader = cmd.ExecuteReader()
+                        dt.Load(reader)
+                    End Using
+                End Using
+            End Using
+
+            ' แปลง DataTable เป็น JSON
+            Dim jsonResult As String = JsonConvert.SerializeObject(dt, Formatting.None)
+            context.Response.Write(jsonResult)
+
+        Catch ex As Exception
+            context.Response.StatusCode = 500
+            context.Response.Write(JsonConvert.SerializeObject(New With {
+                .success = False,
+                .message = "Error fetching list: " & ex.Message
+            }))
+        End Try
+    End Sub
+
+    ' =================================================
+    ' ===== ADDED: GetDraftPODetails FUNCTION =====
+    ' =================================================
+    Private Sub GetDraftPODetails(context As HttpContext)
+        Try
+            Dim draftPOID As Integer = 0
+            Integer.TryParse(context.Request.Form("draftPOID"), draftPOID)
+
+            If draftPOID = 0 Then
+                Throw New Exception("Invalid DraftPO_ID.")
+            End If
+
+            Dim dt As New DataTable()
+            Using conn As New SqlConnection(connectionString)
+                conn.Open()
+                ' (ไม่ต้อง Join master เพราะเราจะใช้ ID ไป set dropdown)
+                Dim query As String = "SELECT * FROM [BMS].[dbo].[Draft_PO_Transaction] WHERE DraftPO_ID = @DraftPOID"
+                Using cmd As New SqlCommand(query, conn)
+                    cmd.Parameters.AddWithValue("@DraftPOID", draftPOID)
+                    Using reader As SqlDataReader = cmd.ExecuteReader()
+                        dt.Load(reader)
+                    End Using
+                End Using
+            End Using
+
+            If dt.Rows.Count > 0 Then
+                ' --- MODIFIED: Convert DataRow to Dictionary for clean JSON ---
+                Dim row As DataRow = dt.Rows(0)
+                Dim dict As New Dictionary(Of String, Object)()
+                For Each col As DataColumn In row.Table.Columns
+                    dict(col.ColumnName) = If(row(col) Is DBNull.Value, Nothing, row(col))
+                Next
+
+                Dim jsonResult As String = JsonConvert.SerializeObject(dict, Formatting.None)
+                context.Response.Write(jsonResult)
+            Else
+                Throw New Exception("Draft PO record not found.")
+            End If
+
+        Catch ex As Exception
+            context.Response.StatusCode = 500
+            context.Response.Write(JsonConvert.SerializeObject(New With {
+                .success = False,
+                .message = "Error fetching details: " & ex.Message
+            }))
+        End Try
+    End Sub
+
+
+    ' =================================================
+    ' ===== ADDED: SaveDraftPOEdit FUNCTION =====
+    ' =================================================
+    Private Sub SaveDraftPOEdit(context As HttpContext)
+        context.Response.ContentType = "application/json"
+        Dim response As New Dictionary(Of String, Object)
+        Dim statusBy As String = "System" ' Default
+        Try
+            ' (ต้องตรวจสอบ Session จริง)
+            If context.Session IsNot Nothing AndAlso context.Session("user") IsNot Nothing AndAlso Not String.IsNullOrEmpty(context.Session("user").ToString()) Then
+                statusBy = context.Session("user").ToString()
+            End If
+
+            ' ดึงข้อมูลจาก Form
+            Dim draftPOID As Integer = Integer.Parse(context.Request.Form("draftPOID"))
+            Dim year As String = context.Request.Form("year")
+            Dim month As String = context.Request.Form("month")
+            Dim company As String = context.Request.Form("company")
+            Dim category As String = context.Request.Form("category")
+            Dim segment As String = context.Request.Form("segment")
+            Dim brand As String = context.Request.Form("brand")
+            Dim vendor As String = context.Request.Form("vendor")
+            Dim amtCCY As Decimal = Decimal.Parse(context.Request.Form("amtCCY"), CultureInfo.InvariantCulture)
+            Dim ccy As String = context.Request.Form("ccy")
+            Dim exRate As Decimal = Decimal.Parse(context.Request.Form("exRate"), CultureInfo.InvariantCulture)
+            Dim remark As String = context.Request.Form("remark")
+            Dim amtTHB As Decimal = amtCCY * exRate
+
+            Using conn As New SqlConnection(connectionString)
+                conn.Open()
+                Dim query As String = "UPDATE [BMS].[dbo].[Draft_PO_Transaction] 
+                                       SET [PO_Year] = @year, 
+                                           [PO_Month] = @month, 
+                                           [Company_Code] = @company, 
+                                           [Category_Code] = @category, 
+                                           [Segment_Code] = @segment, 
+                                           [Brand_Code] = @brand, 
+                                           [Vendor_Code] = @vendor, 
+                                           [CCY] = @ccy, 
+                                           [Exchange_Rate] = @exRate, 
+                                           [Amount_CCY] = @amtCCY, 
+                                           [Amount_THB] = @amtTHB, 
+                                           [Status] = 'Edited', 
+                                           [Status_Date] = GETDATE(), 
+                                           [Status_By] = @statusBy, 
+                                           [Remark] = @remark
+                                       WHERE [DraftPO_ID] = @draftPOID"
+
+                Using cmd As New SqlCommand(query, conn)
+                    cmd.Parameters.AddWithValue("@draftPOID", draftPOID)
+                    cmd.Parameters.AddWithValue("@year", year)
+                    cmd.Parameters.AddWithValue("@month", month)
+                    cmd.Parameters.AddWithValue("@company", company)
+                    cmd.Parameters.AddWithValue("@category", category)
+                    cmd.Parameters.AddWithValue("@segment", segment)
+                    cmd.Parameters.AddWithValue("@brand", brand)
+                    cmd.Parameters.AddWithValue("@vendor", vendor)
+                    cmd.Parameters.AddWithValue("@amtTHB", amtTHB)
+                    cmd.Parameters.AddWithValue("@amtCCY", amtCCY)
+                    cmd.Parameters.AddWithValue("@ccy", ccy)
+                    cmd.Parameters.AddWithValue("@exRate", exRate)
+                    cmd.Parameters.AddWithValue("@statusBy", statusBy)
+                    cmd.Parameters.AddWithValue("@remark", If(String.IsNullOrEmpty(remark), DBNull.Value, remark))
+
+                    Dim rowsAffected As Integer = cmd.ExecuteNonQuery()
+                    If rowsAffected > 0 Then
+                        response("success") = True
+                        response("message") = "Draft PO updated successfully."
+                    Else
+                        Throw New Exception("No rows were updated. Record not found or data unchanged.")
+                    End If
+                End Using
+            End Using
+        Catch ex As Exception
+            response("success") = False
+            response("message") = "Error saving Draft PO: " & ex.Message
+        End Try
+
+        context.Response.Write(JsonConvert.SerializeObject(response))
+    End Sub
+
+    ' =================================================
+    ' ===== ADDED: SAVE DRAFT PO TXN FUNCTION =====
+    ' =================================================
+    Private Sub SaveDraftPOTXN(context As HttpContext)
+        context.Response.ContentType = "application/json"
+        Dim response As New Dictionary(Of String, Object)
+        Dim createdBy As String = "System" ' Default
+        Try
+            ' (ต้องตรวจสอบ Session จริง)
+            If context.Session("user") IsNot Nothing AndAlso Not String.IsNullOrEmpty(context.Session("user").ToString()) Then
+                createdBy = context.Session("user").ToString()
+            End If
+
+            ' ดึงข้อมูลจาก Form
+            Dim year As String = context.Request.Form("year")
+            Dim month As String = context.Request.Form("month")
+            Dim company As String = context.Request.Form("company")
+            Dim category As String = context.Request.Form("category")
+            Dim segment As String = context.Request.Form("segment")
+            Dim brand As String = context.Request.Form("brand")
+            Dim vendor As String = context.Request.Form("vendor")
+            Dim pono As String = context.Request.Form("pono")
+            Dim amtCCY As Decimal = Decimal.Parse(context.Request.Form("amtCCY"), CultureInfo.InvariantCulture)
+            Dim ccy As String = context.Request.Form("ccy")
+            Dim exRate As Decimal = Decimal.Parse(context.Request.Form("exRate"), CultureInfo.InvariantCulture)
+            Dim remark As String = context.Request.Form("remark")
+            Dim amtTHB As Decimal = amtCCY * exRate
+
+
+            Using conn As New SqlConnection(connectionString)
+                conn.Open()
+                ' ปรับปรุง Query ให้ตรงกับตาราง [BMS].[dbo].[Draft_PO_Transaction]
+                Dim query As String = "INSERT INTO [BMS].[dbo].[Draft_PO_Transaction] 
+                                           ([DraftPO_No], [PO_Year], [PO_Month], [Company_Code], 
+                                            [Category_Code], [Segment_Code], [Brand_Code], [Vendor_Code], 
+                                            [CCY], [Exchange_Rate], [Amount_CCY], [Amount_THB], 
+                                            [PO_Type], [Status], [Status_Date], [Status_By], [Actual_PO_Ref], 
+                                            [Remark], [Created_By], [Created_Date])
+                                     VALUES 
+                                           (@pono, @year, @month, @company, 
+                                            @category, @segment, @brand, @vendor, 
+                                            @ccy, @exRate, @amtCCY, @amtTHB, 
+                                            'Manual', 'Draft', GETDATE(), @createdBy, NULL, 
+                                            @remark, @createdBy, GETDATE())"
+
+                Using cmd As New SqlCommand(query, conn)
+                    ' ปรับปรุงชื่อ Parameters ให้ตรงกับตัวแปร
+                    cmd.Parameters.AddWithValue("@pono", pono)
+                    cmd.Parameters.AddWithValue("@year", year)
+                    cmd.Parameters.AddWithValue("@month", month)
+                    cmd.Parameters.AddWithValue("@company", company)
+                    cmd.Parameters.AddWithValue("@category", category)
+                    cmd.Parameters.AddWithValue("@segment", segment)
+                    cmd.Parameters.AddWithValue("@brand", brand)
+                    cmd.Parameters.AddWithValue("@vendor", vendor)
+                    cmd.Parameters.AddWithValue("@amtTHB", amtTHB)
+                    cmd.Parameters.AddWithValue("@amtCCY", amtCCY)
+                    cmd.Parameters.AddWithValue("@ccy", ccy)
+                    cmd.Parameters.AddWithValue("@exRate", exRate)
+                    cmd.Parameters.AddWithValue("@createdBy", createdBy)
+                    cmd.Parameters.AddWithValue("@remark", If(String.IsNullOrEmpty(remark), DBNull.Value, remark))
+                    ' [Actual_PO_Ref] ถูกตั้งค่าเป็น NULL ใน query โดยตรง
+
+                    cmd.ExecuteNonQuery()
+                End Using
+            End Using
+
+            response("success") = True
+            response("message") = "Draft PO saved successfully."
+
+        Catch ex As Exception
+            response("success") = False
+            response("message") = "Error saving Draft PO: " & ex.Message
+            ' (ควร Log ex.ToString() ไว้ด้วย)
+        End Try
+
+        context.Response.Write(JsonConvert.SerializeObject(response))
+    End Sub
+    ' =================================================
 
     Private Function GenerateHtmlApprovedTable(dt As DataTable) As String
         Dim sb As New StringBuilder()

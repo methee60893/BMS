@@ -215,6 +215,7 @@
     <Compile Include="class\OTBBudgetCalculator.vb" />
     <Compile Include="class\OTBUploadPreviewRow.vb" />
     <Compile Include="class\OTBValidate.vb" />
+    <Compile Include="class\POValidate.vb" />
     <Compile Include="class\share_class.vb" />
     <Compile Include="Connected Services\KBMSAPI\Reference.vb">
       <AutoGen>True</AutoGen>
