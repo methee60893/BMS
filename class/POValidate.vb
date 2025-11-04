@@ -7,6 +7,63 @@ Imports System.Globalization
 Public Class POValidate
     Private Shared connectionString As String = ConfigurationManager.ConnectionStrings("BMSConnectionString")?.ConnectionString
 
+    Private dtCategories As DataTable
+    Private dtSegments As DataTable
+    Private dtBrands As DataTable
+    Private dtVendors As DataTable
+    Private dtCompanies As DataTable
+
+
+    ' Constructor - โหลดข้อมูล Master ทั้งหมด
+    Public Sub New()
+        LoadAllMasterData()
+    End Sub
+
+    ' โหลดข้อมูล Master
+    Private Sub LoadAllMasterData()
+        Try
+            Using conn As New SqlConnection(connectionString)
+                conn.Open()
+                dtCategories = New DataTable()
+                Using cmd As New SqlCommand("SELECT [Cate],[Category] FROM [BMS].[dbo].[MS_Category]", conn)
+                    Using reader As SqlDataReader = cmd.ExecuteReader()
+                        dtCategories.Load(reader)
+                    End Using
+                End Using
+
+                dtSegments = New DataTable()
+                Using cmd As New SqlCommand("SELECT [SegmentCode],[SegmentName]  FROM [BMS].[dbo].[MS_Segment]", conn)
+                    Using reader As SqlDataReader = cmd.ExecuteReader()
+                        dtSegments.Load(reader)
+                    End Using
+                End Using
+
+                dtBrands = New DataTable()
+                Using cmd As New SqlCommand("SELECT [Brand Code],[Brand Name] FROM [BMS].[dbo].[MS_Brand]", conn)
+                    Using reader As SqlDataReader = cmd.ExecuteReader()
+                        dtBrands.Load(reader)
+                    End Using
+                End Using
+
+                dtVendors = New DataTable()
+                Using cmd As New SqlCommand("SELECT [VendorCode],[Vendor],[SegmentCode] FROM [BMS].[dbo].[MS_Vendor]", conn)
+                    Using reader As SqlDataReader = cmd.ExecuteReader()
+                        dtVendors.Load(reader)
+                    End Using
+                End Using
+
+                dtCompanies = New DataTable()
+                Using cmd As New SqlCommand("SELECT [CompanyCode],[CompanyNameShort] FROM [BMS].[dbo].[MS_Company]", conn)
+                    Using reader As SqlDataReader = cmd.ExecuteReader()
+                        dtCompanies.Load(reader)
+                    End Using
+                End Using
+            End Using
+        Catch ex As Exception
+            Throw New Exception("Error loading master data for validation: " & ex.Message)
+        End Try
+    End Sub
+
     ''' <summary>
     ''' ตรวจสอบ Master Data (แบบพื้นฐาน)
     ''' </summary>
@@ -31,107 +88,89 @@ Public Class POValidate
     End Function
 
     ''' <summary>
-    ''' ตรวจสอบว่า PO No นี้มีในระบบ (Draft หรือ Approved) แล้วหรือยัง
-    ''' </summary>
-    Private Shared Function CheckPODuplicate(pono As String) As Boolean
-        Try
-            Using conn As New SqlConnection(connectionString)
-                conn.Open()
-                ' (ต้องปรับแก้ชื่อตารางและ field ตามจริง)
-                Dim query As String = "SELECT COUNT(*) FROM [dbo].[Draft_PO_Transaction] WHERE [DraftPO_No] = @pono AND [Status] <> 'Cancelled'"
-                Using cmd As New SqlCommand(query, conn)
-                    cmd.Parameters.AddWithValue("@pono", pono)
-                    Dim count As Integer = Convert.ToInt32(cmd.ExecuteScalar())
-                    Return count > 0
-                End Using
-            End Using
-        Catch ex As Exception
-            Return False
-        End Try
-    End Function
-
-
-    ''' <summary>
     ''' Validate ข้อมูล Draft PO TXN
     ''' </summary>
-    Public Shared Function ValidateDraftPO(context As HttpContext) As Dictionary(Of String, String)
+    Public Function ValidateDraftPO(context As HttpContext) As Dictionary(Of String, String)
         Dim errors As New Dictionary(Of String, String)
         Dim isValid As Boolean = True
 
         ' ดึงข้อมูล
-        Dim year As String = If(String.IsNullOrWhiteSpace(context.Request.Form("year")), "", context.Request.Form("year").Trim())
-        Dim month As String = If(String.IsNullOrWhiteSpace(context.Request.Form("month")), "", context.Request.Form("month").Trim())
-        Dim company As String = If(String.IsNullOrWhiteSpace(context.Request.Form("company")), "", context.Request.Form("company").Trim())
-        Dim category As String = If(String.IsNullOrWhiteSpace(context.Request.Form("category")), "", context.Request.Form("category").Trim())
-        Dim segment As String = If(String.IsNullOrWhiteSpace(context.Request.Form("segment")), "", context.Request.Form("segment").Trim())
-        Dim brand As String = If(String.IsNullOrWhiteSpace(context.Request.Form("brand")), "", context.Request.Form("brand").Trim())
-        Dim vendor As String = If(String.IsNullOrWhiteSpace(context.Request.Form("vendor")), "", context.Request.Form("vendor").Trim())
-        Dim pono As String = If(String.IsNullOrWhiteSpace(context.Request.Form("pono")), "", context.Request.Form("pono").Trim())
-        Dim amtCCY As String = If(String.IsNullOrWhiteSpace(context.Request.Form("amtCCY")), "", context.Request.Form("amtCCY").Trim())
-        Dim ccy As String = If(String.IsNullOrWhiteSpace(context.Request.Form("ccy")), "", context.Request.Form("ccy").Trim())
-        Dim exRate As String = If(String.IsNullOrWhiteSpace(context.Request.Form("exRate")), "", context.Request.Form("exRate").Trim())
+        Dim year As String = If(context.Request.Form("DDYear"), "").Trim()
+        Dim month As String = If(context.Request.Form("DDMonth"), "").Trim()
+        Dim company As String = If(context.Request.Form("DDCompany"), "").Trim()
+        Dim category As String = If(context.Request.Form("DDCategory"), "").Trim()
+        Dim segment As String = If(context.Request.Form("DDSegment"), "").Trim()
+        Dim brand As String = If(context.Request.Form("DDBrand"), "").Trim()
+        Dim vendor As String = If(context.Request.Form("DDVendor"), "").Trim()
+        Dim poNo As String = If(context.Request.Form("txtPONO"), "").Trim()
+        Dim amtCCY As String = If(context.Request.Form("txtAmtCCY"), "").Trim()
+        Dim ccy As String = If(context.Request.Form("DDCCY"), "").Trim()
+        Dim exRate As String = If(context.Request.Form("txtExRate"), "").Trim()
+        Dim amtTHB As String = If(context.Request.Form("txtAmtTHB"), "").Trim()
 
-        ' ========================================
-        ' 1. ตรวจสอบช่องว่าง (Required Fields)
-        ' ========================================
-        If String.IsNullOrEmpty(year) Then errors.Add("year", "Year is required")
-        If String.IsNullOrEmpty(month) Then errors.Add("month", "Month is required")
-        If String.IsNullOrEmpty(company) Then errors.Add("company", "Company is required")
-        If String.IsNullOrEmpty(category) Then errors.Add("category", "Category is required")
-        If String.IsNullOrEmpty(segment) Then errors.Add("segment", "Segment is required")
-        If String.IsNullOrEmpty(brand) Then errors.Add("brand", "Brand is required")
-        If String.IsNullOrEmpty(vendor) Then errors.Add("vendor", "Vendor is required")
-        If String.IsNullOrEmpty(pono) Then errors.Add("pono", "Draft PO No. is required")
-        If String.IsNullOrEmpty(amtCCY) Then errors.Add("amtCCY", "Amount (CCY) is required")
-        If String.IsNullOrEmpty(ccy) Then errors.Add("ccy", "CCY is required")
-        If String.IsNullOrEmpty(exRate) Then errors.Add("exRate", "Exchange rate is required")
+        ' เรียกใช้ฟังก์ชัน Validation หลัก (แบบส่งค่า)
+        Return ValidateDraftPO(year, month, company, category, segment, brand, vendor, pono, amtCCY, ccy, exRate, amtTHB, checkDuplicate:=True)
+    End Function
 
-        ' ========================================
-        ' 2. ตรวจสอบตัวเลข
-        ' ========================================
-        Dim amtCCYValue As Decimal = 0
-        If Not String.IsNullOrEmpty(amtCCY) Then
-            If Not Decimal.TryParse(amtCCY, amtCCYValue) Then
-                errors.Add("amtCCY", "Amount (CCY) must be a valid number")
-            ElseIf amtCCYValue <= 0 Then
-                errors.Add("amtCCY", "Amount (CCY) must be greater than 0")
-            End If
+    Public Function ValidateDraftPO(
+        year As String, month As String, company As String, category As String, segment As String, brand As String, vendor As String,
+        poNo As String, amtCCY As String, ccy As String, exRate As String, amtTHB As String,
+        checkDuplicate As Boolean
+    ) As Dictionary(Of String, String)
+
+        Dim errors As New Dictionary(Of String, String)()
+
+        ' 1. ตรวจสอบ Dropdown/Text ที่จำเป็น
+        If String.IsNullOrEmpty(year) Then errors.Add("DDYear", "Year is required")
+        If String.IsNullOrEmpty(month) Then errors.Add("DDMonth", "Month is required")
+        If String.IsNullOrEmpty(company) Then errors.Add("DDCompany", "Company is required")
+        If String.IsNullOrEmpty(category) Then errors.Add("DDCategory", "Category is required")
+        If String.IsNullOrEmpty(segment) Then errors.Add("DDSegment", "Segment is required")
+        If String.IsNullOrEmpty(brand) Then errors.Add("DDBrand", "Brand is required")
+        If String.IsNullOrEmpty(vendor) Then errors.Add("DDVendor", "Vendor is required")
+        If String.IsNullOrEmpty(poNo) Then errors.Add("txtPONO", "Draft PO no. is required")
+        If String.IsNullOrEmpty(ccy) Then errors.Add("DDCCY", "CCY is required")
+
+        ' 2. ตรวจสอบ Master Data
+        If Not String.IsNullOrEmpty(year) AndAlso Not ValidateYear(year) Then errors.Add("DDYear", "Year not found")
+        If Not String.IsNullOrEmpty(month) AndAlso Not ValidateMonth(month) Then errors.Add("DDMonth", "Month not found")
+        If Not String.IsNullOrEmpty(company) AndAlso Not ValidateCompany(company) Then errors.Add("DDCompany", "Company not found")
+        If Not String.IsNullOrEmpty(category) AndAlso Not ValidateCategory(category) Then errors.Add("DDCategory", "Category not found")
+        If Not String.IsNullOrEmpty(segment) AndAlso Not ValidateSegment(segment) Then errors.Add("DDSegment", "Segment not found")
+        If Not String.IsNullOrEmpty(brand) AndAlso Not ValidateBrand(brand) Then errors.Add("DDBrand", "Brand not found")
+        If Not String.IsNullOrEmpty(vendor) AndAlso Not String.IsNullOrEmpty(segment) AndAlso Not ValidateVendor(vendor, segment) Then
+            errors.Add("DDVendor", $"Vendor '{vendor}' not found for segment '{segment}'")
+        End If
+
+        ' 3. ตรวจสอบ Amount
+        Dim amountCCYValue As Decimal = 0
+        If String.IsNullOrEmpty(amtCCY) Then
+            errors.Add("txtAmtCCY", "Amount (CCY) is required")
+        ElseIf Not Decimal.TryParse(amtCCY, amountCCYValue) Then
+            errors.Add("txtAmtCCY", "Amount (CCY) must be a number")
+        ElseIf amountCCYValue <= 0 Then
+            errors.Add("txtAmtCCY", "Amount (CCY) must be greater than 0")
         End If
 
         Dim exRateValue As Decimal = 0
-        If Not String.IsNullOrEmpty(exRate) Then
-            If Not Decimal.TryParse(exRate, exRateValue) Then
-                errors.Add("exRate", "Exchange rate must be a valid number")
-            ElseIf exRateValue <= 0 Then
-                errors.Add("exRate", "Exchange rate must be greater than 0")
-            End If
+        If String.IsNullOrEmpty(exRate) Then
+            errors.Add("txtExRate", "Exchange rate is required")
+        ElseIf Not Decimal.TryParse(exRate, exRateValue) Then
+            errors.Add("txtExRate", "Exchange rate must be a number")
+        ElseIf exRateValue <= 0 Then
+            errors.Add("txtExRate", "Exchange rate must be greater than 0")
         End If
 
-        ' ========================================
-        ' 3. Business Logic & Master Data
-        ' ========================================
-        If errors.Count = 0 Then
-            ' 3.1 ตรวจสอบ PO No. ซ้ำ
-            If CheckPODuplicate(pono) Then
-                errors.Add("pono", $"Draft PO No. '{pono}' already exists in the system.")
-            End If
+        ' 4. ตรวจสอบ Logic (CCY/Ex.Rate)
+        If ccy = "THB" AndAlso exRateValue <> 1 Then
+            errors.Add("txtExRate", "Exchange rate must be 1.00 when CCY is THB")
+        End If
 
-            ' 3.2 ตรวจสอบ Master Data (ตัวอย่าง)
-            ' (ปรับแก้ชื่อตารางและ field ตามจริง)
-            If Not CheckMasterDataExists("MS_Category", "Cate", category) Then
-                errors.Add("category", $"Category '{category}' not found in master data.")
+        ' 5. ตรวจสอบ PO ซ้ำ (ถ้าถูกสั่งให้เช็ค)
+        If checkDuplicate AndAlso Not String.IsNullOrEmpty(poNo) AndAlso errors.Count = 0 Then
+            If CheckPODuplicate(poNo) Then
+                errors.Add("txtPONO", $"Draft PO no. '{poNo}' already exists")
             End If
-            If Not CheckMasterDataExists("MS_Segment", "SegmentCode", segment) Then
-                errors.Add("segment", $"Segment '{segment}' not found in master data.")
-            End If
-            If Not CheckMasterDataExists("MS_Brand", "Brand Code", brand) Then
-                errors.Add("brand", $"Brand '{brand}' not found in master data.")
-            End If
-            ' (ควรเช็ค Vendor กับ Segment ด้วย)
-            If Not CheckMasterDataExists("MS_Vendor", "VendorCode", vendor) Then
-                errors.Add("vendor", $"Vendor '{vendor}' not found in master data.")
-            End If
-
         End If
 
         Return errors
@@ -218,5 +257,78 @@ Public Class POValidate
         End If
 
         Return errors
+    End Function
+
+    ' --- 3. VALIDATION FUNCTION (สำหรับ Edit - รับ String, ไม่เช็ค PO ซ้ำ) ---
+    Public Function ValidateDraftPOEdit(
+        year As String, month As String, company As String, category As String, segment As String, brand As String, vendor As String,
+        poNo As String, amtCCY As String, ccy As String, exRate As String, amtTHB As String
+    ) As Dictionary(Of String, String)
+
+        ' เรียกใช้ฟังก์ชันหลัก แต่ปิดการตรวจสอบ PO ซ้ำ
+        Return ValidateDraftPO(year, month, company, category, segment, brand, vendor, poNo, amtCCY, ccy, exRate, amtTHB, checkDuplicate:=False)
+
+    End Function
+
+
+    ' --- Private Helper Functions ---
+
+    Private Function ValidateYear(ByVal year As String) As Boolean
+        Try
+            Dim yearInt As Integer = Convert.ToInt32(year)
+            Return (yearInt >= Date.Now.Year - 1 AndAlso yearInt <= Date.Now.Year + 2) ' อนุญาต 2 ปีย้อนหลัง 2 ปีล่วงหน้า
+        Catch
+            Return False
+        End Try
+    End Function
+
+    Private Function ValidateMonth(ByVal month As String) As Boolean
+        Try
+            Dim monthInt As Integer = Convert.ToInt32(month)
+            Return (monthInt >= 1 AndAlso monthInt <= 12)
+        Catch
+            Return False
+        End Try
+    End Function
+
+    Private Function ValidateCategory(ByVal category As String) As Boolean
+        Dim rows() As DataRow = dtCategories.Select($"[Cate] = '{category.Replace("'", "''")}'")
+        Return rows.Length > 0
+    End Function
+
+    Private Function ValidateCompany(ByVal company As String) As Boolean
+        Dim rows() As DataRow = dtCompanies.Select($"[CompanyCode] = '{company.Replace("'", "''")}'")
+        Return rows.Length > 0
+    End Function
+
+    Private Function ValidateSegment(ByVal segment As String) As Boolean
+        Dim rows() As DataRow = dtSegments.Select($"[SegmentCode] = '{segment.Replace("'", "''")}'")
+        Return rows.Length > 0
+    End Function
+
+    Private Function ValidateBrand(ByVal brand As String) As Boolean
+        Dim rows() As DataRow = dtBrands.Select($"[Brand Code] = '{brand.Replace("'", "''")}'")
+        Return rows.Length > 0
+    End Function
+
+    Private Function ValidateVendor(ByVal vendor As String, ByVal segment As String) As Boolean
+        Dim rows() As DataRow = dtVendors.Select($"[VendorCode] = '{vendor.Replace("'", "''")}' AND [SegmentCode] = '{segment.Replace("'", "''")}'")
+        Return rows.Length > 0
+    End Function
+
+    Private Function CheckPODuplicate(ByVal poNo As String) As Boolean
+        Try
+            Using conn As New SqlConnection(connectionString)
+                conn.Open()
+                Dim query As String = "SELECT COUNT(1) FROM [BMS].[dbo].[Draft_PO_Transaction] WHERE [DraftPO_No] = @DraftPO_No"
+                Using cmd As New SqlCommand(query, conn)
+                    cmd.Parameters.AddWithValue("@DraftPO_No", poNo)
+                    Dim count As Integer = Convert.ToInt32(cmd.ExecuteScalar())
+                    Return (count > 0)
+                End Using
+            End Using
+        Catch ex As Exception
+            Return True ' ถ้าเช็คไม่ได้ ให้ assume ว่าซ้ำ (ปลอดภัยไว้ก่อน)
+        End Try
     End Function
 End Class

@@ -483,6 +483,10 @@
             background: #34495e;
             border-radius: 3px;
         }
+
+        .table-responsive { border: 1px solid #dee2e6; }
+        .sticky-header { position: sticky; top: 0; z-index: 10; }
+        .text-truncate-custom { max-width: 150px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     </style>
 </head>
 <body>
@@ -858,7 +862,16 @@
         </div>
     </div>
 
-        <!-- ADDED: Error Validation Modal -->
+    <!-- Loading Overlay -->
+    <div class="loading-overlay" id="loadingOverlay">
+        <div class="loading-content">
+            <div class="loading-spinner"></div>
+            <p class="loading-text" id="loadingText">Processing...</p>
+            <p class="loading-subtext" id="loadingSubtext">Please wait a moment</p>
+        </div>
+    </div>
+
+     <!-- Error Validation Modal -->
     <div class="modal fade" id="errorValidationModal" tabindex="-1" data-bs-backdrop="static" data-bs-keyboard="false">
         <div class="modal-dialog modal-dialog-centered modal-lg">
             <div class="modal-content">
@@ -888,16 +901,23 @@
         </div>
     </div>
     
-    <!-- ADDED: Success Modal -->
+    <!-- Success Modal -->
     <div class="modal fade" id="successModal" tabindex="-1" data-bs-backdrop="static" data-bs-keyboard="false">
         <div class="modal-dialog modal-dialog-centered">
             <div class="modal-content">
-                <div class="modal-body text-center p-4">
-                    <i class="bi bi-check-circle-fill text-success" style="font-size: 4rem; margin-bottom: 1rem;"></i>
-                    <h4 class="modal-title mb-2" id="successModalTitle">Success!</h4>
-                    <p id="successModalMessage">Your Draft PO has been saved successfully.</p>
-                    <button type="button" class="btn btn-success mt-2" data-bs-dismiss="modal" style="min-width: 100px;">
-                        OK
+                <div class="modal-header bg-success text-white">
+                    <h5 class="modal-title" id="successModalTitle">
+                        <i class="bi bi-check-circle-fill me-2"></i>
+                        Success
+                    </h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <p id="successModalMessage">Operation completed successfully.</p>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-success" data-bs-dismiss="modal">
+                        <i class="bi bi-hand-thumbs-up me-2"></i>OK
                     </button>
                 </div>
             </div>
@@ -905,9 +925,16 @@
     </div>
 
 
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script>
+
+        // ADDED: Modal instances
+        let previewTxnModal, errorModal, successModal, uploadPreviewModal;
+        let previewPOTXNModal;
+
+
+
         let yearDropdown = document.getElementById("DDYear");
         let monthDropdown = document.getElementById("DDMonth");
         let companyDropdown = document.getElementById("DDCompany");
@@ -916,7 +943,6 @@
         let brandDropdown = document.getElementById("DDBrand");
         let vendorDropdown = document.getElementById("DDVendor");
         let ccyDropdown = document.getElementById("DDCCY");
-
         let txtPONO = document.getElementById("txtPONO");
         let txtAmtCCY = document.getElementById("txtAmtCCY");
         let txtAmtTHB = document.getElementById("txtAmtTHB");
@@ -925,49 +951,47 @@
 
         let btnSubmitData = document.getElementById('btnSubmitData');
         let btnSubmit = document.getElementById('btnSubmit');
+        let btnUpload = document.getElementById('btnUpload');
+        let fileUploadInput = document.getElementById('fileUpload');
+        let previewTableContainer = document.getElementById('previewTableContainer');
 
-        // ADDED: Modal instances
-        let previewPOTXNModal;
-        let errorValidationModal;
-        let successModal;
 
-        $(document).ready(function () {
-            $('#btnUpload').on('click', function (e) {
-                e.preventDefault(); // ป้องกัน default behavior (แม้จะเป็น button ก็ตาม)
-                console.log("Upload button clicked");
+        function handleUploadPreview() {
+            var fileInput = fileUploadInput;
+            var file = fileInput.files[0];
+            var currentUser = '<%= If(Session("user") IsNot Nothing, HttpUtility.JavaScriptStringEncode(Session("user").ToString()), "unknown") %>';
+                    var uploadBy = currentUser || 'unknown';
 
-                var fileInput = $('#fileUpload')[0];
-                var file = fileInput.files[0];
-                var currentUser = '<%= HttpUtility.JavaScriptStringEncode(Session("user").ToString()) %>';
-                var uploadBy = currentUser || 'unknown';
-                console.log(uploadBy);
-
-                if (!file) {
-                    alert('Please select a file.');
-                    return;
-                }
-
-                var formData = new FormData();
-                formData.append('file', file);
-                formData.append('uploadBy', uploadBy); //  ส่งไปกับ request
-
-                $.ajax({
-                    url: 'Handler/POUploadHandler.ashx?action=preview',
-                    type: 'POST',
-                    data: formData,
-                    processData: false,
-                    contentType: false,
-                    success: function (response) {
-                        $('#previewTableContainer').html(response);
-                        $('#previewModal').modal('show');
-                    },
-                    error: function (xhr, status, error) {
-                        alert('Error loading preview: ' + error);
+                    if (!file) {
+                        showErrorModal({ 'general': 'Please select a file to upload.' }, 'Upload Error');
+                        return;
                     }
-                });
-            });
 
-        });
+                    showLoading(true, 'Uploading file...');
+
+                    var formData = new FormData();
+                    formData.append('file', file);
+                    formData.append('uploadBy', uploadBy);
+
+                    $.ajax({
+                        url: 'Handler/POUploadHandler.ashx?action=preview',
+                        type: 'POST',
+                        data: formData,
+                        processData: false,
+                        contentType: false,
+                        success: function (response) {
+                            showLoading(false);
+                            previewTableContainer.innerHTML = response;
+                            uploadPreviewModal.show();
+                        },
+                        error: function (xhr, status, error) {
+                            showLoading(false);
+                            previewTableContainer.innerHTML = '';
+                            console.error('Error loading preview:', error);
+                            showErrorModal({ 'general': 'Error loading preview: ' + xhr.responseText }, 'Upload Error');
+                        }
+                    });
+                }
 
         // Toggle Sidebar
         function toggleSidebar() {
@@ -1023,6 +1047,108 @@
             }
         }
 
+        // --- Loading Overlay Function ---
+        function showLoading(show = true, message = 'Processing...', subMessage = 'Please wait') {
+            const overlay = document.getElementById('loadingOverlay');
+            if (overlay) {
+                document.getElementById('loadingText').textContent = message;
+                document.getElementById('loadingSubtext').textContent = subMessage;
+                if (show) {
+                    overlay.classList.add('active');
+                } else {
+                    overlay.classList.remove('active');
+                }
+            }
+        }
+
+        // --- Error Modal Function ---
+        function showErrorModal(errors, transactionType) {
+            let errorCount = Object.keys(errors).length;
+            let summaryText = document.getElementById('errorSummaryText');
+            summaryText.textContent = `Found ${errorCount} error(s) in your ${transactionType}.`;
+
+            let errorListContainer = document.getElementById('errorListContainer');
+            errorListContainer.innerHTML = ''; // Clear previous errors
+
+            // Define field mappings
+            const fieldMap = {
+                'DDYear': 'Year',
+                'DDCategory': 'Category',
+                'DDMonth': 'Month',
+                'DDSegment': 'Segment',
+                'DDCompany': 'Company',
+                'DDBrand': 'Brand',
+                'DDVendor': 'Vendor',
+                'txtPONO': 'Draft PO no.',
+                'txtAmtCCY': 'Amount (CCY)',
+                'DDCCY': 'CCY',
+                'txtExRate': 'Exchange rate',
+                'general': 'General Error'
+            };
+
+            for (const fieldId in errors) {
+                const fieldName = fieldMap[fieldId] || fieldId;
+                const message = errors[fieldId];
+
+                const errorItem = document.createElement('div');
+                errorItem.className = 'error-item';
+                errorItem.setAttribute('data-field-id', fieldId);
+                errorItem.innerHTML = `
+                    <div class="error-item-icon"><i class="bi bi-x-circle"></i></div>
+                    <div class="error-item-content">
+                        <div class="error-field-name">${fieldName}</div>
+                        <p class="error-message">${message}</p>
+                    </div>
+                `;
+                errorListContainer.appendChild(errorItem);
+
+                // Highlight the field
+                const fieldElement = document.getElementById(fieldId);
+                if (fieldElement) {
+                    fieldElement.classList.add('has-error');
+                }
+            }
+            errorModal.show();
+        }
+
+        function showErrorSaveModal(title, transactionType) {
+           
+
+            let errorListContainer = document.getElementById('errorListContainer');
+            errorListContainer.innerHTML = ''; // Clear previous errors
+
+                const errorItem = document.createElement('div');
+                errorItem.className = 'error-item';
+                errorItem.innerHTML = `
+             <div class="error-item-icon"><i class="bi bi-x-circle"></i></div>
+             <div class="error-item-content">
+                 <div class="error-field-name">${transactionType}</div>
+                 <p class="error-message">${title}</p>
+             </div>
+         `;
+                errorListContainer.appendChild(errorItem);
+
+                //// Highlight the field
+                //const fieldElement = document.getElementById(fieldId);
+                //if (fieldElement) {
+                //    fieldElement.classList.add('has-error');
+                //}
+            
+            errorModal.show();
+        }
+
+        // --- Success Modal Function ---
+        function showSuccessModal(title, message) {
+            document.getElementById('successModalTitle').textContent = title;
+            document.getElementById('successModalMessage').textContent = message;
+            successModal.show();
+        }
+
+        // --- Field Error Clear Function ---
+        function clearValidationErrors() {
+            document.querySelectorAll('.has-error').forEach(el => el.classList.remove('has-error'));
+        }
+
         let currencyCal = function () {
             let result = 0.00;
             let amtCCY = parseFloat(txtAmtCCY.value) || 0;
@@ -1055,9 +1181,10 @@
             InitMSData();
 
             previewPOTXNModal = new bootstrap.Modal(document.getElementById('previewPOTXNModal'));
-            errorValidationModal = new bootstrap.Modal(document.getElementById('errorValidationModal'));
+            errorModal = new bootstrap.Modal(document.getElementById('errorValidationModal'));
             successModal = new bootstrap.Modal(document.getElementById('successModal'));
 
+            uploadPreviewModal = new bootstrap.Modal(document.getElementById('previewModal'));
 
             segmentDropdown.addEventListener('change', changeVendor);
             txtAmtCCY.addEventListener('change', currencyCal);
@@ -1067,6 +1194,8 @@
 
             // ADDED: Confirm button logic
             document.getElementById('btnConfirm').addEventListener('click', handleConfirmSavePOTXN);
+            btnSubmitData.addEventListener('click', handleUploadSubmit);
+            btnUpload.addEventListener('click', handleUploadPreview);
         }
 
         let InitMSData = function () {
@@ -1290,13 +1419,13 @@
                     populatePOTXNPreview();
                     previewPOTXNModal.show();
                 } else {
-                    showErrorModal(result.errors);
+                    showErrorModal(result.errors, 'System Error');
                     showValidationErrorsOnForm(result.errors);
                 }
             } catch (error) {
                 showLoading(false);
                 console.error('Validation fetch error:', error);
-                showErrorModal({ 'general': 'A system error occurred: ' + error.message });
+                showErrorModal({ 'general': 'A system error occurred: ' + error.message }, 'System Error');
             }
         }
 
@@ -1361,18 +1490,18 @@
                 previewPOTXNModal.hide();
 
                 if (result.success) {
-                    successModal.show();
+                    showSuccessModal('Success', result.message);
                     clearPOForm();
                 } else {
                     // Show save error in the main error modal
-                    showErrorModal({ 'general': 'Failed to save data: ' + result.message });
+                    showErrorModal({ 'general': result.message }, 'Save Error');
                 }
 
             } catch (error) {
                 showLoading(false);
                 previewPOTXNModal.hide();
-                console.error('Save fetch error:', error);
-                showErrorModal({ 'general': 'A system error occurred during save: ' + error.message });
+                console.error('Save error:', error);
+                showErrorModal({ 'general': 'Failed to save data: ' + error.message }, 'System Error');
             }
         }
 
@@ -1388,28 +1517,6 @@
             ccyDropdown.dispatchEvent(new Event('change'));
             // Clear any lingering validation
             clearValidationErrors();
-        }
-
-        function showLoading(show, text = "Loading...") {
-            let overlay = document.getElementById('loadingOverlay');
-            if (show) {
-                if (!overlay) {
-                    const loadingHtml = `
-                        <div id="loadingOverlay" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); z-index: 9998; display: flex; flex-direction: column; align-items: center; justify-content: center; transition: opacity 0.3s;">
-                            <div class="spinner-border text-light" role="status" style="width: 3rem; height: 3rem;">
-                                <span class="visually-hidden">Loading...</span>
-                            </div>
-                            <p class="text-light mt-3 mb-0" id="loadingOverlayText" style="font-size: 1.1rem;">${text}</p>
-                        </div>`;
-                    document.body.insertAdjacentHTML('beforeend', loadingHtml);
-                }
-                document.getElementById('loadingOverlayText').textContent = text;
-            } else {
-                if (overlay) {
-                    overlay.style.opacity = '0';
-                    setTimeout(() => overlay.remove(), 300);
-                }
-            }
         }
 
         function clearValidationErrors() {
@@ -1435,60 +1542,74 @@
             }
         }
 
-        function showErrorModal(errors, transactionType = 'Draft PO') {
-            const errorCount = Object.keys(errors).length;
-            const summaryText = document.getElementById('errorSummaryText');
-            summaryText.innerHTML = `Found ${errorCount} validation error${errorCount > 1 ? 's' : ''} in your ${transactionType}.`;
+        function handleUploadSubmit(e) {
+            e.preventDefault();
 
-            const errorListContainer = document.getElementById('errorListContainer');
-            let errorHtml = '';
+            var selectedRowsData = [];
+            // Find checked checkboxes
+            $('#previewTableContainer input[name="selectedRows"]:checked').each(function () {
+                var cb = $(this);
+                // Get data from data attributes
+                var rowData = {
+                    DraftPONo: cb.data('pono'),
+                    Year: cb.data('year'),
+                    Month: cb.data('month'),
+                    Category: cb.data('category'),
+                    Company: cb.data('company'),
+                    Segment: cb.data('segment'),
+                    Brand: cb.data('brand'),
+                    Vendor: cb.data('vendor'),
+                    AmountTHB: cb.data('amountthb'),
+                    AmountCCY: cb.data('amountccy'),
+                    CCY: cb.data('ccy'),
+                    ExRate: cb.data('exrate'),
+                    Remark: cb.data('remark')
+                };
+                selectedRowsData.push(rowData);
+            });
 
-            // Map internal field IDs to user-friendly names
-            const fieldInfo = {
-                'year': 'Year', 'month': 'Month', 'company': 'Company', 'category': 'Category',
-                'segment': 'Segment', 'brand': 'Brand', 'vendor': 'Vendor', 'pono': 'Draft PO No.',
-                'amtCCY': 'Amount (CCY)', 'ccy': 'CCY', 'exRate': 'Exchange rate',
-                'general': 'General Error'
-            };
+            if (selectedRowsData.length === 0) {
 
-            for (const field in errors) {
-                const message = errors[field];
-                const fieldName = fieldInfo[field] || field;
-                const fieldId = field === 'pono' ? 'txtPONO' : field === 'amtCCY' ? 'txtAmtCCY' : field === 'exRate' ? 'txtExRate' : `DD${field.charAt(0).toUpperCase() + field.slice(1)}`;
-
-                errorHtml += `
-                    <div class="error-item" data-field="${fieldId}">
-                        <div class="error-item-icon"><i class="bi bi-x-circle"></i></div>
-                        <div class="error-item-content">
-                            <div class="error-field-name">
-                                <span class="error-section-badge">${fieldName}</span>
-                            </div>
-                            <p class="error-message">${message}</p>
-                        </div>
-                    </div>`;
+                showErrorSaveModal('Please select at least one valid row to save.', 'warning');
+                return;
             }
 
-            errorListContainer.innerHTML = errorHtml;
-            errorValidationModal.show();
+            // ** FIX for Session("user") NullReferenceException **
+            var uploadBy = '<%= If(Session("user") IsNot Nothing, HttpUtility.JavaScriptStringEncode(Session("user").ToString()), "unknown") %>';
 
-            // Add click-to-focus behavior
-            document.querySelectorAll('.error-item[data-field]').forEach(item => {
-                item.style.cursor = 'pointer';
-                item.addEventListener('click', function () {
-                    const fieldId = this.getAttribute('data-field');
-                    const fieldElement = document.getElementById(fieldId);
-                    if (fieldElement) {
-                        errorValidationModal.hide();
-                        setTimeout(() => {
-                            fieldElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                            fieldElement.focus();
-                            fieldElement.classList.add('pulse-error');
-                            setTimeout(() => fieldElement.classList.remove('pulse-error'), 1000);
-                        }, 300);
-                    }
-                });
+            var formData = new FormData();
+            formData.append('uploadBy', uploadBy);
+            formData.append('selectedData', JSON.stringify(selectedRowsData)); // Send data as JSON string
+
+            showLoading(true, "Saving...", "Submitting selected rows...");
+            btnSubmitData.disabled = true;
+
+            $.ajax({
+                url: 'Handler/POUploadHandler.ashx?action=savePreview',
+                type: 'POST',
+                data: formData,
+                processData: false,
+                contentType: false,
+                success: function (response) {
+                    showLoading(false);
+                    btnSubmitData.disabled = false;
+                    uploadPreviewModal.hide();
+                    previewTableContainer.innerHTML = '';
+                    fileUploadInput.value = ''; // Clear file input
+                    
+                    showSuccessModal(response, 'success') 
+                },
+                error: function (xhr, status, error) {
+                    showLoading(false);
+                    btnSubmitData.disabled = false;
+                    // Display error in a more persistent way
+                    showErrorSaveModal(`Error saving data: ${xhr.responseText || error}`, 'danger');
+                }
             });
         }
+        // --- END: Upload File Logic ---
+
+       
 
 
         // Close sidebar when clicking outside
@@ -1502,6 +1623,8 @@
                 }
             }
         });
+
+
 
         // Initialize
         document.addEventListener('DOMContentLoaded', initial);

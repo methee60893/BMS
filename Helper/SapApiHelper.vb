@@ -9,7 +9,7 @@ Public Module SapApiHelper
     Private ReadOnly client As HttpClient
 
     Sub New()
-        Dim baseUrl As String = "http://s4kpdev.kingpower.com:8000"
+        Dim baseUrl As String = "http://s4kpqas.kingpower.com:8000"
         Dim username As String = "RFCBMS"
         Dim password As String = "Kpc#2025"
 
@@ -39,10 +39,19 @@ Public Module SapApiHelper
         End Try
     End Function
 
-    ' (ฟังก์ชัน GetAsync และ GetPOsAsync ไม่ได้ใช้ในส่วนนี้)
-    ' ... 
+    ' --- เครื่องมือพื้นฐาน (GET) ---
+    Private Async Function GetAsync(endpointUrl As String) As Task(Of String)
+        Try
+            Using response As HttpResponseMessage = Await client.GetAsync(endpointUrl)
+                response.EnsureSuccessStatusCode() ' ถ้า 500/404, โยน Exception
+                Return Await response.Content.ReadAsStringAsync()
+            End Using
+        Catch ex As Exception
+            Console.WriteLine($"Error in GetAsync: {ex.Message}")
+            Return Nothing
+        End Try
+    End Function
 
-    ' --- *** อัปเดตตัวที่ 1 *** ---
     Public Async Function UploadOtbPlanAsync(plans As List(Of OtbPlanUploadItem)) As Task(Of SapApiResponse(Of SapUploadResultItem))
         Dim endpoint As String = "/ZPaymentPlan/OTBPlanUpload"
         Dim jsonBody As String = JsonConvert.SerializeObject(plans)
@@ -54,7 +63,7 @@ Public Module SapApiHelper
         Return JsonConvert.DeserializeObject(Of SapApiResponse(Of SapUploadResultItem))(jsonResponse)
     End Function
 
-    ' --- *** อัปเดตตัวที่ 2 *** ---
+
     Public Async Function SwitchOtbPlanAsync(switchRequest As OtbSwitchRequest) As Task(Of SapApiResponse(Of SapSwitchResultItem))
         Dim endpoint As String = "/ZPaymentPlan/OTBPlanSwitch"
         Dim jsonBody As String = JsonConvert.SerializeObject(switchRequest)
@@ -64,6 +73,38 @@ Public Module SapApiHelper
 
         ' แปลง String เป็น Object
         Return JsonConvert.DeserializeObject(Of SapApiResponse(Of SapSwitchResultItem))(jsonResponse)
+    End Function
+
+    ' --- (เพิ่มเข้ามาใหม่) ---
+    ''' <summary>
+    ''' [Get PO] - ดึงข้อมูล PO ตามเงื่อนไข OData
+    ''' </summary>
+    ''' <param name="startDate">วันที่เริ่มต้นที่ต้องการกรอง (ModifiedDate)</param>
+    ''' <param name="top">จำนวนสูงสุดที่ต้องการ</param>
+    ''' <param name="skip">จำนวนที่ต้องการข้าม (สำหรับ Paging)</param>
+    ''' <returns>JSON String ของผลลัพธ์ (OData)</returns>
+    Public Async Function GetPOsAsync(startDate As Date, top As Integer, skip As Integer) As Task(Of List(Of SapPOResultItem))
+
+        Dim filterDate As String = startDate.ToString("yyyy-MM-ddTHH:mm:ss")
+
+        Dim endpoint As String = $"/sap/opu/odata/SAP/ZBBIK_API_2_SRV/PoSet?$filter=ModifiedDate ge datetime'{filterDate}'&$top={top}&$skip={skip}"
+
+        ' 1. ยิง API (ได้เป็น String)
+        Dim jsonResponse As String = Await GetAsync(endpoint)
+
+        If String.IsNullOrEmpty(jsonResponse) Then
+            Return New List(Of SapPOResultItem)() ' คืนค่า List ว่าง
+        End If
+
+        ' 2. แปลง String JSON (จากไฟล์ txt ) ให้เป็น Object
+        Dim odataResponse = JsonConvert.DeserializeObject(Of ODataResponse(Of SapPOResultItem))(jsonResponse)
+
+        ' 3. ส่งเฉพาะ List ผลลัพธ์กลับไป
+        If odataResponse IsNot Nothing AndAlso odataResponse.Data IsNot Nothing Then
+            Return odataResponse.Data.Results
+        Else
+            Return New List(Of SapPOResultItem)() ' คืนค่า List ว่าง
+        End If
     End Function
 
 End Module

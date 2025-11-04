@@ -473,10 +473,10 @@
             </div>
             <!-- Submit Section -->
             <div class="submit-section">
-                <button class="btn-submit me-3">
+                <button type="button" id="btnSyncSAP" class="btn-submit me-3">
                     <i class="bi bi-check-circle"></i> Sync SAP
                 </button>
-                <button class="btn-submit">
+                <button type="button" id="btnSubmit" class="btn-submit">
                     <i class="bi bi-check-circle"></i> Submit
                 </button>
             </div>
@@ -598,14 +598,16 @@
             </div>
         </div>
     </div>
-
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script>
+        let btnSyncSAP = document.getElementById("btnSyncSAP");
+        let btnSubmit = document.getElementById("btnSubmit");
+
         // Toggle Sidebar
         function toggleSidebar() {
             const sidebar = document.getElementById('sidebar');
             const overlay = document.getElementById('sidebarOverlay');
-            
             sidebar.classList.toggle('active');
             overlay.classList.toggle('active');
         }
@@ -638,6 +640,29 @@
             }
         }
 
+        let initial = function () {
+            btnSyncSAP.addEventListener('click', function () {
+                $.ajax({
+                    url: 'Handler/POMatchingHandler.ashx?action=getpo',
+                    type: 'POST',
+                    processData: false,
+                    contentType: false,
+                    success: function (response) {
+                        console.log(response);
+                    },
+                    error: function (xhr, status, error) {
+                        console.error(error);
+                        console.log(status);
+                        console.log(xhr);
+                    }
+                });
+            });
+
+            btnSubmit.addEventListener('click', function () {
+
+            });
+        }
+
         // Close sidebar when clicking outside
         document.addEventListener('click', function(event) {
             const sidebar = document.getElementById('sidebar');
@@ -649,6 +674,9 @@
                 }
             }
         });
+
+        // Initialize
+        document.addEventListener('DOMContentLoaded', initial);
     </script>
 </body>
 </html>

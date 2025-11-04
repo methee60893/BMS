@@ -37,7 +37,8 @@ Public Class ValidateHandler
 
     Private Sub ValidateDraftPO(context As HttpContext)
         ' เรียกใช้ Class POValidate ที่สร้างขึ้นใหม่
-        Dim errors As Dictionary(Of String, String) = POValidate.ValidateDraftPO(context)
+        Dim Validator As New POValidate()
+        Dim errors As Dictionary(Of String, String) = Validator.ValidateDraftPO(context)
 
         Dim isValid As Boolean = (errors.Count = 0)
 

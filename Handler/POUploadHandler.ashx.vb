@@ -8,6 +8,7 @@ Imports System.Text
 Imports System.Web
 Imports ExcelDataReader
 Imports System.Web.Script.Serialization
+Imports System.Web.SessionState
 
 ' Class สำหรับรับ JSON
 Public Class POPreviewRow
@@ -27,7 +28,7 @@ Public Class POPreviewRow
 End Class
 
 Public Class POUploadHandler
-    Implements System.Web.IHttpHandler
+    Implements System.Web.IHttpHandler, IRequiresSessionState
 
     Private Shared connectionString As String = ConfigurationManager.ConnectionStrings("BMSConnectionString")?.ConnectionString
 
@@ -140,7 +141,12 @@ Public Class POUploadHandler
     End Function
 
     Private Function GetExistingPOs(poNos As List(Of String)) As HashSet(Of String)
-        Dim existingPOs As New HashSet(Of String)
+        ' === START MODIFICATION: 1 of 1 ===
+        ' สร้าง HashSet แบบไม่สนใจตัวพิมพ์เล็ก/ใหญ่ (Case-Insensitive)
+        ' This makes the C# check (HashSet.Contains) behave like the SQL check (JOIN)
+        Dim existingPOs As New HashSet(Of String)(StringComparer.OrdinalIgnoreCase)
+        ' === END MODIFICATION ===
+
         If poNos.Count = 0 Then
             Return existingPOs
         End If
@@ -148,9 +154,27 @@ Public Class POUploadHandler
         ' 1. สร้าง DataTable สำหรับ Bulk Check
         Dim poCheckTable As New DataTable()
         poCheckTable.Columns.Add("DraftPO_No", GetType(String))
+
+        ' === START MODIFICATION 2: ป้องกันการใส่ PO ซ้ำในตารางชั่วคราว ===
+        ' ใช้ HashSet ชั่วคราวเพื่อกรอง PO ที่ซ้ำกันจากไฟล์ Excel
+        ' ซึ่งจะป้องกัน Error "Violation of PRIMARY KEY" ใน #TempCheckPOs
+        Dim uniquePOsForBulkCheck As New HashSet(Of String)(StringComparer.OrdinalIgnoreCase)
+
         For Each po In poNos
-            poCheckTable.Rows.Add(po)
+            If Not String.IsNullOrEmpty(po) Then
+                ' .Add 
+                If uniquePOsForBulkCheck.Add(po) Then
+                    ' ถ้า po นี้ยังไม่เคยถูกเพิ่มลง HashSet ให้เพิ่มลงใน poCheckTable
+                    poCheckTable.Rows.Add(po)
+                End If
+            End If
         Next
+        ' === END MODIFICATION 2 ===
+
+        ' If no valid POs were added, return the empty set
+        If poCheckTable.Rows.Count = 0 Then
+            Return existingPOs
+        End If
 
         Using conn As New SqlConnection(connectionString)
             conn.Open()
@@ -177,7 +201,7 @@ Public Class POUploadHandler
                     Using cmdCheck As New SqlCommand(checkQuery, conn, transaction)
                         Using reader As SqlDataReader = cmdCheck.ExecuteReader()
                             While reader.Read()
-                                existingPOs.Add(reader("DraftPO_No").ToString())
+                                existingPOs.Add(reader("DraftPO_No").ToString().Trim()) ' Trim data from DB just in case
                             End While
                         End Using
                     End Using
@@ -187,6 +211,7 @@ Public Class POUploadHandler
                     transaction.Rollback()
                     ' ถ้ามีข้อผิดพลาดในการตรวจสอบ ให้ส่ง Set ว่างกลับไป (เพื่อไม่ให้หน้า Preview พัง)
                     ' (ควร Log Error ไว้)
+                    System.Diagnostics.Debug.WriteLine("Error in GetExistingPOs: " & ex.Message)
                 End Try
             End Using
         End Using
@@ -195,10 +220,11 @@ Public Class POUploadHandler
     End Function
 
 
+
     Private Function GenerateHtmlTable(dt As DataTable) As String
-        Dim validator As OTBValidate = Nothing
+        Dim validator As POValidate = Nothing
         Try
-            validator = New OTBValidate()
+            validator = New POValidate()
         Catch ex As Exception
             ' ถ้า validator มี error ให้ return error message
             Return $"<div class='alert alert-danger'>
@@ -225,14 +251,8 @@ Public Class POUploadHandler
 
 
         Dim existingDbPOs As HashSet(Of String) = GetExistingPOs(poNosFromExcel)
-
         Dim sb As New StringBuilder()
-        ' CSS Style
-        sb.Append("<style>")
-        sb.Append(".table-responsive { border: 1px solid #dee2e6; }")
-        sb.Append(".sticky-header { position: sticky; top: 0; z-index: 10; }")
-        sb.Append(".text-truncate-custom { max-width: 150px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }")
-        sb.Append("</style>")
+
 
         sb.Append("<div class='table-responsive' style='max-height:600px; overflow:auto;'>")
         sb.Append("<table id='previewTable' class='table table-bordered table-striped table-sm table-hover'>")
@@ -309,7 +329,7 @@ Public Class POUploadHandler
             ' สร้างแถว
             Dim rowClass As String = ""
             If Not isValid Then
-                rowClass = "table-danger" ' 👈 แถวจะกลายเป็นสีแดงอัตโนมัติ
+                rowClass = "table-danger" ' 
             End If
             sb.AppendFormat("<tr class='{0}' data-row-index='{1}'>", rowClass, i)
 
@@ -438,17 +458,17 @@ Public Class POUploadHandler
         sb.AppendFormat("<div class='alert alert-info mb-0'>Total: <strong>{0}</strong> rows | Valid: <strong class='text-success'>{1}</strong> | Error: <strong class='text-danger'>{2}</strong> | <strong class='text-warning'>Will Update: {3}</strong></div>",
                    dt.Rows.Count, validCount, errorCount, updateableCount)
         sb.Append("</div>")
-        sb.Append("<div class='col-md-4 text-end'>")
+
 
 
         ' JavaScript สำหรับจัดการ Checkbox
         sb.Append("<script>")
         sb.Append("$(document).ready(function() {")
-        sb.Append("  // Select All checkbox functionality")
+        sb.Append("  /* Select All checkbox functionality */")
         sb.Append("  $('#selectAllCheckbox').on('change', function() {")
         sb.Append("    $('.row-checkbox:not(:disabled)').prop('checked', this.checked);")
         sb.Append("  });")
-        sb.Append("  // Update select all when individual checkbox changes")
+        sb.Append("  /* Update select all when individual checkbox changes */")
         sb.Append("  $('.row-checkbox').on('change', function() {")
         sb.Append("    var total = $('.row-checkbox:not(:disabled)').length;")
         sb.Append("    var checked = $('.row-checkbox:checked').length;")
@@ -474,13 +494,14 @@ Public Class POUploadHandler
 
         ' === 1. (Validator - ถ้ามี) ===
         Dim createDT As DateTime = DateTime.Now
+        Dim Validator As New POValidate()
 
         ' === 3. เตรียม DataTables ===
         Dim insertTable As New DataTable()
         ' (คอลัมน์ทั้งหมดสำหรับ Insert)
         insertTable.Columns.Add("DraftPO_No", GetType(String))
-        insertTable.Columns.Add("PO_Year", GetType(String))
-        insertTable.Columns.Add("PO_Month", GetType(String))
+        insertTable.Columns.Add("PO_Year", GetType(String)) ' Changed to Integer
+        insertTable.Columns.Add("PO_Month", GetType(String)) ' Changed to Integer
         insertTable.Columns.Add("Company_Code", GetType(String))
         insertTable.Columns.Add("Category_Code", GetType(String))
         insertTable.Columns.Add("Segment_Code", GetType(String))
@@ -490,6 +511,8 @@ Public Class POUploadHandler
         insertTable.Columns.Add("Exchange_Rate", GetType(Decimal))
         insertTable.Columns.Add("Amount_CCY", GetType(Decimal))
         insertTable.Columns.Add("Amount_THB", GetType(Decimal))
+        insertTable.Columns.Add("PO_Type", GetType(String)) ' Added
+        insertTable.Columns.Add("Status", GetType(String))  ' Added
         insertTable.Columns.Add("Remark", GetType(String))
         insertTable.Columns.Add("Created_By", GetType(String))
         insertTable.Columns.Add("Created_Date", GetType(DateTime))
@@ -499,17 +522,28 @@ Public Class POUploadHandler
         poCheckTable.Columns.Add("DraftPO_No", GetType(String))
 
         Dim savedCount As Integer = 0
+        Dim errorList As New List(Of String)
 
         ' === 4. วนลูปข้อมูลที่ส่งมาจาก Preview ===
         For Each row As POPreviewRow In selectedRows
             Try
-                ' (ใส่ Validation ซ้ำฝั่ง Server ที่นี่ ถ้าจำเป็น)
+                ' === 4.0 Re-Validate Data ===
+                Dim validationErrors As Dictionary(Of String, String) = Validator.ValidateDraftPO(
+                    row.Year, row.Month, row.Company, row.Category, row.Segment, row.Brand, row.Vendor,
+                    row.DraftPONo, row.AmountCCY, row.CCY, row.ExRate, row.AmountTHB,
+                    checkDuplicate:=False ' We do duplicate check manually in bulk
+                )
+
+                If validationErrors.Count > 0 Then
+                    errorList.Add($"{row.DraftPONo}: {String.Join(", ", validationErrors.Values)}")
+                    Continue For ' Skip this row
+                End If
 
                 ' === 4.1 เพิ่มข้อมูลลงตาราง Insert ===
                 Dim newRow As DataRow = insertTable.NewRow()
                 newRow("DraftPO_No") = row.DraftPONo
-                newRow("PO_Year") = row.Year
-                newRow("PO_Month") = row.Month
+                newRow("PO_Year") = Convert.ToInt32(row.Year)
+                newRow("PO_Month") = Convert.ToInt32(row.Month)
                 newRow("Category_Code") = row.Category
                 newRow("Company_Code") = row.Company
                 newRow("Segment_Code") = row.Segment
@@ -522,17 +556,32 @@ Public Class POUploadHandler
                 newRow("Remark") = row.Remark
                 newRow("Created_By") = uploadBy
                 newRow("Created_Date") = createDT
+                newRow("PO_Type") = "Draft" ' Default value
+                newRow("Status") = "Draft"   ' Default value
+
                 insertTable.Rows.Add(newRow)
 
                 ' === 4.2 เพิ่มข้อมูลลงตาราง Check ===
                 poCheckTable.Rows.Add(row.DraftPONo)
 
-                savedCount += 1
-
             Catch ex As Exception
+                ' Catch conversion errors etc.
+                errorList.Add($"{row.DraftPONo}: {ex.Message}")
                 Continue For
             End Try
         Next
+
+        ' If all rows failed validation before DB check
+        If insertTable.Rows.Count = 0 Then
+            If errorList.Count > 0 Then
+                context.Response.StatusCode = 400 ' Bad Request
+                context.Response.Write("Data validation failed for all rows: " & String.Join("; ", errorList))
+            Else
+                context.Response.Write("No valid rows were selected to save.")
+            End If
+            Return
+        End If
+
 
         ' === 5. Execute INSERT (ย้าย Transaction ขึ้นมาคลุมทั้งหมด) ===
         Using conn As New SqlConnection(connectionString)
@@ -590,6 +639,7 @@ Public Class POUploadHandler
                             Next
 
                             bulkCopy.WriteToServer(insertTable)
+                            savedCount = insertTable.Rows.Count ' Count successful rows
                         End Using
                     End If
 
@@ -603,7 +653,12 @@ Public Class POUploadHandler
             End Using
         End Using
 
-        context.Response.Write($"Successfully saved {savedCount} new rows to Draft PO") ' 👈 ลบ Batch ออก
+        Dim finalMessage As String = $"Successfully saved {savedCount} new rows to Draft PO."
+        If errorList.Count > 0 Then
+            finalMessage &= $" {errorList.Count} rows were skipped due to validation errors."
+        End If
+
+        context.Response.Write(finalMessage)
     End Sub
 
     ReadOnly Property IsReusable() As Boolean Implements IHttpHandler.IsReusable

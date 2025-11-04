@@ -186,6 +186,7 @@
     <Content Include="default.aspx" />
     <Content Include="draftOTB.aspx" />
     <Content Include="draftPO.aspx" />
+    <Content Include="favicon.ico" />
     <Content Include="master_brand.aspx" />
     <Content Include="master_category.aspx" />
     <Content Include="master_vendor.aspx" />
@@ -273,6 +274,9 @@
     <Compile Include="Handler\MasterDataHandler.ashx.vb">
       <DependentUpon>MasterDataHandler.ashx</DependentUpon>
     </Compile>
+    <Compile Include="Handler\POMatchingHandler.ashx.vb">
+      <DependentUpon>POMatchingHandler.ashx</DependentUpon>
+    </Compile>
     <Compile Include="Handler\POUploadHandler.ashx.vb">
       <DependentUpon>POUploadHandler.ashx</DependentUpon>
     </Compile>
@@ -289,6 +293,7 @@
     <Compile Include="JsonObject\OtbSwitchRequest.vb" />
     <Compile Include="JsonObject\OTBUploadJsonRequestRow.vb" />
     <Compile Include="JsonObject\OTBUploadJsonResponseRow.vb" />
+    <Compile Include="JsonObject\ODataResponse.vb" />
     <Compile Include="JsonObject\ResponseOTBSwitchData.vb" />
     <Compile Include="JsonObject\RequestOTBSwitchData.vb" />
     <Compile Include="JsonObject\ResponseOTBUploadResult.vb" />
@@ -388,6 +393,7 @@
     <Content Include="Handler\POUploadHandler.ashx" />
     <None Include="Connected Services\KBMSAPI\KBMSApi.wsdl" />
     <Content Include="Handler\DataPOHandler.ashx" />
+    <Content Include="Handler\POMatchingHandler.ashx" />
     <None Include="My Project\Application.myapp">
       <Generator>MyApplicationCodeGenerator</Generator>
       <LastGenOutput>Application.Designer.vb</LastGenOutput>

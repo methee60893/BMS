@@ -1,11 +1,12 @@
-﻿Imports System.Web
-Imports System.Web.Services
-Imports System.Data
+﻿Imports System.Data
 Imports System.Data.SqlClient
-Imports System.Text
-Imports Newtonsoft.Json
 Imports System.Globalization
+Imports System.Text
+Imports System.Threading.Tasks
+Imports System.Web
+Imports System.Web.Services
 Imports System.Web.SessionState
+Imports Newtonsoft.Json
 
 Public Class DataPOHandler
     Implements System.Web.IHttpHandler, IRequiresSessionState
@@ -63,6 +64,42 @@ Public Class DataPOHandler
             GetDraftPODetails(context)
         ElseIf action = "savedraftpoedit" Then
             SaveDraftPOEdit(context)
+        ElseIf context.Request("action") = "PoListFilter" Then
+            Try
+                ' 1. รับค่า Parameters (ตัวอย่าง)
+                Dim startDate As Date = New DateTime(2025, 11, 4)
+                Dim top As Integer = 1000
+                Dim skip As Integer = 0
+
+                ' 2. เรียก Helper ด้วย Workaround (Task.Run)
+                ' *** ผลลัพธ์ที่ได้จะเป็น List(Of SapPOResultItem) ทันที ***
+                Dim poList As List(Of SapPOResultItem) = Task.Run(Async Function()
+                                                                      Return Await SapApiHelper.GetPOsAsync(startDate, top, skip)
+                                                                  End Function).Result
+
+                ' 3. ตรวจสอบผลลัพธ์
+                If poList Is Nothing Then
+                    Throw New Exception("Failed to get PO data from SAP.")
+                End If
+
+                ' 4. ส่งกลับเป็น JSON ให้ JavaScript (แนะนำวิธีนี้)
+                context.Response.ContentType = "application/json"
+                Dim successResponse = New With {
+            .success = True,
+            .count = poList.Count,
+            .data = poList ' ส่ง List ทั้งหมดไปให้ JavaScript
+        }
+                context.Response.Write(JsonConvert.SerializeObject(successResponse))
+
+            Catch ex As Exception
+                context.Response.ContentType = "application/json"
+                context.Response.StatusCode = 500
+                Dim errorResponse As New With {
+            .success = False,
+            .message = ex.Message
+        }
+                context.Response.Write(JsonConvert.SerializeObject(errorResponse))
+            End Try
         Else
             context.Response.Clear()
             context.Response.ContentType = "text/html"
