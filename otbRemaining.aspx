@@ -640,78 +640,79 @@
 
             <!-- Detail Summary -->
             <div class="detail-box">
-                <div class="detail-title">Detail</div>
-                
-                <div class="detail-row">
-                    <div class="detail-label">Budget Approved</div>
-                    <div class="detail-value">
-                        1,000,000.00 THB
-                        <a href="#" class="detail-link ms-3">Click history</a>
+                    <div class="detail-title">Detail</div>
+                    
+                    <%-- *** MODIFIED: Added IDs to all detail-value divs *** --%>
+                    <div class="detail-row">
+                        <div class="detail-label">Budget Approved (Original)</div>
+                        <div class="detail-value" id="detail_BudgetApproved_Original">
+                            0.00 THB
+                            <%-- <a href="#" class="detail-link ms-3">Click history</a> --%>
+                        </div>
+                    </div>
+
+                    <div class="detail-row">
+                        <div class="detail-label">Extra</div>
+                        <div class="detail-value" id="detail_Budget_Extra">
+                            0.00 THB
+                            <%-- <a href="#" class="detail-link ms-3">Click history</a> --%>
+                        </div>
+                    </div>
+
+                    <div class="detail-row">
+                        <div class="detail-label">Total Switch in</div>
+                        <div class="detail-value" id="detail_Budget_SwitchIn">
+                            0.00 THB
+                            <%-- <a href="#" class="detail-link ms-3">Click history</a> --%>
+                        </div>
+                    </div>
+
+                    <div class="detail-row">
+                        <div class="detail-label">Total Balance in</div>
+                        <div class="detail-value" id="detail_Budget_BalanceIn">0.00 THB</div>
+                    </div>
+
+                    <div class="detail-row">
+                        <div class="detail-label">Total Carry in</div>
+                        <div class="detail-value" id="detail_Budget_CarryIn">0.00 THB</div>
+                    </div>
+
+                    <div class="detail-row">
+                        <div class="detail-label">Total Switch to</div>
+                        <div class="detail-value" id="detail_Budget_SwitchOut">
+                            0.00 THB
+                            <%-- <a href="#" class="detail-link ms-3">Click history</a> --%>
+                        </div>
+                    </div>
+
+                    <div class="detail-row">
+                        <div class="detail-label">Total Balance out</div>
+                        <div class="detail-value" id="detail_Budget_BalanceOut">0.00 THB</div>
+                    </div>
+
+                    <div class="detail-row">
+                        <div class="detail-label">Total Carry out</div>
+                        <div class="detail-value" id="detail_Budget_CarryOut">0.00 THB</div>
+                    </div>
+
+                    <div class="detail-row">
+                        <div class="detail-label"><strong>Total Budget Approved</strong></div>
+                        <div class="detail-value"><strong id="detail_TotalBudgetApproved">0.00 THB</strong></div>
+                    </div>
+
+                    <div class="detail-row">
+                        <div class="detail-label">Total Actual/Draft</div>
+                        <div class="detail-value" id="detail_TotalPO_Usage">
+                            0.00 THB
+                            <%-- <a href="#" class="detail-link ms-3">Click history</a> --%>
+                        </div>
+                    </div>
+
+                    <div class="detail-row">
+                        <div class="detail-label"><strong>Remaining</strong></div>
+                        <div class="detail-value"><strong id="detail_Remaining">0.00 THB</strong></div>
                     </div>
                 </div>
-
-                <div class="detail-row">
-                    <div class="detail-label">Extra</div>
-                    <div class="detail-value">
-                        0.00 THB
-                        <a href="#" class="detail-link ms-3">Click history</a>
-                    </div>
-                </div>
-
-                <div class="detail-row">
-                    <div class="detail-label">Total Switch in</div>
-                    <div class="detail-value">
-                        200,000.00 THB
-                        <a href="#" class="detail-link ms-3">Click history</a>
-                    </div>
-                </div>
-
-                <div class="detail-row">
-                    <div class="detail-label">Total Balance in</div>
-                    <div class="detail-value"></div>
-                </div>
-
-                <div class="detail-row">
-                    <div class="detail-label">Total Carry in</div>
-                    <div class="detail-value"></div>
-                </div>
-
-                <div class="detail-row">
-                    <div class="detail-label">Total Switch to</div>
-                    <div class="detail-value">
-                        0.00 THB
-                        <a href="#" class="detail-link ms-3">Click history</a>
-                    </div>
-                </div>
-
-                <div class="detail-row">
-                    <div class="detail-label">Total Balance out</div>
-                    <div class="detail-value"></div>
-                </div>
-
-                <div class="detail-row">
-                    <div class="detail-label">Total Carry out</div>
-                    <div class="detail-value"></div>
-                </div>
-
-                <div class="detail-row">
-                    <div class="detail-label"><strong>Total Budget Approved</strong></div>
-                    <div class="detail-value"><strong>1,200,000.00 THB</strong></div>
-                </div>
-
-                <div class="detail-row">
-                    <div class="detail-label">Total Actual/Draft</div>
-                    <div class="detail-value">
-                        850,000.00 THB
-                        <a href="#" class="detail-link ms-3">Click history</a>
-                    </div>
-                </div>
-
-                <div class="detail-row">
-                    <div class="detail-label"><strong>Remaining</strong></div>
-                    <div class="detail-value"><strong>350,000.00 THB</strong></div>
-                </div>
-            </div>
 
             <!-- Export Button -->
             <div class="export-section">
@@ -743,72 +744,11 @@
                                 <th>Remaining (THB)</th>
                             </tr>
                         </thead>
-                        <tbody>
-                            <tr>
-                                <td>2025</td>
-                                <td>Jun</td>
-                                <td>221</td>
-                                <td>FA Leather Goods</td>
-                                <td>KPC</td>
-                                <td>O3000</td>
-                                <td>Local Credit</td>
-                                <td>MNL</td>
-                                <td>MONCLER</td>
-                                <td>1011339</td>
-                                <td>INDUSTRIES SPA</td>
-                                <td class="text-end">1,000,000.00</td>
-                                <td class="text-end">94,834.00</td>
-                                <td class="text-end">905,166.00</td>
-                            </tr>
-                            <tr>
-                                <td>2025</td>
-                                <td>Jun</td>
-                                <td>221</td>
-                                <td>FA Leather Goods</td>
-                                <td>KPD</td>
-                                <td>O3000</td>
-                                <td>Local Credit</td>
-                                <td>MNL</td>
-                                <td>MONCLER</td>
-                                <td>1011339</td>
-                                <td>INDUSTRIES SPA</td>
-                                <td class="text-end">2,000,000.00</td>
-                                <td class="text-end">1,994,837.00</td>
-                                <td class="text-end">5,163.00</td>
-                            </tr>
-                            <tr>
-                                <td>2025</td>
-                                <td>Jun</td>
-                                <td>221</td>
-                                <td>FA Leather Goods</td>
-                                <td>KPC</td>
-                                <td>O1000</td>
-                                <td>L/C Normal</td>
-                                <td>YSL</td>
-                                <td>YSL</td>
-                                <td>1011281</td>
-                                <td>YVES SAINT LAU</td>
-                                <td class="text-end">3,000,000.00</td>
-                                <td class="text-end">599,999.00</td>
-                                <td class="text-end">2,400,001.00</td>
-                            </tr>
-                            <tr>
-                                <td>2025</td>
-                                <td>Jun</td>
-                                <td>221</td>
-                                <td>FA Leather Goods</td>
-                                <td>KPD</td>
-                                <td>O2000</td>
-                                <td>T/T Normal</td>
-                                <td>BUR</td>
-                                <td>BURBERRY</td>
-                                <td>1010636</td>
-                                <td>BURBERRY(SIN</td>
-                                <td class="text-end">4,600,000.00</td>
-                                <td class="text-end">2,045,586.00</td>
-                                <td class="text-end">1,954,414.00</td>
-                            </tr>
-                        </tbody>
+                        <tbody id="tableViewBody">
+                                <tr>
+                                    <td colspan="14" class="text-center text-muted p-4">Please select all filters and click "View" to see data.</td>
+                                </tr>
+                            </tbody>
                     </table>
                 </div>
             </div>
@@ -934,52 +874,129 @@
             formData.append('OTBBrand', brandCode);
             formData.append('OTBVendor', vendorCode);
 
+            // Check if all fields are selected
+            if (!OTByear || !OTBmonth || !OTBcompany || !cate || !segmentCode || !brandCode || !vendorCode) {
+                alert("Please select all filter options to view the report.");
+                return;
+            }
+
             console.log("Searching with filters...", Object.fromEntries(formData));
             // Show loading state
             tableViewBody.innerHTML = "<tr><td colspan='14' class='text-center text-muted p-4'><div class='spinner-border spinner-border-sm' role='status'></div> Loading data...</td></tr>";
+            // Clear detail box
+            populateDetailBox(null); // Clear detail box
 
-            // *** TODO: Implement AJAX call to the correct handler ***
-            // $.ajax({
-            //    url: 'Handler/DataOTBHandler.ashx?action=otbRemaininglistbyfilter', // <-- You need to create this action
-            //    type: 'POST',
-            //    data: formData,
-            //    processData: false,
-            //    contentType: false,
-            //    success: function (response) {
-            //        tableViewBody.innerHTML = response;
-            //    },
-            //    error: function (xhr, status, error) {
-            //        console.log('Error getlist data: ' + error);
-            //        tableViewBody.innerHTML = "<tr><td colspan='14' class='text-center text-danger p-4'>Error loading data.</td></tr>";
-            //    }
-            // });
+            $.ajax({
+                url: 'Handler/DataOTBRemainingHandler.ashx', // <-- Call the NEW handler
+                type: 'POST',
+                data: formData,
+                processData: false,
+                contentType: false,
+                dataType: 'json', // Expect JSON back
+                success: function (response) {
+                    // response will be a DataSet: { "detail": [..], "otherRemaining": [..] }
+                    if (response.detail && response.detail.length > 0) {
+                        populateDetailBox(response.detail[0]);
+                    } else {
+                        // No exact match found for detail, but still show "Other"
+                        populateDetailBox(null);
+                    }
 
-            // Using placeholder as handler is not implemented
-            setTimeout(() => {
-                // Re-populating with default static data as example
-                tableViewBody.innerHTML = `
+                    if (response.otherRemaining) {
+                        populateOtherRemainingTable(response.otherRemaining);
+                    } else {
+                        // This case shouldn't happen if the SP returns 2 tables, but good to have
+                        tableViewBody.innerHTML = "<tr><td colspan='14' class='text-center text-muted p-4'>Error processing response data.</td></tr>";
+                    }
+                },
+                error: function (xhr, status, error) {
+                    console.log('Error getlist data: ' + error, xhr.responseText);
+                    let errorMsg = "Error loading data.";
+                    try {
+                        // Try to parse error from our handler
+                        let errResponse = JSON.parse(xhr.responseText);
+                        if (errResponse.message) errorMsg = errResponse.message;
+                    } catch (e) { }
+
+                    tableViewBody.innerHTML = "<tr><td colspan='14' class='text-center text-danger p-4'>" + errorMsg + "</td></tr>";
+                    populateDetailBox(null); // Clear detail on error
+                }
+            });
+        }
+
+        // ===== NEW: Helper function to format numbers =====
+        function formatTHB(number) {
+            if (number === null || number === undefined) {
+                return "0.00 THB";
+            }
+            // Convert to number before formatting
+            return parseFloat(number).toLocaleString('en-US', {
+                minimumFractionDigits: 2,
+                maximumFractionDigits: 2
+            }) + " THB";
+        }
+
+        // ===== NEW: Helper function to populate detail box =====
+        function populateDetailBox(data) {
+            if (data) {
+                // Populate all fields from the 'detail' (Result Set 1)
+                document.getElementById('detail_BudgetApproved_Original').textContent = formatTHB(data.BudgetApproved_Original);
+                document.getElementById('detail_Budget_Extra').textContent = formatTHB(data.Budget_Extra);
+                document.getElementById('detail_Budget_SwitchIn').textContent = formatTHB(data.Budget_SwitchIn);
+                document.getElementById('detail_Budget_BalanceIn').textContent = formatTHB(data.Budget_BalanceIn);
+                document.getElementById('detail_Budget_CarryIn').textContent = formatTHB(data.Budget_CarryIn);
+                document.getElementById('detail_Budget_SwitchOut').textContent = formatTHB(data.Budget_SwitchOut);
+                document.getElementById('detail_Budget_BalanceOut').textContent = formatTHB(data.Budget_BalanceOut);
+                document.getElementById('detail_Budget_CarryOut').textContent = formatTHB(data.Budget_CarryOut);
+                document.getElementById('detail_TotalBudgetApproved').textContent = formatTHB(data.TotalBudgetApproved);
+                document.getElementById('detail_TotalPO_Usage').textContent = formatTHB(data.TotalPO_Usage);
+                document.getElementById('detail_Remaining').textContent = formatTHB(data.Remaining);
+            } else {
+                // Clear all values to 0.00 THB if no data
+                document.getElementById('detail_BudgetApproved_Original').textContent = "0.00 THB";
+                document.getElementById('detail_Budget_Extra').textContent = "0.00 THB";
+                document.getElementById('detail_Budget_SwitchIn').textContent = "0.00 THB";
+                document.getElementById('detail_Budget_BalanceIn').textContent = "0.00 THB";
+                document.getElementById('detail_Budget_CarryIn').textContent = "0.00 THB";
+                document.getElementById('detail_Budget_SwitchOut').textContent = "0.00 THB";
+                document.getElementById('detail_Budget_BalanceOut').textContent = "0.00 THB";
+                document.getElementById('detail_Budget_CarryOut').textContent = "0.00 THB";
+                document.getElementById('detail_TotalBudgetApproved').textContent = "0.00 THB";
+                document.getElementById('detail_TotalPO_Usage').textContent = "0.00 THB";
+                document.getElementById('detail_Remaining').textContent = "0.00 THB";
+            }
+        }
+
+        // ===== NEW: Helper function to populate 'Other Remaining' table =====
+        function populateOtherRemainingTable(data) {
+            if (!data || data.length === 0) {
+                tableViewBody.innerHTML = "<tr><td colspan='14' class='text-center text-muted p-4'>No other remaining data found for this period.</td></tr>";
+                return;
+            }
+
+            let html = "";
+            data.forEach(row => {
+                // Use .replace(' THB', '') to remove currency symbol for table view
+                html += `
                     <tr>
-                        <td>2025</td><td>Jun</td><td>221</td><td>FA Leather Goods</td><td>KPC</td><td>O3000</td>
-                        <td>Local Credit</td><td>MNL</td><td>MONCLER</td><td>1011339</td><td>INDUSTRIES SPA</td>
-                        <td class="text-end">1,000,000.00</td><td class="text-end">94,834.00</td><td class="text-end">905,166.00</td>
+                        <td>${row.Year || ''}</td>
+                        <td>${row.MonthName || ''}</td>
+                        <td>${row.Category || ''}</td>
+                        <td>${row.CategoryName || ''}</td>
+                        <td>${row.CompanyName || ''}</td>
+                        <td>${row.Segment || ''}</td>
+                        <td>${row.SegmentName || ''}</td>
+                        <td>${row.Brand || ''}</td>
+                        <td>${row.BrandName || ''}</td>
+                        <td>${row.Vendor || ''}</td>
+                        <td>${row.VendorName || ''}</td>
+                        <td class="text-end">${formatTHB(row.TotalBudgetApproved).replace(' THB', '')}</td>
+                        <td class="text-end">${formatTHB(row.Draft_Actual_PO_THB).replace(' THB', '')}</td>
+                        <td class="text-end">${formatTHB(row.Remaining).replace(' THB', '')}</td>
                     </tr>
-                    <tr>
-                        <td>2025</td><td>Jun</td><td>221</td><td>FA Leather Goods</td><td>KPD</td><td>O3000</td>
-                        <td>Local Credit</td><td>MNL</td><td>MONCLER</td><td>1011339</td><td>INDUSTRIES SPA</td>
-                        <td class="text-end">2,000,000.00</td><td class="text-end">1,994,837.00</td><td class="text-end">5,163.00</td>
-                    </tr>
-                    <tr>
-                        <td>2025</td><td>Jun</td><td>221</td><td>FA Leather Goods</td><td>KPC</td><td>O1000</td>
-                        <td>L/C Normal</td><td>YSL</td><td>YSL</td><td>1011281</td><td>YVES SAINT LAU</td>
-                        <td class="text-end">3,000,000.00</td><td class="text-end">599,999.00</td><td class="text-end">2,400,001.00</td>
-                    </tr>
-                    <tr>
-                        <td>2025</td><td>Jun</td><td>221</td><td>FA Leather Goods</td><td>KPD</td><td>O2000</td>
-                        <td>T/T Normal</td><td>BUR</td><td>BURBERRY</td><td>1010636</td><td>BURBERRY(SIN</td>
-                        <td class="text-end">4,600,000.00</td><td class="text-end">2,045,586.00</td><td class="text-end">1,954,414.00</td>
-                    </tr>
-                 `;
-            }, 500);
+                `;
+            });
+            tableViewBody.innerHTML = html;
         }
 
         // --- Master Data Loaders (using '...MSList' actions) ---

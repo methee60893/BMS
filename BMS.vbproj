@@ -272,6 +272,9 @@
       <DependentUpon>draftPO.aspx</DependentUpon>
       <SubType>ASPXCodebehind</SubType>
     </Compile>
+    <Compile Include="Handler\DataOTBRemainingHandler.ashx.vb">
+      <DependentUpon>DataOTBRemainingHandler.ashx</DependentUpon>
+    </Compile>
     <Compile Include="Handler\DataPOHandler.ashx.vb">
       <DependentUpon>DataPOHandler.ashx</DependentUpon>
     </Compile>
@@ -398,6 +401,7 @@
     <None Include="Connected Services\KBMSAPI\KBMSApi.wsdl" />
     <Content Include="Handler\DataPOHandler.ashx" />
     <Content Include="Handler\POMatchingHandler.ashx" />
+    <Content Include="Handler\DataOTBRemainingHandler.ashx" />
     <None Include="My Project\Application.myapp">
       <Generator>MyApplicationCodeGenerator</Generator>
       <LastGenOutput>Application.Designer.vb</LastGenOutput>
