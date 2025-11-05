@@ -629,11 +629,14 @@
                 <div class="row">
                     <div class="col-12 text-end">
                         <button type="button" id="btnClearFilter" class="btn btn-clear btn-custom me-2">
-                                <i class="bi bi-x-circle"></i> Clear filter
-                            </button>
-                            <button type="button" id="btnView" class="btn btn-view btn-custom">
-                                <i class="bi bi-eye"></i> View
-                            </button>
+                            <i class="bi bi-x-circle"></i> Clear filter
+                        </button>
+                        <button type="button" id="btnView" class="btn btn-view btn-custom me-2">
+                            <i class="bi bi-eye"></i> View
+                        </button>
+                        <button type="button" id="btnTxtSum" class="btn btn-view btn-custom me-2">
+                            <i class="bi bi-eye"></i> Export Summary
+                        </button>
                     </div>
                 </div>
             </div>
