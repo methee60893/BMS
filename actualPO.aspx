@@ -538,38 +538,21 @@
                     Actual PO
                 </div>
 
+                <%-- *** MODIFIED: Added IDs to all controls *** --%>
                 <div class="row g-3 mb-3">
                     <div class="col-md-3">
                         <label class="form-label">Year</label>
-                        <select class="form-select">
-                            <option>2024</option>
-                            <option selected>2025</option>
+                        <select id="ddYearFilter" class="form-select">
                         </select>
                     </div>
                     <div class="col-md-3">
                         <label class="form-label">Month</label>
-                        <select class="form-select">
-                            <option>Jan</option>
-                            <option>Feb</option>
-                            <option>Mar</option>
-                            <option>Apr</option>
-                            <option>May</option>
-                            <option selected>Jun</option>
-                            <option>Jul</option>
-                            <option>Aug</option>
-                            <option>Sep</option>
-                            <option>Oct</option>
-                            <option>Nov</option>
-                            <option>Dec</option>
+                        <select id="ddMonthFilter" class="form-select">
                         </select>
                     </div>
                     <div class="col-md-3">
                         <label class="form-label">Company</label>
-                        <select class="form-select">
-                            <option selected>KPC</option>
-                            <option>KPD</option>
-                            <option>KPT</option>
-                            <option>KPS</option>
+                        <select id="ddCompanyFilter" class="form-select">
                         </select>
                     </div>
                     <div class="col-md-3">
@@ -579,15 +562,12 @@
                 <div class="row g-3 mb-3">
                     <div class="col-md-6">
                         <label class="form-label">Category</label>
-                        <select class="form-select">
-                            <option selected>221 - FA Leather Goods</option>
-                            <option>222 - FA Accessories</option>
+                        <select id="ddCategoryFilter" class="form-select">
                         </select>
                     </div>
                     <div class="col-md-6">
                         <label class="form-label">Segment</label>
-                        <select class="form-select">
-                            <option selected>O2000 - T/T Normal</option>
+                        <select id="ddSegmentFilter" class="form-select">
                         </select>
                     </div>
                 </div>
@@ -595,16 +575,12 @@
                 <div class="row g-3 mb-4">
                     <div class="col-md-6">
                         <label class="form-label">Brand</label>
-                        <select class="form-select">
-                            <option selected>HBS - HUGO BOSS</option>
-                            <option>MCM - MCM</option>
+                        <select id="ddBrandFilter" class="form-select">
                         </select>
                     </div>
                     <div class="col-md-6">
                         <label class="form-label">Vendor</label>
-                        <select class="form-select">
-                            <option selected>1010900 - HUGO BOSS SOUTH</option>
-                            <option>1011009 - MCM FASHION HK</option>
+                        <select id="ddVendorFilter" class="form-select">
                         </select>
                     </div>
                 </div>
@@ -612,23 +588,24 @@
                 <!-- Action Buttons -->
                 <div class="row">
                     <div class="col-12 text-end">
-                        <button class="btn btn-clear btn-custom me-2">
+                        <button type="button" id="btnClearFilter" class="btn btn-clear btn-custom me-2">
                             <i class="bi bi-x-circle"></i> Clear filter
                         </button>
-                        <button class="btn btn-view btn-custom">
+                        <button type="button" id="btnView" class="btn btn-view btn-custom">
                             <i class="bi bi-eye"></i> View
                         </button>
                     </div>
                 </div>
             </div>
 
-            <!-- Export Button -->
+             <!-- Export Button -->
             <div class="export-section">
-                <button class="btn btn-export btn-custom">
+                <button type="button" id="btnExport" class="btn btn-export btn-custom">
                     <i class="bi bi-file-earmark-excel"></i> Export TXN
                 </button>
             </div>
 
+            <!-- Data Table -->
             <!-- Data Table -->
             <div class="table-container">
                 <div class="table-responsive">
@@ -649,7 +626,7 @@
                                 <th>Brand name</th>
                                 <th>Vendor</th>
                                 <th>Vendor name</th>
-                                <th>Amount (Thi)</th>
+                                <th>Amount (THB)</th>
                                 <th>Amount (CCY)</th>
                                 <th>CCY</th>
                                 <th>Ex. Rate</th>
@@ -659,54 +636,12 @@
                                 <th>Status date</th>
                             </tr>
                         </thead>
-                        <tbody>
+                        <%-- *** MODIFIED: Added ID and placeholder *** --%>
+                        <tbody id="actualPOTableBody">
                             <tr>
-                                <td>28/5/2025 12:00 AM</td>
-                                <td>KP2211010531_001</td>
-                                <td>Actual</td>
-                                <td>2025</td>
-                                <td>Jun</td>
-                                <td>221</td>
-                                <td>FA Leather Goods</td>
-                                <td>KPC</td>
-                                <td>O3000</td>
-                                <td>Local Credit</td>
-                                <td>SAM</td>
-                                <td>SAMSONITE</td>
-                                <td>1010531</td>
-                                <td>SAMSONITE SING</td>
-                                <td class="text-end">267,200.00</td>
-                                <td class="text-end">8,000.00</td>
-                                <td>USD</td>
-                                <td class="text-end">33.40</td>
-                                <td>KP2211010531_001</td>
-                                <td></td>
-                                <td></td>
-                                <td></td>
-                            </tr>
-                            <tr>
-                                <td>28/5/2025 12:00</td>
-                                <td>KP2211011009_014</td>
-                                <td>Actual</td>
-                                <td>2025</td>
-                                <td>Jun</td>
-                                <td>221</td>
-                                <td>FA Leather Goods</td>
-                                <td>KPC</td>
-                                <td>O2000</td>
-                                <td>T/T Normal</td>
-                                <td>MCM</td>
-                                <td>MCM</td>
-                                <td>1011009</td>
-                                <td>MCM FASHION GR</td>
-                                <td class="text-end">26,686.60</td>
-                                <td class="text-end">799.00</td>
-                                <td>USD</td>
-                                <td class="text-end">33.40</td>
-                                <td>KP20250519</td>
-                                <td></td>
-                                <td>Completed</td>
-                                <td>31/7/2025 12:00 AM</td>
+                                <td colspan="22" class="text-center text-muted p-4">
+                                    Please use the filters and click "View" to see data.
+                                </td>
                             </tr>
                         </tbody>
                     </table>
@@ -715,13 +650,14 @@
         </div>
     </div>
 
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script>
         // Toggle Sidebar
         function toggleSidebar() {
             const sidebar = document.getElementById('sidebar');
             const overlay = document.getElementById('sidebarOverlay');
-            
+
             sidebar.classList.toggle('active');
             overlay.classList.toggle('active');
         }
@@ -730,10 +666,10 @@
         function toggleSubmenu(event, submenuId) {
             event.preventDefault();
             event.stopPropagation();
-            
+
             const submenu = document.getElementById(submenuId);
             const menuLink = event.currentTarget;
-            
+
             submenu.classList.toggle('show');
             menuLink.classList.toggle('expanded');
         }
@@ -741,30 +677,203 @@
         // Load Page
         function loadPage(event, pageName) {
             event.preventDefault();
-            
+
             document.querySelectorAll('.submenu .menu-link').forEach(link => {
                 link.classList.remove('active');
             });
-            
+
             event.currentTarget.classList.add('active');
             document.getElementById('pageTitle').textContent = pageName;
-            
+
             if (window.innerWidth <= 768) {
                 toggleSidebar();
             }
         }
 
         // Close sidebar when clicking outside
-        document.addEventListener('click', function(event) {
+        document.addEventListener('click', function (event) {
             const sidebar = document.getElementById('sidebar');
             const menuToggle = document.querySelector('.menu-toggle');
-            
+
             if (!sidebar.contains(event.target) && !menuToggle.contains(event.target)) {
                 if (sidebar.classList.contains('active')) {
                     toggleSidebar();
                 }
             }
         });
+
+        // ==========================================
+        // ===== NEW: actualPO.aspx SCRIPT LOGIC =====
+        // ==========================================
+
+        // --- Cache Filter Elements ---
+        let ddYearFilter = document.getElementById('ddYearFilter');
+        let ddMonthFilter = document.getElementById('ddMonthFilter');
+        let ddCompanyFilter = document.getElementById('ddCompanyFilter');
+        let ddCategoryFilter = document.getElementById('ddCategoryFilter');
+        let ddSegmentFilter = document.getElementById('ddSegmentFilter');
+        let ddBrandFilter = document.getElementById('ddBrandFilter');
+        let ddVendorFilter = document.getElementById('ddVendorFilter');
+        let btnView = document.getElementById('btnView');
+        let btnClearFilter = document.getElementById('btnClearFilter');
+        let btnExport = document.getElementById('btnExport');
+        let actualPOTableBody = document.getElementById('actualPOTableBody');
+
+        // --- Initializer ---
+        function initial() {
+            InitMSData();
+
+            // Add Event Listeners
+            btnView.addEventListener('click', search);
+            btnClearFilter.addEventListener('click', clearFilters);
+            btnExport.addEventListener('click', exportTXN);
+        }
+
+        // --- Clear Filters ---
+        function clearFilters() {
+            ddYearFilter.value = "";
+            ddMonthFilter.value = "";
+            ddCompanyFilter.value = "";
+            ddCategoryFilter.value = "";
+            ddSegmentFilter.value = "";
+            ddBrandFilter.value = "";
+            ddVendorFilter.value = "";
+            InitVendor(ddVendorFilter); // Reset vendor list
+            actualPOTableBody.innerHTML = "<tr><td colspan='22' class='text-center text-muted p-4'>Please use the filters and click 'View' to see data.</td></tr>";
+        }
+
+        // --- Search Function (AJAX Call) ---
+        function search() {
+            var formData = new FormData();
+            formData.append('year', ddYearFilter.value);
+            formData.append('month', ddMonthFilter.value);
+            formData.append('company', ddCompanyFilter.value);
+            formData.append('category', ddCategoryFilter.value);
+            formData.append('segment', ddSegmentFilter.value);
+            formData.append('brand', ddBrandFilter.value);
+            formData.append('vendor', ddVendorFilter.value);
+
+            // Show loading state
+            actualPOTableBody.innerHTML = "<tr><td colspan='22' class='text-center text-muted p-4'><div class='spinner-border spinner-border-sm' role='status'></div> Loading data...</td></tr>";
+
+            $.ajax({
+                url: 'Handler/DataPOHandler.ashx?action=getActualPOList', // Call new action
+                type: 'POST',
+                data: formData,
+                processData: false,
+                contentType: false,
+                success: function (response) {
+                    actualPOTableBody.innerHTML = response; // Inject HTML
+                },
+                error: function (xhr, status, error) {
+                    console.log('Error getlist data: ' + error);
+                    actualPOTableBody.innerHTML = `<tr><td colspan='22' class='text-center text-danger p-4'>Error loading data: ${xhr.responseText}</td></tr>`;
+                }
+            });
+        }
+
+        // --- Export Function ---
+        function exportTXN() {
+            console.log("Export TXN clicked");
+            // Build query string from filters
+            var params = new URLSearchParams();
+            params.append('action', 'exportActualPO'); // Call new export action
+            params.append('year', ddYearFilter.value);
+            params.append('month', ddMonthFilter.value);
+            params.append('company', ddCompanyFilter.value);
+            params.append('category', ddCategoryFilter.value);
+            params.append('segment', ddSegmentFilter.value);
+            params.append('brand', ddBrandFilter.value);
+            params.append('vendor', ddVendorFilter.value);
+
+            // Use window.location to trigger file download (GET request)
+            window.location.href = 'Handler/DataPOHandler.ashx?' + params.toString();
+        }
+
+        // ==========================================
+        // --- Master Data Loaders ---
+        // (Copied from other pages for consistency)
+        // ==========================================
+
+        function InitMSData() {
+            InitSegment(ddSegmentFilter);
+            InitCategoty(ddCategoryFilter);
+            InitBrand(ddBrandFilter);
+            InitVendor(ddVendorFilter);
+            InitMSYear(ddYearFilter);
+            InitMonth(ddMonthFilter);
+            InitCompany(ddCompanyFilter);
+        }
+
+        function InitSegment(element, addAll = true) {
+            $.ajax({
+                url: 'Handler/MasterDataHandler.ashx?action=SegmentMSList',
+                type: 'POST',
+                data: { addAll: addAll },
+                success: (response) => element.innerHTML = response,
+                error: (xhr, s, e) => console.log('Error getlist Segment: ' + e)
+            });
+        }
+
+        function InitMSYear(element, addAll = true) {
+            $.ajax({
+                url: 'Handler/MasterDataHandler.ashx?action=YearMSList',
+                type: 'POST',
+                data: { addAll: addAll },
+                success: (response) => element.innerHTML = response,
+                error: (xhr, s, e) => console.log('Error getlist Year: ' + e)
+            });
+        }
+
+        function InitMonth(element, addAll = true) {
+            $.ajax({
+                url: 'Handler/MasterDataHandler.ashx?action=MonthMSList',
+                type: 'POST',
+                data: { addAll: addAll },
+                success: (response) => element.innerHTML = response,
+                error: (xhr, s, e) => console.log('Error getlist Month: ' + e)
+            });
+        }
+        function InitCompany(element, addAll = true) {
+            $.ajax({
+                url: 'Handler/MasterDataHandler.ashx?action=CompanyMSList',
+                type: 'POST',
+                data: { addAll: addAll },
+                success: (response) => element.innerHTML = response,
+                error: (xhr, s, e) => console.log('Error getlist Company: ' + e)
+            });
+        }
+        function InitCategoty(element, addAll = true) {
+            $.ajax({
+                url: 'Handler/MasterDataHandler.ashx?action=CategoryMSList',
+                type: 'POST',
+                data: { addAll: addAll },
+                success: (response) => element.innerHTML = response,
+                error: (xhr, s, e) => console.log('Error getlist Category: ' + e)
+            });
+        }
+        function InitBrand(element, addAll = true) {
+            $.ajax({
+                url: 'Handler/MasterDataHandler.ashx?action=BrandMSList',
+                type: 'POST',
+                data: { addAll: addAll },
+                success: (response) => element.innerHTML = response,
+                error: (xhr, s, e) => console.log('Error getlist Brand: ' + e)
+            });
+        }
+        function InitVendor(element, addAll = true) {
+            $.ajax({
+                url: 'Handler/MasterDataHandler.ashx?action=VendorMSList',
+                type: 'POST',
+                data: { addAll: addAll },
+                success: (response) => element.innerHTML = response,
+                error: (xhr, s, e) => console.log('Error getlist Vendor: ' + e)
+            });
+        }
+
+        // Run initializer on load
+        document.addEventListener('DOMContentLoaded', initial);
+
     </script>
 </body>
 </html>

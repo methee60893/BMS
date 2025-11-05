@@ -7,6 +7,8 @@ Imports System.Web
 Imports System.Web.Services
 Imports System.Web.SessionState
 Imports Newtonsoft.Json
+Imports OfficeOpenXml
+Imports OfficeOpenXml.Style
 
 Public Class DataPOHandler
     Implements System.Web.IHttpHandler, IRequiresSessionState
@@ -16,46 +18,14 @@ Public Class DataPOHandler
     Sub ProcessRequest(ByVal context As HttpContext) Implements IHttpHandler.ProcessRequest
         Dim action As String = If(context.Request("action"), "").ToLower().Trim()
 
-        If action = "exportdraftotb" Then
-            Dim draftPONo As String = If(String.IsNullOrWhiteSpace(context.Request.QueryString("draftPONo")), "", context.Request.QueryString("draftPONo").Trim())
-            Dim draftYear As String = If(String.IsNullOrWhiteSpace(context.Request.QueryString("draftYear")), "", context.Request.QueryString("draftYear").Trim())
-            Dim draftMonth As String = If(String.IsNullOrWhiteSpace(context.Request.QueryString("draftMonth")), "", context.Request.QueryString("draftMonth").Trim())
-            Dim draftCategory As String = If(String.IsNullOrWhiteSpace(context.Request.QueryString("draftCategory")), "", context.Request.QueryString("draftCategory").Trim())
-            Dim draftCompany As String = If(String.IsNullOrWhiteSpace(context.Request.QueryString("draftCompany")), "", context.Request.QueryString("draftCompany").Trim())
-            Dim draftBrand As String = If(String.IsNullOrWhiteSpace(context.Request.QueryString("draftBrand")), "", context.Request.QueryString("draftBrand").Trim())
-            Dim draftVendor As String = If(String.IsNullOrWhiteSpace(context.Request.QueryString("draftVendor")), "", context.Request.QueryString("draftVendor").Trim())
-            Dim draftAmountTHB As String = If(String.IsNullOrWhiteSpace(context.Request.QueryString("draftAmountTHB")), "", context.Request.QueryString("draftAmountTHB").Trim())
-            Dim draftAmountCCY As String = If(String.IsNullOrWhiteSpace(context.Request.QueryString("draftAmountCCY")), "", context.Request.QueryString("draftAmountCCY").Trim())
-            Dim draftCCY As String = If(String.IsNullOrWhiteSpace(context.Request.QueryString("draftCCY")), "", context.Request.QueryString("draftCCY").Trim())
-            Dim draftExhangeRate As String = If(String.IsNullOrWhiteSpace(context.Request.QueryString("draftExhangeRate")), "", context.Request.QueryString("draftExhangeRate").Trim())
-            Dim draftRemark As String = If(String.IsNullOrWhiteSpace(context.Request.QueryString("draftRemark")), "", context.Request.QueryString("draftRemark").Trim())
+        ' --- NEW: Export Action ---
+        If action = "exportactualpo" Then
+            ExportActualPOToExcel(context)
 
-            ' 1. Get Raw Data
-            Dim dtExport As New DataTable("DraftPO")
-            dtExport.Columns.Add("draftPODate", GetType(String))
-            dtExport.Columns.Add("draftPONo", GetType(String))
-            dtExport.Columns.Add("draftType", GetType(String))
-            dtExport.Columns.Add("draftYear", GetType(String))
-            dtExport.Columns.Add("draftMonth", GetType(String))
-            dtExport.Columns.Add("draftCategory", GetType(String))
-            dtExport.Columns.Add("CategoryName", GetType(String))
-            dtExport.Columns.Add("draftCompany", GetType(String))
-            dtExport.Columns.Add("CompanyName", GetType(String))
-            dtExport.Columns.Add("draftSegment", GetType(String))
-            dtExport.Columns.Add("SegmentName", GetType(String))
-            dtExport.Columns.Add("draftBrand", GetType(String))
-            dtExport.Columns.Add("BrandName", GetType(String))
-            dtExport.Columns.Add("draftVendor", GetType(String))
-            dtExport.Columns.Add("VendorName", GetType(String))
-            dtExport.Columns.Add("AmountTHB", GetType(Decimal))
-            dtExport.Columns.Add("AmountCCY", GetType(Decimal))
-            dtExport.Columns.Add("CCY", GetType(String))
-            dtExport.Columns.Add("ExRate", GetType(Decimal))
-            dtExport.Columns.Add("ActualPORef", GetType(String))
-            dtExport.Columns.Add("Status", GetType(String))
-            dtExport.Columns.Add("StatusDate", GetType(String))
-            dtExport.Columns.Add("Remark", GetType(String))
-            dtExport.Columns.Add("ActionBy", GetType(String))
+            ' --- NEW: Get List Action ---
+        ElseIf action = "getactualpolist" Then
+            GetActualPOList(context)
+
         ElseIf action = "savedraftpotxn" Then
             SaveDraftPOTXN(context)
         ElseIf action = "getdraftpolist" Then
@@ -120,6 +90,225 @@ Public Class DataPOHandler
             Dim draftRemark As String = If(String.IsNullOrWhiteSpace(context.Request.QueryString("draftRemark")), "", context.Request.QueryString("draftRemark").Trim())
         End If
     End Sub
+
+    ' =================================================
+    ' ===== NEW: GetActualPOList FUNCTION =====
+    ' =================================================
+    Private Sub GetActualPOList(context As HttpContext)
+        Try
+            Dim year As String = If(String.IsNullOrWhiteSpace(context.Request.Form("year")), Nothing, context.Request.Form("year").Trim())
+            Dim month As String = If(String.IsNullOrWhiteSpace(context.Request.Form("month")), Nothing, context.Request.Form("month").Trim())
+            Dim company As String = If(String.IsNullOrWhiteSpace(context.Request.Form("company")), Nothing, context.Request.Form("company").Trim())
+            Dim category As String = If(String.IsNullOrWhiteSpace(context.Request.Form("category")), Nothing, context.Request.Form("category").Trim())
+            Dim segment As String = If(String.IsNullOrWhiteSpace(context.Request.Form("segment")), Nothing, context.Request.Form("segment").Trim())
+            Dim brand As String = If(String.IsNullOrWhiteSpace(context.Request.Form("brand")), Nothing, context.Request.Form("brand").Trim())
+            Dim vendor As String = If(String.IsNullOrWhiteSpace(context.Request.Form("vendor")), Nothing, context.Request.Form("vendor").Trim())
+
+            Dim dt As DataTable = GetActualPOData(year, month, company, category, segment, brand, vendor)
+
+            ' Generate HTML table body
+            Dim html As String = GenerateHtmlActualPOTable(dt)
+
+            context.Response.ContentType = "text/html"
+            context.Response.Write(html)
+
+        Catch ex As Exception
+            context.Response.StatusCode = 500
+            context.Response.Write($"<tr><td colspan='22' class='text-center text-danger'>Error: {HttpUtility.HtmlEncode(ex.Message)}</td></tr>")
+        End Try
+    End Sub
+
+    ' =================================================
+    ' ===== NEW: GetActualPOData (Helper Function) =====
+    ' =================================================
+    Private Function GetActualPOData(year As String, month As String, company As String, category As String, segment As String, brand As String, vendor As String) As DataTable
+        Dim dt As New DataTable()
+        Using conn As New SqlConnection(connectionString)
+            conn.Open()
+            Using cmd As New SqlCommand("SP_Get_Actual_PO_List", conn)
+                cmd.CommandType = CommandType.StoredProcedure
+                cmd.Parameters.AddWithValue("@Year", If(year, DBNull.Value))
+                cmd.Parameters.AddWithValue("@Month", If(month, DBNull.Value))
+                cmd.Parameters.AddWithValue("@Company", If(company, DBNull.Value))
+                cmd.Parameters.AddWithValue("@Category", If(category, DBNull.Value))
+                cmd.Parameters.AddWithValue("@Segment", If(segment, DBNull.Value))
+                cmd.Parameters.AddWithValue("@Brand", If(brand, DBNull.Value))
+                cmd.Parameters.AddWithValue("@Vendor", If(vendor, DBNull.Value))
+
+                Using reader As SqlDataReader = cmd.ExecuteReader()
+                    dt.Load(reader)
+                End Using
+            End Using
+        End Using
+        Return dt
+    End Function
+
+    ' =================================================
+    ' ===== NEW: GenerateHtmlActualPOTable FUNCTION =====
+    ' =================================================
+    Private Function GenerateHtmlActualPOTable(dt As DataTable) As String
+        Dim sb As New StringBuilder()
+
+        If dt.Rows.Count = 0 Then
+            sb.Append("<tr><td colspan='22' class='text-center text-muted p-4'>No Actual PO records found for the selected filters.</td></tr>")
+            Return sb.ToString()
+        End If
+
+        For Each row As DataRow In dt.Rows
+            Dim status As String = GetDbString(row, "Status")
+            Dim statusClass As String = ""
+            If status.ToLower() = "cancelled" Then
+                statusClass = "class='status-cancelled'"
+            End If
+
+            sb.Append("<tr>")
+            sb.AppendFormat("<td>{0}</td>", GetDbDate(row, "Actual_PO_Date"))
+            sb.AppendFormat("<td>{0}</td>", HttpUtility.HtmlEncode(GetDbString(row, "Actual_PO_No")))
+            sb.AppendFormat("<td>{0}</td>", HttpUtility.HtmlEncode(GetDbString(row, "PO_Type")))
+            sb.AppendFormat("<td>{0}</td>", HttpUtility.HtmlEncode(GetDbString(row, "PO_Year")))
+            sb.AppendFormat("<td>{0}</td>", HttpUtility.HtmlEncode(GetDbString(row, "PO_Month_Name"))) ' Use Month Name
+            sb.AppendFormat("<td>{0}</td>", HttpUtility.HtmlEncode(GetDbString(row, "Category_Code")))
+            sb.AppendFormat("<td>{0}</td>", HttpUtility.HtmlEncode(GetDbString(row, "Category_Name")))
+            sb.AppendFormat("<td>{0}</td>", HttpUtility.HtmlEncode(GetDbString(row, "Company_Code")))
+            sb.AppendFormat("<td>{0}</td>", HttpUtility.HtmlEncode(GetDbString(row, "Segment_Code")))
+            sb.AppendFormat("<td>{0}</td>", HttpUtility.HtmlEncode(GetDbString(row, "Segment_Name")))
+            sb.AppendFormat("<td>{0}</td>", HttpUtility.HtmlEncode(GetDbString(row, "Brand_Code")))
+            sb.AppendFormat("<td>{0}</td>", HttpUtility.HtmlEncode(GetDbString(row, "Brand_Name")))
+            sb.AppendFormat("<td>{0}</td>", HttpUtility.HtmlEncode(GetDbString(row, "Vendor_Code")))
+            sb.AppendFormat("<td>{0}</td>", HttpUtility.HtmlEncode(GetDbString(row, "Vendor_Name")))
+            sb.AppendFormat("<td class='text-end'>{0}</td>", GetDbDecimal(row, "Amount_THB").ToString("N2"))
+            sb.AppendFormat("<td class='text-end'>{0}</td>", GetDbDecimal(row, "Amount_CCY").ToString("N2"))
+            sb.AppendFormat("<td>{0}</td>", HttpUtility.HtmlEncode(GetDbString(row, "CCY")))
+            sb.AppendFormat("<td class='text-end'>{0}</td>", GetDbDecimal(row, "Exchange_Rate").ToString("N4")) ' Spec shows 4 decimals
+            sb.AppendFormat("<td>{0}</td>", HttpUtility.HtmlEncode(GetDbString(row, "Draft_PO_Ref")))
+            sb.AppendFormat("<td>{0}</td>", HttpUtility.HtmlEncode(GetDbString(row, "Remark")))
+            sb.AppendFormat("<td {0}>{1}</td>", statusClass, HttpUtility.HtmlEncode(status))
+            sb.AppendFormat("<td>{0}</td>", GetDbDate(row, "Status_Date"))
+            sb.Append("</tr>")
+        Next
+
+        Return sb.ToString()
+    End Function
+
+    ' =================================================
+    ' ===== NEW: ExportActualPOToExcel FUNCTION =====
+    ' =================================================
+    Private Sub ExportActualPOToExcel(context As HttpContext)
+        ' 1. Get Filters from QueryString (Export is GET request)
+        Dim year As String = If(String.IsNullOrWhiteSpace(context.Request.QueryString("year")), Nothing, context.Request.QueryString("year").Trim())
+        Dim month As String = If(String.IsNullOrWhiteSpace(context.Request.QueryString("month")), Nothing, context.Request.QueryString("month").Trim())
+        Dim company As String = If(String.IsNullOrWhiteSpace(context.Request.QueryString("company")), Nothing, context.Request.QueryString("company").Trim())
+        Dim category As String = If(String.IsNullOrWhiteSpace(context.Request.QueryString("category")), Nothing, context.Request.QueryString("category").Trim())
+        Dim segment As String = If(String.IsNullOrWhiteSpace(context.Request.QueryString("segment")), Nothing, context.Request.QueryString("segment").Trim())
+        Dim brand As String = If(String.IsNullOrWhiteSpace(context.Request.QueryString("brand")), Nothing, context.Request.QueryString("brand").Trim())
+        Dim vendor As String = If(String.IsNullOrWhiteSpace(context.Request.QueryString("vendor")), Nothing, context.Request.QueryString("vendor").Trim())
+
+        ' 2. Get Raw Data
+        Dim dtRaw As DataTable = GetActualPOData(year, month, company, category, segment, brand, vendor)
+
+        ' 3. Create Export-formatted DataTable (to match the spec columns)
+        Dim dtExport As New DataTable("ActualPO")
+        dtExport.Columns.Add("Actual PO Date", GetType(String))
+        dtExport.Columns.Add("Actual PO no.", GetType(String))
+        dtExport.Columns.Add("Type", GetType(String))
+        dtExport.Columns.Add("Year", GetType(String))
+        dtExport.Columns.Add("Month", GetType(String))
+        dtExport.Columns.Add("Category", GetType(String))
+        dtExport.Columns.Add("Category name", GetType(String))
+        dtExport.Columns.Add("Company", GetType(String))
+        dtExport.Columns.Add("Segment", GetType(String))
+        dtExport.Columns.Add("Segment name", GetType(String))
+        dtExport.Columns.Add("Brand", GetType(String))
+        dtExport.Columns.Add("Brand name", GetType(String))
+        dtExport.Columns.Add("Vendor", GetType(String))
+        dtExport.Columns.Add("Vendor name", GetType(String))
+        dtExport.Columns.Add("Amount (THB)", GetType(Decimal))
+        dtExport.Columns.Add("Amount (CCY)", GetType(Decimal))
+        dtExport.Columns.Add("CCY", GetType(String))
+        dtExport.Columns.Add("Ex. Rate", GetType(Decimal))
+        dtExport.Columns.Add("Draft PO Ref", GetType(String))
+        dtExport.Columns.Add("Status", GetType(String))
+        dtExport.Columns.Add("Status date", GetType(String))
+        dtExport.Columns.Add("Remark", GetType(String))
+
+        ' 4. Populate dtExport
+        For Each row As DataRow In dtRaw.Rows
+            dtExport.Rows.Add(
+                GetDbDate(row, "Actual_PO_Date"),
+                GetDbString(row, "Actual_PO_No"),
+                GetDbString(row, "PO_Type"),
+                GetDbString(row, "PO_Year"),
+                GetDbString(row, "PO_Month_Name"),
+                GetDbString(row, "Category_Code"),
+                GetDbString(row, "Category_Name"),
+                GetDbString(row, "Company_Code"),
+                GetDbString(row, "Segment_Code"),
+                GetDbString(row, "Segment_Name"),
+                GetDbString(row, "Brand_Code"),
+                GetDbString(row, "Brand_Name"),
+                GetDbString(row, "Vendor_Code"),
+                GetDbString(row, "Vendor_Name"),
+                GetDbDecimal(row, "Amount_THB"),
+                GetDbDecimal(row, "Amount_CCY"),
+                GetDbString(row, "CCY"),
+                GetDbDecimal(row, "Exchange_Rate"),
+                GetDbString(row, "Draft_PO_Ref"),
+                GetDbString(row, "Status"),
+                GetDbDate(row, "Status_Date"),
+                GetDbString(row, "Remark")
+            )
+        Next
+
+        ' 5. Call Export Function
+        ExportToExcel(context, dtExport, "Actual_PO_" & DateTime.Now.ToString("yyyyMMdd_HHmmss") & ".xlsx")
+    End Sub
+
+    ' =================================================
+    ' ===== NEW: ExportToExcel (Helper Function) =====
+    ' =================================================
+    Private Sub ExportToExcel(context As HttpContext, dt As DataTable, filename As String)
+        ExcelPackage.License.SetNonCommercialOrganization("KingPower")
+
+        Using package As New ExcelPackage()
+            Dim worksheet = package.Workbook.Worksheets.Add("ActualPO")
+            worksheet.Cells("A1").LoadFromDataTable(dt, True)
+
+            ' Format header
+            Using range = worksheet.Cells(1, 1, 1, dt.Columns.Count)
+                range.Style.Font.Bold = True
+                range.Style.Fill.PatternType = ExcelFillStyle.Solid
+                range.Style.Fill.BackgroundColor.SetColor(System.Drawing.Color.FromArgb(11, 86, 164)) ' Primary Blue
+                range.Style.Font.Color.SetColor(System.Drawing.Color.White)
+            End Using
+
+            ' Format number columns (based on new dtExport)
+            worksheet.Column(15).Style.Numberformat.Format = "#,##0.00" ' Amount (THB)
+            worksheet.Column(16).Style.Numberformat.Format = "#,##0.00" ' Amount (CCY)
+            worksheet.Column(18).Style.Numberformat.Format = "#,##0.0000" ' Ex. Rate (4 decimals)
+
+            ' Auto-fit columns
+            worksheet.Cells.AutoFitColumns()
+
+            ' Download
+            context.Response.Clear()
+            context.Response.ContentType = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+            context.Response.AddHeader("content-disposition", $"attachment; filename={filename}")
+            context.Response.BinaryWrite(package.GetAsByteArray())
+            context.Response.Flush()
+            context.ApplicationInstance.CompleteRequest()
+        End Using
+    End Sub
+
+    Private Function GetDbDate(row As DataRow, columnName As String, Optional format As String = "dd/MM/yyyy HH:mm") As String
+        If row IsNot Nothing AndAlso row.Table.Columns.Contains(columnName) AndAlso row(columnName) IsNot DBNull.Value Then
+            Try
+                Return Convert.ToDateTime(row(columnName)).ToString(format)
+            Catch ex As Exception
+                Return row(columnName).ToString() ' Return as string if conversion fails
+            End Try
+        End If
+        Return ""
+    End Function
 
     ' =================================================
     ' ===== ADDED: GetDraftPOList FUNCTION =====
