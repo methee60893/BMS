@@ -582,36 +582,18 @@
                 <div class="row g-3 mb-3">
                     <div class="col-md-3">
                         <label class="form-label">Year</label>
-                        <select class="form-select">
-                            <option>2024</option>
-                            <option selected>2025</option>
-                        </select>
+                        <select id="DDYear" class="form-select">
+                            </select>
                     </div>
                     <div class="col-md-3">
                         <label class="form-label">Month</label>
-                        <select class="form-select">
-                            <option>Jan</option>
-                            <option>Feb</option>
-                            <option>Mar</option>
-                            <option>Apr</option>
-                            <option>May</option>
-                            <option>Jun</option>
-                            <option>Jul</option>
-                            <option>Aug</option>
-                            <option>Sep</option>
-                            <option>Oct</option>
-                            <option>Nov</option>
-                            <option>Dec</option>
-                        </select>
+                        <select id="DDMonth" class="form-select">
+                            </select>
                     </div>
                     <div class="col-md-3">
                         <label class="form-label">Company</label>
-                        <select class="form-select">
-                            <option selected>KPC</option>
-                            <option>KPD</option>
-                            <option>KPT</option>
-                            <option>KPS</option>
-                        </select>
+                        <select id="DDCompany" class="form-select">
+                            </select>
                     </div>
                     <div class="col-md-3">
                     </div>
@@ -620,45 +602,38 @@
                 <div class="row g-3 mb-3">
                     <div class="col-md-6">
                         <label class="form-label">Category</label>
-                        <select class="form-select">
-                            <option selected>221 - FA Leather Goods</option>
-                            <option>222 - FA Accessories</option>
-                        </select>
+                        <select id="DDCategory" class="form-select">
+                            </select>
                     </div>
                     <div class="col-md-6">
                         <label class="form-label">Segment</label>
-                        <select class="form-select">
-                            <option selected>O2000 - T/T Normal</option>
-                        </select>
+                        <select id="DDSegment" class="form-select">
+                            </select>
                     </div>
                 </div>
 
                 <div class="row g-3 mb-4">
                     <div class="col-md-6">
                         <label class="form-label">Brand</label>
-                        <select class="form-select">
-                            <option selected>HBS - HUGO BOSS</option>
-                            <option>MCM - MCM</option>
-                        </select>
+                        <select id="DDBrand" class="form-select">
+                            </select>
                     </div>
                     <div class="col-md-6">
                         <label class="form-label">Vendor</label>
-                        <select class="form-select">
-                            <option selected>1010900 - HUGO BOSS SOUTH</option>
-                            <option>1011009 - MCM FASHION HK</option>
-                        </select>
+                       <select id="DDVendor" class="form-select">
+                            </select>
                     </div>
                 </div>
 
                 <!-- Action Buttons -->
                 <div class="row">
                     <div class="col-12 text-end">
-                        <button class="btn btn-clear btn-custom me-2">
-                            <i class="bi bi-x-circle"></i> Clear filter
-                        </button>
-                        <button class="btn btn-view btn-custom">
-                            <i class="bi bi-eye"></i> View
-                        </button>
+                        <button type="button" id="btnClearFilter" class="btn btn-clear btn-custom me-2">
+                                <i class="bi bi-x-circle"></i> Clear filter
+                            </button>
+                            <button type="button" id="btnView" class="btn btn-view btn-custom">
+                                <i class="bi bi-eye"></i> View
+                            </button>
                     </div>
                 </div>
             </div>
@@ -839,7 +814,7 @@
             </div>
         </div>
     </div>
-
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>ห
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script>
         // Toggle Sidebar
@@ -890,6 +865,253 @@
                 }
             }
         });
+
+        // ===================================================
+        // ===== NEW SCRIPT BLOCK FOR MASTER DATA =========
+        // ===================================================
+
+        // Cache elements
+        let yearDropdown = document.getElementById("DDYear");
+        let monthDropdown = document.getElementById("DDMonth");
+        let companyDropdown = document.getElementById("DDCompany");
+        let segmentDropdown = document.getElementById("DDSegment");
+        let categoryDropdown = document.getElementById("DDCategory");
+        let brandDropdown = document.getElementById("DDBrand");
+        let vendorDropdown = document.getElementById("DDVendor");
+        let btnClearFilter = document.getElementById("btnClearFilter");
+        let btnView = document.getElementById("btnView");
+        let tableViewBody = document.getElementById("tableViewBody");
+
+        // Initialize
+        let initial = function () {
+            //InitData master
+            InitMSData();
+            segmentDropdown.addEventListener('change', changeVendor);
+            btnClearFilter.addEventListener('click', function () {
+                // Clear filter fields
+                yearDropdown.value = "";
+                monthDropdown.value = "";
+                companyDropdown.value = "";
+                segmentDropdown.value = "";
+                categoryDropdown.value = "";
+                brandDropdown.value = "";
+                vendorDropdown.value = "";
+                // Re-initialize vendor dropdown (to show all)
+                InitVendor(vendorDropdown);
+                // Clear table
+                tableViewBody.innerHTML = "<tr><td colspan='14' class='text-center text-muted p-4'>Please use the filters and click 'View' to see data.</td></tr>";
+            });
+            btnView.addEventListener('click', search);
+        }
+
+        // Main function to load all master data
+        let InitMSData = function () {
+            InitSegment(segmentDropdown);
+            InitCategoty(categoryDropdown);
+            InitBrand(brandDropdown);
+            InitVendor(vendorDropdown);
+            InitMSYear(yearDropdown);
+            InitMonth(monthDropdown);
+            InitCompany(companyDropdown);
+        }
+
+        // Search function (placeholder - needs handler logic)
+        let search = function () {
+            var segmentCode = segmentDropdown.value;
+            var cate = categoryDropdown.value;
+            var brandCode = brandDropdown.value;
+            var vendorCode = vendorDropdown.value;
+            let OTByear = yearDropdown.value;
+            let OTBmonth = monthDropdown.value;
+            let OTBcompany = companyDropdown.value;
+
+            var formData = new FormData();
+            formData.append('OTByear', OTByear);
+            formData.append('OTBmonth', OTBmonth);
+            formData.append('OTBCompany', OTBcompany);
+            formData.append('OTBCategory', cate);
+            formData.append('OTBSegment', segmentCode);
+            formData.append('OTBBrand', brandCode);
+            formData.append('OTBVendor', vendorCode);
+
+            console.log("Searching with filters...", Object.fromEntries(formData));
+            // Show loading state
+            tableViewBody.innerHTML = "<tr><td colspan='14' class='text-center text-muted p-4'><div class='spinner-border spinner-border-sm' role='status'></div> Loading data...</td></tr>";
+
+            // *** TODO: Implement AJAX call to the correct handler ***
+            // $.ajax({
+            //    url: 'Handler/DataOTBHandler.ashx?action=otbRemaininglistbyfilter', // <-- You need to create this action
+            //    type: 'POST',
+            //    data: formData,
+            //    processData: false,
+            //    contentType: false,
+            //    success: function (response) {
+            //        tableViewBody.innerHTML = response;
+            //    },
+            //    error: function (xhr, status, error) {
+            //        console.log('Error getlist data: ' + error);
+            //        tableViewBody.innerHTML = "<tr><td colspan='14' class='text-center text-danger p-4'>Error loading data.</td></tr>";
+            //    }
+            // });
+
+            // Using placeholder as handler is not implemented
+            setTimeout(() => {
+                // Re-populating with default static data as example
+                tableViewBody.innerHTML = `
+                    <tr>
+                        <td>2025</td><td>Jun</td><td>221</td><td>FA Leather Goods</td><td>KPC</td><td>O3000</td>
+                        <td>Local Credit</td><td>MNL</td><td>MONCLER</td><td>1011339</td><td>INDUSTRIES SPA</td>
+                        <td class="text-end">1,000,000.00</td><td class="text-end">94,834.00</td><td class="text-end">905,166.00</td>
+                    </tr>
+                    <tr>
+                        <td>2025</td><td>Jun</td><td>221</td><td>FA Leather Goods</td><td>KPD</td><td>O3000</td>
+                        <td>Local Credit</td><td>MNL</td><td>MONCLER</td><td>1011339</td><td>INDUSTRIES SPA</td>
+                        <td class="text-end">2,000,000.00</td><td class="text-end">1,994,837.00</td><td class="text-end">5,163.00</td>
+                    </tr>
+                    <tr>
+                        <td>2025</td><td>Jun</td><td>221</td><td>FA Leather Goods</td><td>KPC</td><td>O1000</td>
+                        <td>L/C Normal</td><td>YSL</td><td>YSL</td><td>1011281</td><td>YVES SAINT LAU</td>
+                        <td class="text-end">3,000,000.00</td><td class="text-end">599,999.00</td><td class="text-end">2,400,001.00</td>
+                    </tr>
+                    <tr>
+                        <td>2025</td><td>Jun</td><td>221</td><td>FA Leather Goods</td><td>KPD</td><td>O2000</td>
+                        <td>T/T Normal</td><td>BUR</td><td>BURBERRY</td><td>1010636</td><td>BURBERRY(SIN</td>
+                        <td class="text-end">4,600,000.00</td><td class="text-end">2,045,586.00</td><td class="text-end">1,954,414.00</td>
+                    </tr>
+                 `;
+            }, 500);
+        }
+
+        // --- Master Data Loaders (using '...MSList' actions) ---
+
+        let InitSegment = function (segmentDropdown) {
+            $.ajax({
+                url: 'Handler/MasterDataHandler.ashx?action=SegmentMSList',
+                type: 'POST',
+                processData: false,
+                contentType: false,
+                success: function (response) {
+                    segmentDropdown.innerHTML = response;
+                },
+                error: function (xhr, status, error) {
+                    console.log('Error getlist data: ' + error);
+                }
+            });
+        }
+
+        let InitMSYear = function (yearDropdown) {
+            $.ajax({
+                url: 'Handler/MasterDataHandler.ashx?action=YearMSList',
+                type: 'POST',
+                processData: false,
+                contentType: false,
+                success: function (response) {
+                    yearDropdown.innerHTML = response;
+                },
+                error: function (xhr, status, error) {
+                    console.log('Error getlist data: ' + error);
+                }
+            });
+        }
+
+        let InitMonth = function (monthDropdown) {
+            $.ajax({
+                url: 'Handler/MasterDataHandler.ashx?action=MonthMSList',
+                type: 'POST',
+                processData: false,
+                contentType: false,
+                success: function (response) {
+                    monthDropdown.innerHTML = response;
+                },
+                error: function (xhr, status, error) {
+                    console.log('Error getlist data: ' + error);
+                }
+            });
+        }
+        let InitCompany = function (companyDropdown) {
+            $.ajax({
+                url: 'Handler/MasterDataHandler.ashx?action=CompanyMSList',
+                type: 'POST',
+                processData: false,
+                contentType: false,
+                success: function (response) {
+                    companyDropdown.innerHTML = response;
+                },
+                error: function (xhr, status, error) {
+                    console.log('Error getlist data: ' + error);
+                }
+            });
+        }
+        let InitCategoty = function (categoryDropdown) {
+            $.ajax({
+                url: 'Handler/MasterDataHandler.ashx?action=CategoryMSList',
+                type: 'POST',
+                processData: false,
+                contentType: false,
+                success: function (response) {
+                    categoryDropdown.innerHTML = response;
+                },
+                error: function (xhr, status, error) {
+                    console.log('Error getlist data: ' + error);
+                }
+            });
+        }
+        let InitBrand = function (brandDropdown) {
+            $.ajax({
+                url: 'Handler/MasterDataHandler.ashx?action=BrandMSList',
+                type: 'POST',
+                processData: false,
+                contentType: false,
+                success: function (response) {
+                    brandDropdown.innerHTML = response;
+                },
+                error: function (xhr, status, error) {
+                    console.log('Error getlist data: ' + error);
+                }
+            });
+        }
+        let InitVendor = function (vendorDropdown) {
+            $.ajax({
+                url: 'Handler/MasterDataHandler.ashx?action=VendorMSList',
+                type: 'POST',
+                processData: false,
+                contentType: false,
+                success: function (response) {
+                    vendorDropdown.innerHTML = response;
+                },
+                error: function (xhr, status, error) {
+                    console.log('Error getlist data: ' + error);
+                }
+            });
+        }
+
+        // Dependent Dropdown
+        let changeVendor = function () {
+            var segmentCode = segmentDropdown.value;
+            if (!segmentCode) {
+                // ถ้าไม่มีค่า ให้โหลด vendor ทั้งหมด
+                InitVendor(vendorDropdown);
+                return;
+            }
+            var formData = new FormData();
+            formData.append('segmentCode', segmentCode);
+            $.ajax({
+                url: 'Handler/MasterDataHandler.ashx?action=VendorMSListChg',
+                type: 'POST',
+                data: formData,
+                processData: false,
+                contentType: false,
+                success: function (response) {
+                    vendorDropdown.innerHTML = response;
+                },
+                error: function (xhr, status, error) {
+                    console.log('Error getlist data: ' + error);
+                }
+            });
+        }
+
+        // Initialize on page load
+        document.addEventListener('DOMContentLoaded', initial);
     </script>
 </body>
 </html>
