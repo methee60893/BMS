@@ -213,9 +213,13 @@
       <SubType>ASPXCodebehind</SubType>
     </Compile>
     <Compile Include="class\ApprovedOTBManager.vb" />
+    <Compile Include="class\GroupedActualPO.vb" />
+    <Compile Include="class\GroupedDraftPO.vb" />
+    <Compile Include="class\MatchedPOItem.vb" />
     <Compile Include="class\OTBBudgetCalculator.vb" />
     <Compile Include="class\OTBUploadPreviewRow.vb" />
     <Compile Include="class\OTBValidate.vb" />
+    <Compile Include="class\POMatchKey.vb" />
     <Compile Include="class\POValidate.vb" />
     <Compile Include="class\share_class.vb" />
     <Compile Include="Connected Services\KBMSAPI\Reference.vb">

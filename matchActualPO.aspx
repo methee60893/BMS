@@ -338,7 +338,49 @@
             height: 20px;
             cursor: pointer;
         }
-
+        /* (เพิ่ม) Loading Overlay */
+        .loading-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.6);
+            display: none;
+            justify-content: center;
+            align-items: center;
+            z-index: 9999;
+            backdrop-filter: blur(3px);
+        }
+        .loading-overlay.active {
+            display: flex;
+        }
+        .loading-content {
+            background: white;
+            padding: 30px 40px;
+            border-radius: 12px;
+            text-align: center;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+        }
+        .loading-spinner {
+            width: 50px;
+            height: 50px;
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid var(--primary-blue);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 15px;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        .loading-text {
+            color: #2c3e50;
+            font-size: 1.1rem;
+            font-weight: 600;
+            margin: 0;
+        }
         /* Responsive */
         @media (max-width: 768px) {
             .content-area {
@@ -379,6 +421,13 @@
     </style>
 </head>
 <body>
+     <!-- (เพิ่ม) Loading Overlay -->
+    <div class="loading-overlay" id="loadingOverlay">
+        <div class="loading-content">
+            <div class="loading-spinner"></div>
+            <p class="loading-text" id="loadingText">Processing...</p>
+        </div>
+    </div>
     <!-- Sidebar Overlay -->
     <div class="sidebar-overlay" id="sidebarOverlay" onclick="toggleSidebar()"></div>
 
@@ -511,86 +560,11 @@
                                 <th>Actual PO no.</th>
                             </tr>
                         </thead>
-                        <tbody>
+                         <tbody id="matchTableBody">
                             <tr>
-                                <td><input type="checkbox" class="form-check-input" checked></td>
-                                <td>2025</td>
-                                <td>Jun</td>
-                                <td>221</td>
-                                <td>KPC</td>
-                                <td>Local Credit</td>
-                                <td>SAM</td>
-                                <td>1010531</td>
-                                <td>21/05/2025</td>
-                                <td>KP2211010531_001</td>
-                                <td class="text-end">250,000.00</td>
-                                <td class="text-end">8,000.00</td>
-                                <td class="text-end">262,800.00</td>
-                                <td class="text-end">8,000.00</td>
-                                <td>USD</td>
-                                <td class="text-end">35.40</td>
-                                <td>26/05/2025</td>
-                                <td>KP2211010531_001</td>
-                            </tr>
-                            <tr>
-                                <td><input type="checkbox" class="form-check-input" checked></td>
-                                <td>2025</td>
-                                <td>Jun</td>
-                                <td>221</td>
-                                <td>KPC</td>
-                                <td>T/T Normal</td>
-                                <td>MCM</td>
-                                <td>1011009</td>
-                                <td>23/05/2025</td>
-                                <td>KP20250519</td>
-                                <td class="text-end">28,000.00</td>
-                                <td class="text-end">799.00</td>
-                                <td class="text-end">26,686.60</td>
-                                <td class="text-end">799.00</td>
-                                <td>USD</td>
-                                <td class="text-end">33.40</td>
-                                <td>28/05/2025</td>
-                                <td>KP2211011009_014</td>
-                            </tr>
-                            <tr class="highlight-pink">
-                                <td><input type="checkbox" class="form-check-input"></td>
-                                <td>2025</td>
-                                <td>Jun</td>
-                                <td>221</td>
-                                <td>KPD</td>
-                                <td>T/T Normal</td>
-                                <td>HBS</td>
-                                <td>1010900</td>
-                                <td>23/05/2025</td>
-                                <td>KP20250520</td>
-                                <td class="text-end">249,375.00</td>
-                                <td class="text-end">7,500.00</td>
-                                <td class="text-end">318,495.00</td>
-                                <td class="text-end">8,500.00</td>
-                                <td>EUR</td>
-                                <td class="text-end">37.47</td>
-                                <td>28/05/2025</td>
-                                <td>KP2211010900_054</td>
-                            </tr>
-                            <tr>
-                                <td><input type="checkbox" class="form-check-input"></td>
-                                <td>2025</td>
-                                <td>Jun</td>
-                                <td>221</td>
-                                <td>KPD</td>
-                                <td>T/T Normal</td>
-                                <td>TMY</td>
-                                <td>1011254</td>
-                                <td></td>
-                                <td></td>
-                                <td></td>
-                                <td></td>
-                                <td class="text-end">318,495.00</td>
-                                <td class="text-end">8,500.00</td>
-                                <td>EUR</td>
-                                <td class="text-end">37.47</td>
-                                <td>28/05/2025</td>
-                                <td>KP2211010900_054</td>
+                                <td colspan="18" class="text-center p-4 text-muted">
+                                    Please click 'Sync SAP' to load data.
+                                </td>
                             </tr>
                         </tbody>
                     </table>
@@ -603,6 +577,9 @@
     <script>
         let btnSyncSAP = document.getElementById("btnSyncSAP");
         let btnSubmit = document.getElementById("btnSubmit");
+        let tableBody = document.getElementById("matchTableBody"); // (เพิ่ม)
+        let loadingOverlay = document.getElementById("loadingOverlay"); // (เพิ่ม)
+
 
         // Toggle Sidebar
         function toggleSidebar() {
@@ -640,26 +617,120 @@
             }
         }
 
+        // (เพิ่ม) Function สำหรับแสดง/ซ่อน Loading
+        function showLoading(show, text = 'Processing...') {
+            document.getElementById('loadingText').textContent = text;
+            if (show) {
+                loadingOverlay.classList.add('active');
+            } else {
+                loadingOverlay.classList.remove('active');
+            }
+        }
+
+        // (เพิ่ม) Function สำหรับแปลงเลขเป็น format
+        function formatNumber(num) {
+            if (num === null || num === undefined) return '';
+            return num.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        }
+
+        // (เพิ่ม) Function สำหรับแปลงเลขเดือนเป็นชื่อ
+        function getMonthName(month) {
+            const names = ["", "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+            const monthInt = parseInt(month, 10);
+            return names[monthInt] || month;
+        }
+
+        // (เพิ่ม) Function สำหรับสร้างตาราง
+        function buildTable(data) {
+            tableBody.innerHTML = ''; // Clear table
+            if (!data || data.length === 0) {
+                tableBody.innerHTML = '<tr><td colspan="18" class="text-center p-4 text-muted">No data found.</td></tr>';
+                return;
+            }
+
+            let html = '';
+            data.forEach(item => {
+                const key = item.Key;
+                const draft = item.Draft;
+                const actual = item.Actual;
+
+                let rowClass = '';
+                if (item.MatchStatus === 'DraftOnly') {
+                    rowClass = 'highlight-draft';
+                } else if (item.MatchStatus === 'ActualOnly') {
+                    rowClass = 'highlight-actual';
+                } else if (item.MatchStatus === 'Matched') {
+                    rowClass = 'highlight-matched';
+                }
+
+                html += `<tr class="${rowClass}">`;
+                // Select
+                html += `<td><input type="checkbox" class="form-check-input" ${draft && actual ? 'checked' : ''}></td>`;
+
+                // --- Group Keys ---
+                html += `<td>${key.Year || ''}</td>`;
+                html += `<td>${getMonthName(key.Month) || ''}</td>`;
+                html += `<td>${key.Category || ''}</td>`;
+                html += `<td>${key.Company || ''}</td>`;
+                html += `<td>${key.Segment || ''}</td>`;
+                html += `<td>${key.Brand || ''}</td>`;
+                html += `<td>${key.Vendor || ''}</td>`;
+
+                // --- Draft PO Data ---
+                html += `<td>${draft ? (draft.DraftPODate || '') : ''}</td>`;
+                html += `<td>${draft ? (draft.DraftPONo || '') : ''}</td>`;
+                html += `<td class="text-end">${draft ? formatNumber(draft.DraftAmountTHB) : ''}</td>`;
+
+                // --- Actual PO Data ---
+                html += `<td class="text-end">${actual ? formatNumber(actual.ActualAmountTHB) : ''}</td>`;
+                html += `<td>${actual ? (actual.ActualPONo || '') : ''}</td>`;
+                html += `<td>${actual ? (actual.ActualPODate || '') : ''}</td>`; // (TODO: Format Date)
+                html += `<td>${actual ? (actual.ActualCCY || '') : ''}</td>`;
+                html += `<td class="text-end">${actual ? formatNumber(actual.ActualExRate) : ''}</td>`;
+
+                // --- CCY Amounts (Side-by-side) ---
+                html += `<td class="text-end">${draft ? formatNumber(draft.DraftAmountCCY) : ''}</td>`;
+                html += `<td class="text-end">${actual ? formatNumber(actual.ActualAmountCCY) : ''}</td>`;
+
+                html += '</tr>';
+            });
+            tableBody.innerHTML = html;
+        }
+
         let initial = function () {
             btnSyncSAP.addEventListener('click', function () {
+                showLoading(true, 'Syncing with SAP...');
+
                 $.ajax({
                     url: 'Handler/POMatchingHandler.ashx?action=getpo',
                     type: 'POST',
                     processData: false,
                     contentType: false,
+                    dataType: 'json', // (ระบุว่าคาดหวัง JSON)
                     success: function (response) {
-                        console.log(response);
+                        showLoading(false);
+                        if (response.success) {
+                            console.log(response.data);
+                            buildTable(response.data); // (เรียก Function สร้างตาราง)
+                        } else {
+                            alert('Error: ' + response.message);
+                            tableBody.innerHTML = `<tr><td colspan="18" class="text-center p-4 text-danger">${response.message}</td></tr>`;
+                        }
                     },
                     error: function (xhr, status, error) {
+                        showLoading(false);
                         console.error(error);
                         console.log(status);
                         console.log(xhr);
+                        alert('Fatal error connecting to handler: ' + xhr.responseText);
+                        tableBody.innerHTML = `<tr><td colspan="18" class="text-center p-4 text-danger">Fatal error: ${xhr.responseText}</td></tr>`;
                     }
                 });
             });
 
             btnSubmit.addEventListener('click', function () {
-
+                // (เพิ่ม Logic การ Submit ที่นี่)
+                alert('Submit button clicked!');
             });
         }
 

@@ -167,11 +167,11 @@ Public Class POValidate
         End If
 
         ' 5. ตรวจสอบ PO ซ้ำ (ถ้าถูกสั่งให้เช็ค)
-        If checkDuplicate AndAlso Not String.IsNullOrEmpty(poNo) AndAlso errors.Count = 0 Then
-            If CheckPODuplicate(poNo) Then
-                errors.Add("txtPONO", $"Draft PO no. '{poNo}' already exists")
-            End If
-        End If
+        'If checkDuplicate AndAlso Not String.IsNullOrEmpty(poNo) AndAlso errors.Count = 0 Then
+        '    If CheckPODuplicate(poNo) Then
+        '        errors.Add("txtPONO", $"Draft PO no. '{poNo}' already exists")
+        '    End If
+        'End If
 
         Return errors
     End Function
