@@ -24,6 +24,8 @@ Public Class SaveOTBHandler
                 SaveOTBExtra(context)
             End If
         Catch ex As Exception
+            ' ส่ง Error กลับเป็น JSON มาตรฐาน
+            context.Response.StatusCode = 500 ' Internal Server Error
             Dim errorResponse As New With {
                 .success = False,
                 .message = "Server error: " & ex.Message
@@ -59,7 +61,6 @@ Public Class SaveOTBHandler
             Dim remark As String = If(String.IsNullOrEmpty(context.Request.Form("remark")), "", context.Request.Form("remark"))
 
             ' 2. ตรวจสอบเงื่อนไขเพื่อกำหนด SwitchCode (D, G, I)
-            ' (อ้างอิงจาก image_c8cf5f.png และ image_c8d6dd.png)
             Dim fromCode As String = "D" ' Default: Switch (D)
             Dim toCode As String = "D"
 
@@ -67,19 +68,14 @@ Public Class SaveOTBHandler
             Dim dateTo As New Date(yearTo, monthTo, 1)
 
             If dateFrom > dateTo Then
-                ' 2. Carry in & out: โยกจากอนาคต (out) มาอดีต/ปัจจุบัน (in)
-                fromCode = "G"
-                toCode = "G"
+                fromCode = "G" ' Carry Out
+                toCode = "G" ' Carry In
             ElseIf dateFrom < dateTo Then
-                ' 3. Balance in & out: โยกจากปัจจุบัน (out) ไปอนาคต (in)
-                ' เงื่อนไข: ต้องเป็น Cate/Brand/Vendor เดียวกัน
                 If categoryFrom = categoryTo AndAlso brandFrom = brandTo AndAlso vendorFrom = vendorTo Then
-                    fromCode = "I"
-                    toCode = "I"
+                    fromCode = "I" ' Balance Out
+                    toCode = "I" ' Balance In
                 End If
-                ' ถ้าไม่ใช่ D, G, I ก็จะใช้ Default "D" (Switch)
             End If
-            ' (กรณี dateFrom = dateTo จะใช้ Default "D" (Switch) ซึ่งถูกต้องตามเงื่อนไข 1)
 
             Dim sapRequest As New OtbSwitchRequest()
             ' sapRequest.TestMode = "X" ' (ถ้าต้องการ Test)
@@ -89,7 +85,7 @@ Public Class SaveOTBHandler
                 .FmAreaFrom = companyFrom.ToString(),
                 .CatFrom = categoryFrom.ToString(),
                 .SegmentFrom = segmentFrom.ToString(),
-                .TypeFrom = fromCode, ' <--- ใช้ Code ที่คำนวณได้
+                .TypeFrom = fromCode,
                 .BrandFrom = brandFrom,
                 .VendorFrom = vendorFrom.ToString(),
                 .Budget = amount.ToString("F2"),
@@ -98,26 +94,50 @@ Public Class SaveOTBHandler
                 .FmAreaTo = companyTo.ToString(),
                 .CatTo = categoryTo.ToString(),
                 .SegmentTo = segmentTo.ToString(),
-                .TypeTo = toCode, ' <--- ใช้ Code ที่คำนวณได้
+                .TypeTo = toCode,
                 .BrandTo = brandTo,
                 .VendorTo = vendorTo.ToString()
             }
             sapRequest.Data.Add(switchItem)
 
+            ' 3. เรียก SAP API
             Dim sapResponse As SapApiResponse(Of SapSwitchResultItem) = Task.Run(Async Function()
                                                                                      Return Await SapApiHelper.SwitchOtbPlanAsync(sapRequest)
                                                                                  End Function).Result
 
-            If sapResponse Is Nothing OrElse sapResponse.Status.ErrorCount > 0 Then
-                Dim errorMsg As String = "SAP Error (Unknown)"
-                If sapResponse IsNot Nothing AndAlso sapResponse.Results.Count > 0 Then
-                    ' ดึง Message จาก SAP
-                    errorMsg = sapResponse.Results(0).Message
+            ' 4. [START MODIFIED LOGIC] ตรวจสอบ SAP Response
+            If sapResponse Is Nothing Then
+                Throw New Exception("No response from SAP API.")
+            End If
+
+            ' ตรวจสอบ Status หลัก (total vs success)
+            If sapResponse.Status.ErrorCount > 0 OrElse sapResponse.Status.Total <> sapResponse.Status.Success Then
+                Dim errorMsg As String = "SAP Error (Status mismatch)"
+                ' พยายามดึง Message แรกจาก Results ถ้ามี
+                If sapResponse.Results IsNot Nothing AndAlso sapResponse.Results.Count > 0 Then
+                    If Not String.IsNullOrEmpty(sapResponse.Results(0).Message) Then
+                        errorMsg = sapResponse.Results(0).Message
+                    End If
                 End If
-                ' หยุดทันที ห้าม Save DB
                 Throw New Exception(errorMsg)
             End If
 
+            ' ตรวจสอบ MessageType ใน Results (ตามโจทย์)
+            If sapResponse.Results IsNot Nothing AndAlso sapResponse.Results.Count > 0 Then
+                Dim firstResult = sapResponse.Results(0)
+                If firstResult.MessageType.Equals("E", StringComparison.OrdinalIgnoreCase) Then
+                    ' นี่คือ Error ที่ผู้ใช้ต้องการให้แสดง
+                    Throw New Exception(If(String.IsNullOrEmpty(firstResult.Message), "SAP returned MessageType 'E' with no message.", firstResult.Message))
+                ElseIf Not firstResult.MessageType.Equals("S", StringComparison.OrdinalIgnoreCase) Then
+                    ' กรณีที่ไม่ใช่ 'S' หรือ 'E' ก็ถือว่าไม่สำเร็จ
+                    Throw New Exception($"SAP returned unhandled MessageType: '{firstResult.MessageType}'.")
+                End If
+            Else
+                Throw New Exception("SAP status was success, but no results array was returned.")
+            End If
+            ' 4. [END MODIFIED LOGIC]
+
+            ' 5. [Save to DB] - จะทำงานเฉพาะเมื่อ MessageType = 'S'
             Dim query As String = "
                 INSERT INTO [dbo].[OTB_Switching_Transaction] (
                     [Year], [Month], [Company], [Category], [Segment], [Brand], [Vendor], 
@@ -135,6 +155,7 @@ Public Class SaveOTBHandler
                     @CreateBy, GETDATE()
                 )
             "
+            ' (หมายเหตุ: User ระบุ [Draft_PO_Transaction] แต่ Code เดิมใช้ [OTB_Switching_Transaction] ซึ่งถูกต้องกว่าสำหรับหน้านี้)
 
             Using conn As New SqlConnection(connectionString)
                 conn.Open()
@@ -184,9 +205,11 @@ Public Class SaveOTBHandler
             End Using
 
         Catch ex As Exception
+            ' ส่ง Error กลับเป็น JSON
+            context.Response.StatusCode = 500
             Dim errorResponse As New With {
                 .success = False,
-                .message = "Error saving OTB Switching: " & ex.Message
+                .message = ex.Message ' (ข้อความ Error จะถูกดักจับจาก SAP)
             }
             context.Response.Write(JsonConvert.SerializeObject(errorResponse))
         End Try
@@ -210,13 +233,9 @@ Public Class SaveOTBHandler
             Dim createdBy As String = If(String.IsNullOrEmpty(context.Request.Form("createdBy")), "System", context.Request.Form("createdBy"))
             Dim remark As String = If(String.IsNullOrEmpty(context.Request.Form("remark")), "", context.Request.Form("remark"))
 
-
             Dim sapRequest As New OtbSwitchRequest()
             ' sapRequest.TestMode = "X" ' (ถ้าต้องการ Test)
 
-            ' *** นี่คือส่วนที่แก้ไข ***
-            ' เราสร้าง Item โดยใส่ข้อมูลแค่ฝั่ง From (Type "E")
-            ' และปล่อยฝั่ง To ทั้งหมดให้เป็น Nothing
             Dim switchItem As New OtbSwitchItem With {
                 .DocYearFrom = year.ToString(),
                 .PeriodFrom = month.ToString(),
@@ -238,21 +257,39 @@ Public Class SaveOTBHandler
             }
             sapRequest.Data.Add(switchItem)
 
+            ' 2. เรียก SAP API
             Dim sapResponse As SapApiResponse(Of SapSwitchResultItem) = Task.Run(Async Function()
                                                                                      Return Await SapApiHelper.SwitchOtbPlanAsync(sapRequest)
                                                                                  End Function).Result
 
-            If sapResponse Is Nothing OrElse sapResponse.Status.ErrorCount > 0 Then
-                Dim errorMsg As String = "SAP Error (Unknown)"
-                If sapResponse IsNot Nothing AndAlso sapResponse.Results.Count > 0 Then
-                    ' ดึง Message จาก SAP
-                    errorMsg = sapResponse.Results(0).Message
+            ' 3. [START MODIFIED LOGIC] ตรวจสอบ SAP Response
+            If sapResponse Is Nothing Then
+                Throw New Exception("No response from SAP API.")
+            End If
+
+            If sapResponse.Status.ErrorCount > 0 OrElse sapResponse.Status.Total <> sapResponse.Status.Success Then
+                Dim errorMsg As String = "SAP Error (Status mismatch)"
+                If sapResponse.Results IsNot Nothing AndAlso sapResponse.Results.Count > 0 Then
+                    If Not String.IsNullOrEmpty(sapResponse.Results(0).Message) Then
+                        errorMsg = sapResponse.Results(0).Message
+                    End If
                 End If
-                ' หยุดทันที ห้าม Save DB
                 Throw New Exception(errorMsg)
             End If
 
-            ' 2. สร้าง Query (Type 'E')
+            If sapResponse.Results IsNot Nothing AndAlso sapResponse.Results.Count > 0 Then
+                Dim firstResult = sapResponse.Results(0)
+                If firstResult.MessageType.Equals("E", StringComparison.OrdinalIgnoreCase) Then
+                    Throw New Exception(If(String.IsNullOrEmpty(firstResult.Message), "SAP returned MessageType 'E' with no message.", firstResult.Message))
+                ElseIf Not firstResult.MessageType.Equals("S", StringComparison.OrdinalIgnoreCase) Then
+                    Throw New Exception($"SAP returned unhandled MessageType: '{firstResult.MessageType}'.")
+                End If
+            Else
+                Throw New Exception("SAP status was success, but no results array was returned.")
+            End If
+            ' 3. [END MODIFIED LOGIC]
+
+            ' 4. [Save to DB] - จะทำงานเฉพาะเมื่อ MessageType = 'S'
             Dim query As String = "
                 INSERT INTO [dbo].[OTB_Switching_Transaction] (
                     [Year], [Month], [Company], [Category], [Segment], [Brand], [Vendor], 
@@ -306,9 +343,11 @@ Public Class SaveOTBHandler
             End Using
 
         Catch ex As Exception
+            ' ส่ง Error กลับเป็น JSON
+            context.Response.StatusCode = 500
             Dim errorResponse As New With {
                 .success = False,
-                .message = "Error saving Extra Budget: " & ex.Message
+                .message = ex.Message ' (ข้อความ Error จะถูกดักจับจาก SAP)
             }
             context.Response.Write(JsonConvert.SerializeObject(errorResponse))
         End Try

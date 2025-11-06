@@ -919,8 +919,6 @@
             e.preventDefault(); // ป้องกัน default behavior (แม้จะเป็น button ก็ตาม)
             console.log("Save from Preview button clicked");
 
-            if (!confirm('Confirm to save this data to database?')) return;
-
             var selectedRows = [];
 
             $('#previewTableContainer input[name="selectedRows"]:checked').each(function () {
@@ -954,9 +952,6 @@
             var uploadBy = currentUser || 'unknown';
             console.log(uploadBy);
 
-           
-
-            
 
             var formData = new FormData();
             formData.append('uploadBy', uploadBy);

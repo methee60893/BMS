@@ -278,13 +278,13 @@
             }
 
        /* Tab Content */
-.tab-pane { 
-    display: none;
-}
+        .tab-pane { 
+            display: none;
+        }
 
-    .tab-pane.active {
-        display: block;
-    }
+        .tab-pane.active {
+            display: block;
+        }
 
         /* Switch Container */
         .switch-container {
@@ -398,6 +398,105 @@
         .sidebar::-webkit-scrollbar-thumb {
             background: #34495e;
             border-radius: 3px;
+        }
+
+        /* ===== MODAL ERROR STYLES ===== */
+        .error-list-container {
+            max-height: 300px;
+            overflow-y: auto;
+            padding-right: 10px;
+        }
+        .error-item {
+            display: flex;
+            align-items: flex-start;
+            padding: 12px;
+            border-bottom: 1px solid #dee2e6;
+        }
+        .error-item:last-child {
+            border-bottom: none;
+        }
+        .error-item-icon {
+            font-size: 1.2rem;
+            color: #dc3545;
+            margin-right: 12px;
+            margin-top: 2px;
+        }
+        .error-field-name {
+            font-weight: 600;
+            color: #343a40;
+            margin-bottom: 4px;
+            font-size: 0.95rem;
+        }
+        .error-message {
+            font-size: 0.9rem;
+            color: #495057;
+            margin-bottom: 0;
+            word-break: break-word;
+        }
+        .error-section-badge {
+            font-size: 0.75rem;
+            font-weight: 600;
+            padding: 3px 8px;
+            border-radius: 6px;
+            color: white;
+            margin-right: 8px;
+            vertical-align: middle;
+        }
+        .form-control.has-error, .form-select.has-error {
+            border-color: #dc3545;
+            box-shadow: 0 0 0 0.2rem rgba(220, 53, 69, 0.15);
+        }
+        .pulse-error {
+            animation: pulse-border 0.8s;
+        }
+        @keyframes pulse-border {
+            0% { box-shadow: 0 0 0 0.2rem rgba(220, 53, 69, 0.15); }
+            50% { box-shadow: 0 0 0 0.4rem rgba(220, 53, 69, 0.3); }
+            100% { box-shadow: 0 0 0 0.2rem rgba(220, 53, 69, 0.15); }
+        }
+
+        /* ===== LOADING OVERLAY ===== */
+        .loading-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.6);
+            display: none;
+            justify-content: center;
+            align-items: center;
+            z-index: 9999;
+            backdrop-filter: blur(3px);
+        }
+        .loading-overlay.active {
+            display: flex;
+        }
+        .loading-content {
+            background: white;
+            padding: 30px 40px;
+            border-radius: 12px;
+            text-align: center;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+        }
+        .loading-spinner {
+            width: 50px;
+            height: 50px;
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid var(--primary-blue);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 15px;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        .loading-text {
+            color: #2c3e50;
+            font-size: 1.1rem;
+            font-weight: 600;
+            margin: 0;
         }
     </style>
 </head>
@@ -715,7 +814,7 @@
         <div class="modal-dialog modal-dialog-centered modal-lg">
             <div class="modal-content">
                 <div class="modal-header bg-danger text-white">
-                    <h5 class="modal-title">
+                    <h5 class="modal-title" id="errorValidationModalTitle">
                         <i class="bi bi-exclamation-triangle-fill me-2"></i>
                         Validation Error
                     </h5>
@@ -725,7 +824,7 @@
                     <div class="alert alert-danger d-flex align-items-center mb-3" role="alert">
                         <i class="bi bi-x-circle-fill fs-4 me-3"></i>
                         <div>
-                            <strong>Please correct the following errors:</strong>
+                            <strong id="errorSummaryTitle">Please correct the following errors:</strong>
                             <p class="mb-0 mt-1" id="errorSummaryText">Some fields require your attention</p>
                         </div>
                     </div>
@@ -739,6 +838,7 @@
             </div>
         </div>
     </div>
+    <!-- Preview Switch Modal -->
     <div class="modal fade" id="previewSwitchModal" tabindex="-1" aria-labelledby="previewSwitchModalLabel" data-bs-backdrop="static" data-bs-keyboard="false" >
         <div class="modal-dialog modal-xl">
             <div class="modal-content">
@@ -758,15 +858,15 @@
                                 <div class="row g-3 mb-3">
                                     <div class="col-md-3">
                                         <label class="form-label">Year</label>
-                                        <input id="tsYearFrom" type="text" class="form-control" value="">
+                                        <input id="tsYearFrom" type="text" class="form-control" value="" readonly>
                                     </div>
                                     <div class="col-md-3">
                                         <label class="form-label">Month</label>
-                                        <input id="tsMonthFrom" type="text" class="form-control " value="">
+                                        <input id="tsMonthFrom" type="text" class="form-control " value="" readonly>
                                     </div>
                                     <div class="col-md-3">
                                         <label class="form-label">Company</label>
-                                        <input id="tsCompanyFrom" type="text" class="form-control" value="">
+                                        <input id="tsCompanyFrom" type="text" class="form-control" value="" readonly>
                                     </div>
                                     <div class="col-md-3">
                                     </div>
@@ -775,22 +875,22 @@
                                 <div class="row g-3 mb-3">
                                     <div class="col-md-6">
                                         <label class="form-label">Category</label>
-                                        <input id="tsCategoryFrom" type="text" class="form-control " value="">
+                                        <input id="tsCategoryFrom" type="text" class="form-control " value="" readonly>
                                     </div>
                                     <div class="col-md-6">
                                         <label class="form-label">Segment</label>
-                                        <input id="tsSegmentFrom" type="text" class="form-control " value="">
+                                        <input id="tsSegmentFrom" type="text" class="form-control " value="" readonly>
                                     </div>
                                 </div>
 
                                 <div class="row g-3 mb-3">
                                     <div class="col-md-6">
                                         <label class="form-label">Brand</label>
-                                        <input id="tsBrandFrom" type="text" class="form-control" value="">
+                                        <input id="tsBrandFrom" type="text" class="form-control" value="" readonly>
                                     </div>
                                     <div class="col-md-6">
                                         <label class="form-label">Vendor</label>
-                                        <input id="tsVendorFrom" type="text" class="form-control " value="">
+                                        <input id="tsVendorFrom" type="text" class="form-control " value="" readonly>
                                     </div>
                                 </div>
                             </div>
@@ -804,15 +904,15 @@
                                 <div class="row g-3 mb-3">
                                     <div class="col-md-3">
                                         <label class="form-label">Year</label>
-                                        <input id="tsYearTo" type="text" class="form-control" value="">
+                                        <input id="tsYearTo" type="text" class="form-control" value="" readonly>
                                     </div>
                                     <div class="col-md-3">
                                         <label class="form-label">Month</label>
-                                        <input id="tsMonthTo" type="text" class="form-control " value="">
+                                        <input id="tsMonthTo" type="text" class="form-control " value="" readonly>
                                     </div>
                                     <div class="col-md-3">
                                         <label class="form-label">Company</label>
-                                        <input id="tsCompanyTo" type="text" class="form-control " value="">
+                                        <input id="tsCompanyTo" type="text" class="form-control " value="" readonly>
                                     </div>
                                     <div class="col-md-3">
                                     </div>
@@ -821,29 +921,29 @@
                                 <div class="row g-3 mb-3">
                                     <div class="col-md-6">
                                         <label class="form-label">Category</label>
-                                        <input id="tsCategoryTo" type="text" class="form-control" value="">
+                                        <input id="tsCategoryTo" type="text" class="form-control" value="" readonly>
                                     </div>
                                     <div class="col-md-6">
                                         <label class="form-label">Segment</label>
-                                        <input id="tsSegmentTo" type="text" class="form-control" value="">
+                                        <input id="tsSegmentTo" type="text" class="form-control" value="" readonly>
                                     </div>
                                 </div>
 
                                 <div class="row g-3 mb-3">
                                     <div class="col-md-6">
                                         <label class="form-label">Brand</label>
-                                        <input id="tsBrandTo" type="text" class="form-control " value="">
+                                        <input id="tsBrandTo" type="text" class="form-control " value="" readonly>
                                     </div>
                                     <div class="col-md-6">
                                         <label class="form-label">Vendor</label>
-                                        <input id="tsVendorTo" type="text" class="form-control" value="">
+                                        <input id="tsVendorTo" type="text" class="form-control" value="" readonly>
                                     </div>
                                 </div>
 
                                 <div class="row g-3">
                                     <div class="col-md-3">
                                         <label class="form-label">Amount (THB)</label>
-                                        <input id="tsAmontSwitch" type="text" class="form-control " value="0.00">
+                                        <input id="tsAmontSwitch" type="text" class="form-control " value="0.00" readonly>
                                     </div>
                                 </div>
                             </div>
@@ -857,6 +957,7 @@
             </div>
         </div>
     </div>
+    <!-- Preview Extra Modal -->
     <div class="modal fade" id="previewExtraModal" tabindex="-1" aria-labelledby="previewModalLabel" data-bs-backdrop="static" data-bs-keyboard="false" >
         <div class="modal-dialog modal-xl">
             <div class="modal-content">
@@ -875,15 +976,15 @@
                                 <div class="row g-3 mb-3">
                                     <div class="col-md-3">
                                         <label class="form-label">Year</label>
-                                        <input id="tsYearEx" type="text" class="form-control" value="">
+                                        <input id="tsYearEx" type="text" class="form-control" value="" readonly>
                                     </div>
                                     <div class="col-md-3">
                                         <label class="form-label">Month</label>
-                                        <input id="tsMonthEx" type="text" class="form-control" value="">
+                                        <input id="tsMonthEx" type="text" class="form-control" value="" readonly>
                                     </div>
                                     <div class="col-md-3">
                                         <label class="form-label">Company</label>
-                                        <input id="tsCompanyEx" type="text" class="form-control" value="">
+                                        <input id="tsCompanyEx" type="text" class="form-control" value="" readonly>
                                     </div>
                                     <div class="col-md-3">
                                     </div>
@@ -892,28 +993,28 @@
                                 <div class="row g-3 mb-3">
                                     <div class="col-md-6">
                                         <label class="form-label">Category</label>
-                                        <input id="tsCategoryEx" type="text" class="form-control" value="">
+                                        <input id="tsCategoryEx" type="text" class="form-control" value="" readonly>
                                     </div>
                                     <div class="col-md-6">
                                         <label class="form-label">Segment</label>
-                                        <input id="tsSegmentEx" type="text" class="form-control" value="">
+                                        <input id="tsSegmentEx" type="text" class="form-control" value="" readonly>
                                     </div>
                                 </div>
 
                                 <div class="row g-3 mb-3">
                                     <div class="col-md-6">
                                         <label class="form-label">Brand</label>
-                                        <input id="tsBrandEx" type="text" class="form-control" value="">
+                                        <input id="tsBrandEx" type="text" class="form-control" value="" readonly>
                                     </div>
                                     <div class="col-md-6">
                                         <label class="form-label">Vendor</label>
-                                        <input id="tsVendorEx" type="text" class="form-control" value="">
+                                        <input id="tsVendorEx" type="text" class="form-control" value="" readonly>
                                     </div>
                                 </div>
                                 <div class="row g-3">
                                     <div class="col-md-3">
                                         <label class="form-label">Amount (THB)</label>
-                                        <input id="tsAmontEx" type="text" class="form-control" value="0.00">
+                                        <input id="tsAmontEx" type="text" class="form-control" value="0.00" readonly>
                                     </div>
                                 </div>
                             </div>
@@ -927,6 +1028,13 @@
             </div>
         </div>
     </div>
+    <!-- Loading Overlay -->
+    <div class="loading-overlay" id="loadingOverlay">
+        <div class="loading-content">
+            <div class="loading-spinner"></div>
+            <p class="loading-text" id="loadingText">Processing...</p>
+        </div>
+    </div>
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script>
@@ -938,6 +1046,7 @@
         var yearDropdownE, monthDropdownE, companyDropdownE, categoryDropdownE, segmentDropdownE, brandDropdownE, vendorDropdownE;
         var txtAmontSwitch, txtAmontEx;
         var btnSubmit, btnSubmitExtra;
+        var errorModal; // *** ADDED: Modal instance
 
         // Toggle Sidebar
         function toggleSidebar() {
@@ -983,8 +1092,6 @@
             }
 
             console.log('Loading page:', pageName);
-            // Here you would implement AJAX call to load page content
-            // Example: loadPageContent(pageName);
         }
 
         // ==========================================
@@ -1048,6 +1155,9 @@
             txtAmontEx = document.getElementById("txtAmontEx");
             btnSubmitExtra = document.getElementById("btnSubmitExtra");
 
+            // *** ADDED: Init Error Modal
+            errorModal = new bootstrap.Modal(document.getElementById('errorValidationModal'));
+
             // Init Master Data
             InitMSData();
 
@@ -1102,7 +1212,7 @@
             formData.append('amount', txtAmontSwitch.value);
 
             try {
-                showLoading(true);
+                showLoading(true, "Validating...");
                 var response = await fetch('Handler/ValidateHandler.ashx?action=validateSwitch', {
                     method: 'POST',
                     body: formData
@@ -1117,12 +1227,14 @@
                     });
                     previewSwitchModal.show();
                 } else {
+                    // *** MODIFIED: Call new error modal function ***
                     showErrorModal(result.errors, 'Switch Transaction', '', result.availableBudget);
                 }
             } catch (error) {
                 showLoading(false);
                 console.error('Validation error:', error);
-                showErrorModal({ 'general': 'Failed to validate data: ' + error.message }, 'System Error');
+                // *** MODIFIED: Call new SAP error modal function ***
+                showSapErrorModal('Validation Error', 'Failed to validate data: ' + error.message);
             }
         }
 
@@ -1144,7 +1256,7 @@
             formData.append('amount', txtAmontEx.value);
 
             try {
-                showLoading(true);
+                showLoading(true, "Validating...");
                 var response = await fetch('Handler/ValidateHandler.ashx?action=validateExtra', {
                     method: 'POST',
                     body: formData
@@ -1159,38 +1271,79 @@
                     });
                     previewExtraModal.show();
                 } else {
+                    // *** MODIFIED: Call new error modal function ***
                     showErrorModal(result.errors, 'Extra Budget', 'Ex', result.currentBudget);
                 }
             } catch (error) {
                 showLoading(false);
                 console.error('Validation error:', error);
-                showErrorModal({ 'general': 'Failed to validate data: ' + error.message }, 'System Error');
+                // *** MODIFIED: Call new SAP error modal function ***
+                showSapErrorModal('Validation Error', 'Failed to validate data: ' + error.message);
             }
         }
 
         // ==========================================
-        // Show Error Modal
+        // [NEW FUNCTION] Show SAP Error Modal
+        // ==========================================
+        /**
+         * Shows the error modal for a single message (e.g., from SAP).
+         * @param {string} title - The title for the error (e.g., "SAP Error").
+         * @param {string} message - The error message to display.
+         */
+        function showSapErrorModal(title, message) {
+            document.getElementById('errorValidationModalTitle').textContent = title;
+            document.getElementById('errorSummaryTitle').textContent = "An error occurred:";
+            document.getElementById('errorSummaryText').textContent = "Please review the details below.";
+
+            var errorListContainer = document.getElementById('errorListContainer');
+            errorListContainer.innerHTML = `
+                <div class="error-item">
+                    <div class="error-item-icon"><i class="bi bi-exclamation-circle"></i></div>
+                    <div class="error-item-content">
+                        <div class="error-field-name">
+                            <span class="error-section-badge" style="background-color: #dc3545;">System</span>
+                            Error Details
+                        </div>
+                        <p class="error-message">${message}</p>
+                    </div>
+                </div>
+            `;
+
+            // Ensure modal instance is created if not already
+            if (!errorModal) {
+                errorModal = new bootstrap.Modal(document.getElementById('errorValidationModal'));
+            }
+            errorModal.show();
+        }
+
+
+        // ==========================================
+        // Show Validation Error Modal
         // ==========================================
         function showErrorModal(errors, transactionType, suffix, availableBudget) {
             transactionType = transactionType || 'Transaction';
             suffix = suffix || '';
 
+            // *** ADDED: Set modal titles back to default validation error ***
+            document.getElementById('errorValidationModalTitle').textContent = 'Validation Error';
+            document.getElementById('errorSummaryTitle').textContent = 'Please correct the following errors:';
+
             var fieldInfo = {
-                'yearFrom': { name: 'Year', section: 'From', element: 'DDYear' },
-                'monthFrom': { name: 'Month', section: 'From', element: 'DDMonth' },
-                'companyFrom': { name: 'Company', section: 'From', element: 'DDCompany' },
-                'categoryFrom': { name: 'Category', section: 'From', element: 'DDCategory' },
-                'segmentFrom': { name: 'Segment', section: 'From', element: 'DDSegment' },
-                'brandFrom': { name: 'Brand', section: 'From', element: 'DDBrand' },
-                'vendorFrom': { name: 'Vendor', section: 'From', element: 'DDVendor' },
-                'yearTo': { name: 'Year', section: 'To', element: 'DDYeart' },
-                'monthTo': { name: 'Month', section: 'To', element: 'DDMontht' },
-                'companyTo': { name: 'Company', section: 'To', element: 'DDCompanyt' },
-                'categoryTo': { name: 'Category', section: 'To', element: 'DDCategoryt' },
-                'segmentTo': { name: 'Segment', section: 'To', element: 'DDSegmentt' },
-                'brandTo': { name: 'Brand', section: 'To', element: 'DDBrandt' },
-                'vendorTo': { name: 'Vendor', section: 'To', element: 'DDVendort' },
-                'amount': { name: 'Amount (THB)', section: 'General', element: 'txtAmontSwitch' },
+                'yearFrom': { name: 'Year', section: 'From', element: 'DDYearFrom' },
+                'monthFrom': { name: 'Month', section: 'From', element: 'DDMonthFrom' },
+                'companyFrom': { name: 'Company', section: 'From', element: 'DDCompanyFrom' },
+                'categoryFrom': { name: 'Category', section: 'From', element: 'DDCategoryFrom' },
+                'segmentFrom': { name: 'Segment', section: 'From', element: 'DDSegmentFrom' },
+                'brandFrom': { name: 'Brand', section: 'From', element: 'DDBrandFrom' },
+                'vendorFrom': { name: 'Vendor', section: 'From', element: 'DDVendorFrom' },
+                'yearTo': { name: 'Year', section: 'To', element: 'DDYearTo' },
+                'monthTo': { name: 'Month', section: 'To', element: 'DDMonthTo' },
+                'companyTo': { name: 'Company', section: 'To', element: 'DDCompanyTo' },
+                'categoryTo': { name: 'Category', section: 'To', element: 'DDCategoryTo' },
+                'segmentTo': { name: 'Segment', section: 'To', element: 'DDSegmentTo' },
+                'brandTo': { name: 'Brand', section: 'To', element: 'DDBrandTo' },
+                'vendorTo': { name: 'Vendor', section: 'To', element: 'DDVendorTo' },
+                'amount': { name: 'Amount (THB)', section: 'General', element: (transactionType === 'Extra Budget' ? 'txtAmontEx' : 'txtAmontSwitch') },
                 'year': { name: 'Year', section: 'Extra', element: 'DDYearEx' },
                 'month': { name: 'Month', section: 'Extra', element: 'DDMonthEx' },
                 'company': { name: 'Company', section: 'Extra', element: 'DDCompanyEx' },
@@ -1233,11 +1386,11 @@
                     errorHtml += '<div class="error-item">' +
                         '<div class="error-item-icon"><i class="bi bi-exclamation-circle"></i></div>' +
                         '<div class="error-item-content">' +
-                        '<div class="error-field-name"><span class="error-section-badge">General</span>Validation Error</div>' +
+                        '<div class="error-field-name"><span class="error-section-badge" style="background-color: #6c757d;">General</span>Validation Error</div>' +
                         '<p class="error-message">' + message + '</p>' +
                         '</div></div>';
                 } else if (info) {
-                    var sectionColor = info.section === 'From' ? '#FF6B35' : info.section === 'To' ? '#4ECDC4' : '#dc3545';
+                    var sectionColor = info.section === 'From' ? '#FF6B35' : info.section === 'To' ? '#4ECDC4' : info.section === 'Extra' ? '#28a745' : '#dc3545';
                     errorHtml += '<div class="error-item" data-field="' + info.element + '">' +
                         '<div class="error-item-icon"><i class="bi bi-x-circle"></i></div>' +
                         '<div class="error-item-content">' +
@@ -1254,10 +1407,10 @@
 
             if (errorListContainer) errorListContainer.innerHTML = errorHtml;
 
-            var errorModal = new bootstrap.Modal(document.getElementById('errorValidationModal'), {
-                backdrop: 'static',
-                keyboard: false
-            });
+            // Ensure modal instance is created if not already
+            if (!errorModal) {
+                errorModal = new bootstrap.Modal(document.getElementById('errorValidationModal'));
+            }
             errorModal.show();
 
             var errorItems = document.querySelectorAll('.error-item[data-field]');
@@ -1298,45 +1451,46 @@
         }
 
         function populatePreviewData() {
-            document.getElementById("tsYearFrom").value = yearDropdownf.value;
-            document.getElementById("tsMonthFrom").value = monthDropdownf.value;
-            document.getElementById("tsCompanyFrom").value = companyDropdownf.value;
-            document.getElementById("tsCategoryFrom").value = categoryDropdownf.value;
-            document.getElementById("tsSegmentFrom").value = segmentDropdownf.value;
-            document.getElementById("tsBrandFrom").value = brandDropdownf.value;
-            document.getElementById("tsVendorFrom").value = vendorDropdownf.value;
-            document.getElementById("tsYearTo").value = yearDropdownt.value;
-            document.getElementById("tsMonthTo").value = monthDropdownt.value;
-            document.getElementById("tsCompanyTo").value = companyDropdownt.value;
-            document.getElementById("tsCategoryTo").value = categoryDropdownt.value;
-            document.getElementById("tsSegmentTo").value = segmentDropdownt.value;
-            document.getElementById("tsBrandTo").value = brandDropdownt.value;
-            document.getElementById("tsVendorTo").value = vendorDropdownt.value;
+            const getSelectedText = (el) => el.options[el.selectedIndex]?.text || el.value;
+            document.getElementById("tsYearFrom").value = getSelectedText(yearDropdownf);
+            document.getElementById("tsMonthFrom").value = getSelectedText(monthDropdownf);
+            document.getElementById("tsCompanyFrom").value = getSelectedText(companyDropdownf);
+            document.getElementById("tsCategoryFrom").value = getSelectedText(categoryDropdownf);
+            document.getElementById("tsSegmentFrom").value = getSelectedText(segmentDropdownf);
+            document.getElementById("tsBrandFrom").value = getSelectedText(brandDropdownf);
+            document.getElementById("tsVendorFrom").value = getSelectedText(vendorDropdownf);
+            document.getElementById("tsYearTo").value = getSelectedText(yearDropdownt);
+            document.getElementById("tsMonthTo").value = getSelectedText(monthDropdownt);
+            document.getElementById("tsCompanyTo").value = getSelectedText(companyDropdownt);
+            document.getElementById("tsCategoryTo").value = getSelectedText(categoryDropdownt);
+            document.getElementById("tsSegmentTo").value = getSelectedText(segmentDropdownt);
+            document.getElementById("tsBrandTo").value = getSelectedText(brandDropdownt);
+            document.getElementById("tsVendorTo").value = getSelectedText(vendorDropdownt);
             document.getElementById("tsAmontSwitch").value = txtAmontSwitch.value;
         }
 
         function populateExtraPreviewData() {
-            document.getElementById("tsYearEx").value = yearDropdownE.value;
-            document.getElementById("tsMonthEx").value = monthDropdownE.value;
-            document.getElementById("tsCompanyEx").value = companyDropdownE.value;
-            document.getElementById("tsCategoryEx").value = categoryDropdownE.value;
-            document.getElementById("tsSegmentEx").value = segmentDropdownE.value;
-            document.getElementById("tsBrandEx").value = brandDropdownE.value;
-            document.getElementById("tsVendorEx").value = vendorDropdownE.value;
+            const getSelectedText = (el) => el.options[el.selectedIndex]?.text || el.value;
+            document.getElementById("tsYearEx").value = getSelectedText(yearDropdownE);
+            document.getElementById("tsMonthEx").value = getSelectedText(monthDropdownE);
+            document.getElementById("tsCompanyEx").value = getSelectedText(companyDropdownE);
+            document.getElementById("tsCategoryEx").value = getSelectedText(categoryDropdownE);
+            document.getElementById("tsSegmentEx").value = getSelectedText(segmentDropdownE);
+            document.getElementById("tsBrandEx").value = getSelectedText(brandDropdownE);
+            document.getElementById("tsVendorEx").value = getSelectedText(vendorDropdownE);
             document.getElementById("tsAmontEx").value = txtAmontEx.value;
         }
 
-        function showLoading(show) {
-            var loadingHtml = '<div id="loadingOverlay" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); z-index: 9999; display: flex; flex-direction: column; align-items: center; justify-content: center;">' +
-                '<div class="spinner-border text-light" role="status" style="width: 3rem; height: 3rem;">' +
-                '<span class="visually-hidden">Loading...</span></div>' +
-                '<p class="text-light mt-3 mb-0">Validating data...</p></div>';
-
-            if (show) {
-                document.body.insertAdjacentHTML('beforeend', loadingHtml);
-            } else {
-                var overlay = document.getElementById('loadingOverlay');
-                if (overlay) overlay.remove();
+        function showLoading(show, text = 'Processing...') {
+            var overlay = document.getElementById('loadingOverlay');
+            var loadingText = document.getElementById('loadingText');
+            if (overlay) {
+                if (show) {
+                    if (loadingText) loadingText.textContent = text;
+                    overlay.classList.add('active');
+                } else {
+                    overlay.classList.remove('active');
+                }
             }
         }
 
@@ -1344,25 +1498,25 @@
         // Handle Save Data (After Confirm)
         // ==========================================
         async function saveSwitchingData() {
-            showLoading(true);
+            showLoading(true, "Saving...");
             var formData = new FormData();
 
-            // ดึงข้อมูลจาก hidden fields ใน Modal
-            formData.append('yearFrom', document.getElementById('tsYearFrom').value);
-            formData.append('monthFrom', document.getElementById('tsMonthFrom').value);
-            formData.append('companyFrom', document.getElementById('tsCompanyFrom').value);
-            formData.append('categoryFrom', document.getElementById('tsCategoryFrom').value);
-            formData.append('segmentFrom', document.getElementById('tsSegmentFrom').value);
-            formData.append('brandFrom', document.getElementById('tsBrandFrom').value);
-            formData.append('vendorFrom', document.getElementById('tsVendorFrom').value);
+            // ดึงข้อมูลจาก Value ของ Dropdown (ไม่ใช่ Text ที่แสดง)
+            formData.append('yearFrom', yearDropdownf.value);
+            formData.append('monthFrom', monthDropdownf.value);
+            formData.append('companyFrom', companyDropdownf.value);
+            formData.append('categoryFrom', categoryDropdownf.value);
+            formData.append('segmentFrom', segmentDropdownf.value);
+            formData.append('brandFrom', brandDropdownf.value);
+            formData.append('vendorFrom', vendorDropdownf.value);
 
-            formData.append('yearTo', document.getElementById('tsYearTo').value);
-            formData.append('monthTo', document.getElementById('tsMonthTo').value);
-            formData.append('companyTo', document.getElementById('tsCompanyTo').value);
-            formData.append('categoryTo', document.getElementById('tsCategoryTo').value);
-            formData.append('segmentTo', document.getElementById('tsSegmentTo').value);
-            formData.append('brandTo', document.getElementById('tsBrandTo').value);
-            formData.append('vendorTo', document.getElementById('tsVendorTo').value);
+            formData.append('yearTo', yearDropdownt.value);
+            formData.append('monthTo', monthDropdownt.value);
+            formData.append('companyTo', companyDropdownt.value);
+            formData.append('categoryTo', categoryDropdownt.value);
+            formData.append('segmentTo', segmentDropdownt.value);
+            formData.append('brandTo', brandDropdownt.value);
+            formData.append('vendorTo', vendorDropdownt.value);
 
             formData.append('amount', document.getElementById('tsAmontSwitch').value);
             formData.append('createdBy', 'System'); // TODO: เปลี่ยนเป็น User จริง
@@ -1373,16 +1527,22 @@
                     method: 'POST',
                     body: formData
                 });
-                var result = await response.json();
+
+                var resultText = await response.text();
+                var result;
+                try {
+                    result = JSON.parse(resultText);
+                } catch (e) {
+                    throw new Error("Invalid JSON response: " + resultText);
+                }
+
                 showLoading(false);
 
                 if (result.success) {
                     bootstrap.Modal.getInstance(document.getElementById('previewSwitchModal')).hide();
                     alert(result.message || 'Save successful!');
 
-                    // ล้างฟอร์ม
                     // ล้างฟอร์ม (Manual Reset)
-                    // Clear "From" fields
                     if (yearDropdownf) yearDropdownf.value = "";
                     if (monthDropdownf) monthDropdownf.value = "";
                     if (companyDropdownf) companyDropdownf.value = "";
@@ -1390,8 +1550,6 @@
                     if (segmentDropdownf) segmentDropdownf.value = "";
                     if (brandDropdownf) brandDropdownf.value = "";
                     if (vendorDropdownf) vendorDropdownf.value = "";
-
-                    // Clear "To" fields
                     if (yearDropdownt) yearDropdownt.value = "";
                     if (monthDropdownt) monthDropdownt.value = "";
                     if (companyDropdownt) companyDropdownt.value = "";
@@ -1399,34 +1557,35 @@
                     if (segmentDropdownt) segmentDropdownt.value = "";
                     if (brandDropdownt) brandDropdownt.value = "";
                     if (vendorDropdownt) vendorDropdownt.value = "";
-
-                    // Clear Amount (ใช้ ID จาก HTML ที่คุณส่งมาให้)
                     var txtAmontSwitch = document.getElementById("txtAmontSwitch");
                     if (txtAmontSwitch) txtAmontSwitch.value = "0.00";
-                    // --- ✨ จบส่วนที่แก้ไข ---
 
                     InitMSData(); // โหลด Master data ใหม่
                 } else {
-                    alert('Save failed: ' + result.message);
+                    // *** MODIFIED: Show SAP Error Modal ***
+                    bootstrap.Modal.getInstance(document.getElementById('previewSwitchModal')).hide();
+                    showSapErrorModal('Save Failed (SAP Error)', result.message || 'An unknown error occurred during saving.');
                 }
             } catch (error) {
                 showLoading(false);
-                alert('Error: ' + error.message);
+                // *** MODIFIED: Show Error in Modal ***
+                bootstrap.Modal.getInstance(document.getElementById('previewSwitchModal')).hide();
+                showSapErrorModal('System Error', 'Error: ' + error.message);
             }
         }
 
         async function saveExtraData() {
-            showLoading(true);
+            showLoading(true, "Saving...");
             var formData = new FormData();
 
-            // ดึงข้อมูลจาก hidden fields ใน Modal
-            formData.append('year', document.getElementById('tsYearEx').value);
-            formData.append('month', document.getElementById('tsMonthEx').value);
-            formData.append('company', document.getElementById('tsCompanyEx').value);
-            formData.append('category', document.getElementById('tsCategoryEx').value);
-            formData.append('segment', document.getElementById('tsSegmentEx').value);
-            formData.append('brand', document.getElementById('tsBrandEx').value);
-            formData.append('vendor', document.getElementById('tsVendorEx').value);
+            // ดึงข้อมูลจาก Value ของ Dropdown (ไม่ใช่ Text ที่แสดง)
+            formData.append('year', yearDropdownE.value);
+            formData.append('month', monthDropdownE.value);
+            formData.append('company', companyDropdownE.value);
+            formData.append('category', categoryDropdownE.value);
+            formData.append('segment', segmentDropdownE.value);
+            formData.append('brand', brandDropdownE.value);
+            formData.append('vendor', vendorDropdownE.value);
             formData.append('amount', document.getElementById('tsAmontEx').value);
 
             formData.append('createdBy', 'System'); // TODO: เปลี่ยนเป็น User จริง
@@ -1437,13 +1596,21 @@
                     method: 'POST',
                     body: formData
                 });
-                var result = await response.json();
+
+                var resultText = await response.text();
+                var result;
+                try {
+                    result = JSON.parse(resultText);
+                } catch (e) {
+                    throw new Error("Invalid JSON response: " + resultText);
+                }
+
                 showLoading(false);
 
                 if (result.success) {
                     bootstrap.Modal.getInstance(document.getElementById('previewExtraModal')).hide();
                     alert(result.message || 'Extra budget save successful!');
-                    // ล้างฟอร์ม
+
                     // ล้างฟอร์ม (Manual Reset)
                     if (yearDropdownE) yearDropdownE.value = "";
                     if (monthDropdownE) monthDropdownE.value = "";
@@ -1452,17 +1619,20 @@
                     if (segmentDropdownE) segmentDropdownE.value = "";
                     if (brandDropdownE) brandDropdownE.value = "";
                     if (vendorDropdownE) vendorDropdownE.value = "";
-
-                    // Clear Amount (ใช้ ID จาก HTML ที่คุณส่งมาให้)
                     var txtAmontEx = document.getElementById("txtAmontEx");
                     if (txtAmontEx) txtAmontEx.value = "0.00";
+
                     InitMSData(); // โหลด Master data ใหม่
                 } else {
-                    alert('Save failed: ' + result.message);
+                    // *** MODIFIED: Show SAP Error Modal ***
+                    bootstrap.Modal.getInstance(document.getElementById('previewExtraModal')).hide();
+                    showSapErrorModal('Save Failed (SAP Error)', result.message || 'An unknown error occurred during saving.');
                 }
             } catch (error) {
                 showLoading(false);
-                alert('Error: ' + error.message);
+                // *** MODIFIED: Show Error in Modal ***
+                bootstrap.Modal.getInstance(document.getElementById('previewExtraModal')).hide();
+                showSapErrorModal('System Error', 'Error: ' + error.message);
             }
         }
 

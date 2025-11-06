@@ -886,9 +886,9 @@ Public Class DataOTBHandler
         End Select
     End Function
 
-    ''' <summary>
-    ''' (ฟังก์ชันใหม่) ดึงข้อมูล Draft OTB จาก List ของ RunNo
-    ''' </summary>
+    ' <summary>
+    ' (ฟังก์ชันใหม่) ดึงข้อมูล Draft OTB จาก List ของ RunNo
+    ' </summary>
     ' ===================================================================
     ' ===== START: MODIFIED FUNCTION GetOTBDraftDataByRunNos ==========
     ' ===================================================================
