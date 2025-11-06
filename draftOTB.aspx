@@ -3,7 +3,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
+    <meta charset="UTF-g">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>BMS - OTB Management System</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
@@ -857,6 +857,33 @@
         <p class="loading-subtext">กรุณารอสักครู่</p>
     </div>
 </div>
+
+    <!-- =================================================== -->
+    <!-- ===== NEW: APPROVAL RESULT MODAL ================== -->
+    <!-- =================================================== -->
+    <div class="modal fade" id="approvalResultModal" tabindex="-1" aria-labelledby="approvalResultModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-xl">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="approvalResultModalLabel">Approval Results</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div id="approvalResultSummary" class="alert alert-info"></div>
+                    <div id="approvalResultTableContainer" class="table-responsive" style="max-height:600px; overflow:auto;">
+                        <!-- Table will be injected here by JS -->
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-primary" data-bs-dismiss="modal">OK</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    <!-- =================================================== -->
+    <!-- ===== END: NEW MODAL ============================== -->
+    <!-- =================================================== -->
+
 </body>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
@@ -877,6 +904,9 @@
     let btnDelete = document.getElementById('btnDelete');
     let btnSelectAll = document.getElementById('btnSelectAll');
     let btnDeselectAll = document.getElementById('btnDeselectAll');
+
+    // *** NEW: Add modal instance variable ***
+    let approvalResultModal;
 
 
     $(document).ready(function () {
@@ -980,6 +1010,9 @@
                 }
             });
         });
+
+        // *** NEW: Instantiate the new modal ***
+        approvalResultModal = new bootstrap.Modal(document.getElementById('approvalResultModal'));
     });
 
     let showLoading = function (show = true, message = 'กำลังโหลดข้อมูล...', subMessage = 'กรุณารอสักครู่') {
@@ -1044,10 +1077,42 @@
             }
             
             console.log('Loading page:', pageName);
-            // Here you would implement AJAX call to load page content
-            // Example: loadPageContent(pageName);
+            
+            // Here you would implement page content loading
+            // Example: Load different content based on pageName
+            if (pageName === 'Draft OTB Plan') {
+                // Load Draft OTB Plan content
+                loadDraftOTBContent();
+            } else if (pageName === 'Approved OTB Plan') {
+                // Load Approved OTB Plan content
+                loadApprovedOTBContent();
+            }
+            // Add more conditions for other pages...
         }
-        // - expand first submenu
+
+        // Example function to load Draft OTB content
+        function loadDraftOTBContent() {
+            console.log('Loading Draft OTB Plan...');
+            // Implementation for loading Draft OTB content
+        }
+
+        // Example function to load Approved OTB content
+        function loadApprovedOTBContent() {
+            console.log('Loading Approved OTB Plan...');
+            // Implementation for loading Approved OTB content
+        }
+
+        // Close sidebar when clicking outside on mobile
+        document.addEventListener('click', function(event) {
+            const sidebar = document.getElementById('sidebar');
+            const menuToggle = document.querySelector('.menu-toggle');
+            
+            if (!sidebar.contains(event.target) && !menuToggle.contains(event.target)) {
+                if (sidebar.classList.contains('active')) {
+                    toggleSidebar();
+                }
+            }
+        });
         let initial = function () {
             const firstMenuLink = document.querySelector('.menu-link');
             if (firstMenuLink) {
@@ -1098,7 +1163,7 @@
         });
     }
 
-    // *** ADDED: Function to Approve Selected Items ***
+    // *** MODIFIED: Function to Approve Selected Items ***
     let approveSelectedItems = function () {
         let runNosToApprove = [];
         // ค้นหา Checkbox ที่ชื่อ 'checkselect' ที่ถูกเลือก
@@ -1123,6 +1188,9 @@
             var formData = new FormData();
             formData.append('runNos', JSON.stringify(runNosToApprove)); // ส่งเป็น JSON String
             formData.append('approvedBy', approvedBy);
+            
+            // *** NEW: Show loading overlay ***
+            showLoading(true, 'Approving items...', 'Contacting SAP');
 
             $.ajax({
                 url: 'Handler/DataOTBHandler.ashx?action=approveDraftOTB',
@@ -1130,20 +1198,89 @@
                 data: formData,
                 processData: false,
                 contentType: false,
+                dataType: 'json', // <-- Ensure jQuery parses the response as JSON
                 success: function (response) {
-                    if (response.success === true) {
+                    showLoading(false); // Hide loading
+
+                    if (response.action === 'preview') {
+                        // *** NEW: Handle preview action for BOTH success and failure ***
+                        
+                        // Build and show the result table in the modal
+                        buildApprovalResultTable(response.detailedResults, response.success);
+                        
+                        // Set summary message
+                        $('#approvalResultSummary').text(response.message);
+                        $('#approvalResultSummary').removeClass('alert-info alert-success alert-danger').addClass(response.success ? 'alert-success' : 'alert-danger');
+
+                        approvalResultModal.show(); // Show the new modal
+
+                        if (response.success) {
+                            // If it was a full success, reload the main grid after modal closes
+                            $('#approvalResultModal').one('hidden.bs.modal', function () {
+                                search(); // Reload main grid
+                            });
+                        }
+                        // If it was a failure (success: false), we DO NOT reload the grid.
+
+                    } else if (response.success === true) {
+                        // Fallback for old success logic (just in case)
                         alert(response.message);
                         tableViewBody.innerHTML = "";
                         search(); // โหลดข้อมูลตารางใหม่
                     } else {
-                        alert('Error approving items: ' + response.message);
+                        // Fallback for general error
+                        alert('Error approving items: ' + (response.message || 'Unknown error.'));
                     }
                 },
                 error: function (xhr, status, error) {
-                    console.log('Error approving items: ' + error);
-                    alert('An error occurred while approving items.');
+                    showLoading(false); // Hide loading
+                    console.log('Error approving items: ' + error, xhr.responseText);
+                    alert('An error occurred while approving items. ' + xhr.responseText);
                 }
             });
+    }
+
+    // *** NEW: Function to build the approval result table ***
+    function buildApprovalResultTable(results, isSuccess) {
+        var container = document.getElementById('approvalResultTableContainer');
+        if (!results || results.length === 0) {
+            container.innerHTML = "<p>No result details were returned.</p>";
+            return;
+        }
+
+        var sb = [];
+        sb.push("<table class='table table-bordered table-striped table-sm table-hover'>");
+        sb.push("<thead class='table-primary sticky-header'><tr>");
+        sb.push("<th>Type</th><th>Year</th><th>Month</th><th>Category</th><th>Category Name</th>");
+        sb.push("<th>Segment</th><th>Segment Name</th><th>Brand</th><th>Brand Name</th>");
+        sb.push("<th>Vendor</th><th>Vendor Name</th><th class='text-end'>Amount (THB)</th>");
+        sb.push("<th class='text-danger'>SAP Status</th><th class='text-danger'>SAP Message</th>");
+        sb.push("</tr></thead><tbody>");
+
+        results.forEach(row => {
+            let statusType = (row.SAP_MessageType || 'E').toUpperCase();
+            let rowClass = (statusType === 'S') ? 'table-success' : 'table-danger';
+            
+            sb.push(`<tr class="${rowClass}">`);
+            sb.push(`<td>${row.OTBType || ''}</td>`);
+            sb.push(`<td>${row.OTBYear || ''}</td>`);
+            sb.push(`<td>${row.OTBMonth || ''}</td>`); // Assuming month number is fine
+            sb.push(`<td>${row.OTBCategory || ''}</td>`);
+            sb.push(`<td>${row.CateName || ''}</td>`);
+            sb.push(`<td>${row.OTBSegment || ''}</td>`);
+            sb.push(`<td>${row.SegmentName || ''}</td>`);
+            sb.push(`<td>${row.OTBBrand || ''}</td>`);
+            sb.push(`<td>${row.BrandName || ''}</td>`);
+            sb.push(`<td>${row.OTBVendor || ''}</td>`);
+            sb.push(`<td>${row.Vendor || ''}</td>`);
+            sb.push(`<td class="text-end">${parseFloat(row.Amount || 0).toFixed(2)}</td>`);
+            sb.push(`<td><strong>${statusType}</strong></td>`);
+            sb.push(`<td>${row.SAP_Message || (statusType === 'S' ? 'Success' : 'No Message')}</td>`);
+            sb.push("</tr>");
+        });
+
+        sb.push("</tbody></table>");
+        container.innerHTML = sb.join('');
     }
 
     let deleteSelectedItems = function () {
@@ -1471,4 +1608,3 @@
     document.addEventListener('DOMContentLoaded', initial);
 </script>
 </html>
-            

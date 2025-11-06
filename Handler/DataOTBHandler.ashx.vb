@@ -576,6 +576,7 @@ Public Class DataOTBHandler
         context.Response.ContentType = "application/json"
         Dim approvedBy As String = If(String.IsNullOrWhiteSpace(context.Request.Form("approvedBy")), "System", context.Request.Form("approvedBy").Trim())
         Dim remark As String = If(String.IsNullOrWhiteSpace(context.Request.Form("remark")), Nothing, context.Request.Form("remark").Trim())
+        Dim responseJson As New Dictionary(Of String, Object)
 
         Try
             ' 1. Get selected IDs
@@ -584,7 +585,7 @@ Public Class DataOTBHandler
                 Throw New Exception("No records selected for approval.")
             End If
 
-            ' 2. Convert comma-separated IDs to List(Of Integer)
+            ' 2. Convert IDs to List(Of Integer)
             Dim runNos As New List(Of Integer)
             Try
                 Dim jsonArray As List(Of String) = JsonConvert.DeserializeObject(Of List(Of String))(idsString)
@@ -595,7 +596,6 @@ Public Class DataOTBHandler
                     End If
                 Next
             Catch jsonEx As Exception
-                ' Fallback for old comma-separated format
                 For Each idStr As String In idsString.Split(","c)
                     Dim id As Integer
                     If Integer.TryParse(idStr.Trim().Replace("""", ""), id) Then
@@ -614,13 +614,14 @@ Public Class DataOTBHandler
                 Throw New Exception("Could not find draft records to approve.")
             End If
 
-            ' 4. Build list to send to SAP API
+            ' 4. Build list to send to SAP API and create Key-to-RunNo map
             Dim plansToUpload As New List(Of OtbPlanUploadItem)()
-            ' *** NEW: Create a map to link SAP's Key back to our RunNo ***
             Dim sapKeyToRunNoMap As New Dictionary(Of String, Integer)
+            Dim runNoToDataRowMap As New Dictionary(Of Integer, DataRow) ' NEW: Map RunNo to its DataRow for faster lookup
 
             For Each row As DataRow In draftData.Rows
                 Dim amountStr As String = If(row("Amount") IsNot DBNull.Value, Convert.ToDecimal(row("Amount")).ToString("F2"), "0.00")
+                Dim currentRunNo As Integer = Convert.ToInt32(row("RunNo"))
 
                 ' Create the unique key for SAP (matching the fields in the JSON response)
                 Dim sapKey As String = String.Join("|",
@@ -635,9 +636,12 @@ Public Class DataOTBHandler
                     If(row("OTBMonth") IsNot DBNull.Value, row("OTBMonth").ToString(), "")
                 )
 
-                ' Add to map
+                ' Add to maps
                 If Not sapKeyToRunNoMap.ContainsKey(sapKey) Then
-                    sapKeyToRunNoMap.Add(sapKey, Convert.ToInt32(row("RunNo")))
+                    sapKeyToRunNoMap.Add(sapKey, currentRunNo)
+                End If
+                If Not runNoToDataRowMap.ContainsKey(currentRunNo) Then
+                    runNoToDataRowMap.Add(currentRunNo, row)
                 End If
 
                 plansToUpload.Add(New OtbPlanUploadItem With {
@@ -659,145 +663,171 @@ Public Class DataOTBHandler
                                                                                      Return Await SapApiHelper.UploadOtbPlanAsync(plansToUpload)
                                                                                  End Function).Result
 
-            ' ===================================================================
-            ' ===== START: NEW LOGIC BASED ON USER REQUEST ======================
-            ' ===================================================================
-
+            ' 6. Check for catastrophic failure (no response)
             If sapResponse Is Nothing Then
                 Throw New Exception("No response received from SAP API. Approval aborted.")
             End If
 
-            ' 6. Requirement 1: Check if Total = Success
-            If sapResponse.Status.Total <> sapResponse.Status.Success Then
-                Dim errorMessages As New StringBuilder()
-                errorMessages.Append($"SAP processing failed or was incomplete. Total: {sapResponse.Status.Total}, Success: {sapResponse.Status.Success}, Error: {sapResponse.Status.ErrorCount}. ")
-
-                If sapResponse.Results IsNot Nothing Then
-                    For Each item In sapResponse.Results
-                        If Not item.MessageType.Equals("S", StringComparison.OrdinalIgnoreCase) Then
-                            errorMessages.Append($"[Record (Yr/Mth/Cat): {item.Year}/{item.Month}/{item.Category} -> SAP Error: {item.Message}] ")
-                        End If
-                    Next
-                End If
-                Throw New Exception(errorMessages.ToString())
-            End If
-
-            ' 7. Requirement 2 & 3: Filter the RunNos that were successful (messageType = "S")
-            Dim sapSuccessResults As New List(Of SapUploadResultItem)
-            Dim sapErrors As New List(Of String)
+            ' 7. (NEW) Build Detailed Result List REGARDLESS of success/failure
+            Dim detailedResults As New List(Of Dictionary(Of String, Object))
+            Dim sapSuccessResults As New List(Of SapUploadResultItem) ' List for DB update
 
             If sapResponse.Results Is Nothing Then
                 Throw New Exception("SAP response was successful, but returned no results array. Approval aborted.")
             End If
 
-            ' Iterate the SAP results
             For Each sapResult As SapUploadResultItem In sapResponse.Results
-                If sapResult.MessageType.Equals("S", StringComparison.OrdinalIgnoreCase) Then
-                    ' This one is successful ("S")
-                    sapSuccessResults.Add(sapResult) ' Keep track of this successful item
+                ' Re-create the key from the SAP result to find its RunNo
+                Dim sapKey As String = String.Join("|",
+                    sapResult.Version,
+                    sapResult.CompCode,
+                    sapResult.Category,
+                    sapResult.VendorCode,
+                    sapResult.SegmentCode,
+                    sapResult.BrandCode,
+                    sapResult.Amount,
+                    sapResult.Year,
+                    sapResult.Month
+                )
+
+                Dim runNoToFind As Integer = -1
+                If sapKeyToRunNoMap.ContainsKey(sapKey) Then
+                    runNoToFind = sapKeyToRunNoMap(sapKey)
+                End If
+
+                Dim resultRow As New Dictionary(Of String, Object)
+
+                If runNoToFind <> -1 AndAlso runNoToDataRowMap.ContainsKey(runNoToFind) Then
+                    ' Found matching Draft data
+                    Dim draftRow As DataRow = runNoToDataRowMap(runNoToFind)
+                    resultRow.Add("RunNo", draftRow("RunNo"))
+                    resultRow.Add("OTBType", draftRow("OTBType"))
+                    resultRow.Add("OTBYear", draftRow("OTBYear"))
+                    resultRow.Add("OTBMonth", draftRow("OTBMonth"))
+                    resultRow.Add("OTBCategory", draftRow("OTBCategory"))
+                    resultRow.Add("CateName", draftRow("CateName"))
+                    resultRow.Add("CompanyName", draftRow("CompanyName"))
+                    resultRow.Add("OTBSegment", draftRow("OTBSegment"))
+                    resultRow.Add("SegmentName", draftRow("SegmentName"))
+                    resultRow.Add("OTBBrand", draftRow("OTBBrand"))
+                    resultRow.Add("BrandName", draftRow("BrandName"))
+                    resultRow.Add("OTBVendor", draftRow("OTBVendor"))
+                    resultRow.Add("Vendor", draftRow("Vendor"))
+                    resultRow.Add("Amount", draftRow("Amount"))
+                    resultRow.Add("Remark", draftRow("Remark"))
                 Else
-                    ' SAP reported an error (not "S") for this specific item
-                    sapErrors.Add($"Record (Yr/Mth/Cat): {sapResult.Year}/{sapResult.Month}/{sapResult.Category} -> SAP Error: {sapResult.Message}")
+                    ' Data mismatch - should not happen, but good to handle
+                    resultRow.Add("RunNo", "N/A")
+                    resultRow.Add("OTBType", "N/A")
+                    resultRow.Add("OTBYear", sapResult.Year)
+                    resultRow.Add("OTBMonth", sapResult.Month)
+                    resultRow.Add("OTBCategory", sapResult.Category)
+                    resultRow.Add("CateName", "N/A")
+                    resultRow.Add("CompanyName", "N/A")
+                    resultRow.Add("OTBSegment", sapResult.SegmentCode)
+                    resultRow.Add("SegmentName", "N/A")
+                    resultRow.Add("OTBBrand", sapResult.BrandCode)
+                    resultRow.Add("BrandName", "N/A")
+                    resultRow.Add("OTBVendor", sapResult.VendorCode)
+                    resultRow.Add("Vendor", "N/A")
+                    resultRow.Add("Amount", sapResult.Amount)
+                    resultRow.Add("Remark", "N/A")
+                End If
+
+                ' Add SAP Results
+                resultRow.Add("SAP_MessageType", sapResult.MessageType)
+                resultRow.Add("SAP_Message", sapResult.Message)
+                detailedResults.Add(resultRow)
+
+                ' If this item was successful, add it to the list for DB update
+                If sapResult.MessageType.Equals("S", StringComparison.OrdinalIgnoreCase) Then
+                    sapSuccessResults.Add(sapResult)
                 End If
             Next
 
-            ' If SAP reported success overall, but individual items had errors (non-"S")
-            If sapErrors.Count > 0 Then
-                Throw New Exception($"SAP process finished, but {sapErrors.Count} items had errors: " & String.Join("; ", sapErrors))
-            End If
+            ' 8. Check for Full Success vs. Partial/Total Failure
+            If sapResponse.Status.Total = sapResponse.Status.Success AndAlso sapSuccessResults.Count = sapResponse.Status.Total Then
+                ' *** FULL SUCCESS ***
+                ' Proceed with Database Update
+                Dim updateCount As Integer = 0
+                Using conn As New SqlConnection(connectionString)
+                    conn.Open()
+                    Using transaction As SqlTransaction = conn.BeginTransaction()
+                        Try
+                            For Each successResult In sapSuccessResults
+                                ' Re-create the key to find RunNo
+                                Dim sapKey As String = String.Join("|",
+                                    successResult.Version, successResult.CompCode, successResult.Category,
+                                    successResult.VendorCode, successResult.SegmentCode, successResult.BrandCode,
+                                    successResult.Amount, successResult.Year, successResult.Month
+                                )
 
-            ' Check if there are any items left to approve
-            If sapSuccessResults.Count = 0 Then
-                Throw New Exception("SAP reported success, but no items returned the 'S' messageType. No records approved.")
-            End If
+                                If sapKeyToRunNoMap.ContainsKey(sapKey) Then
+                                    Dim runNoToUpdate As Integer = sapKeyToRunNoMap(sapKey)
 
-            ' 8. NEW LOGIC: Update Draft, DON'T Insert to OTB_Transaction
-            ' We will run our own UPDATE query instead of calling the Stored Procedure
+                                    ' This is the record we need to update
+                                    Dim updateQuery As String = "
+                                        UPDATE [dbo].[Template_Upload_Draft_OTB]
+                                        SET 
+                                            [OTBStatus] = @OTBStatus,
+                                            [ApprovedBy] = @ApprovedBy,
+                                            [ApprovedDT] = GETDATE(),
+                                            [SAPStatus] = @SAPStatus,
+                                            [SAPErrorMessage] = @SAPErrorMessage,
+                                            [SAPDate] = GETDATE(),
+                                            [Remark] = ISNULL(@Remark, Remark)
+                                        WHERE 
+                                            [RunNo] = @RunNo
+                                            AND (OTBStatus IS NULL OR OTBStatus = 'Draft')
+                                    "
 
-            Dim updateCount As Integer = 0
-            Using conn As New SqlConnection(connectionString)
-                conn.Open()
-                Using transaction As SqlTransaction = conn.BeginTransaction()
-                    Try
-                        For Each successResult In sapSuccessResults
-                            ' Re-create the key from the SAP result to find its RunNo
-                            Dim sapKey As String = String.Join("|",
-                                successResult.Version,
-                                successResult.CompCode,
-                                successResult.Category,
-                                successResult.VendorCode,
-                                successResult.SegmentCode,
-                                successResult.BrandCode,
-                                successResult.Amount, ' Amount is part of our map key
-                                successResult.Year,
-                                successResult.Month
-                            )
+                                    Using cmd As New SqlCommand(updateQuery, conn, transaction)
+                                        cmd.Parameters.AddWithValue("@OTBStatus", "Approved")
+                                        cmd.Parameters.AddWithValue("@ApprovedBy", approvedBy)
+                                        cmd.Parameters.AddWithValue("@SAPStatus", successResult.MessageType)
+                                        cmd.Parameters.AddWithValue("@SAPErrorMessage", If(String.IsNullOrEmpty(successResult.Message), DBNull.Value, successResult.Message))
+                                        cmd.Parameters.AddWithValue("@Remark", If(remark Is Nothing, DBNull.Value, remark))
+                                        cmd.Parameters.AddWithValue("@RunNo", runNoToUpdate)
+                                        updateCount += cmd.ExecuteNonQuery()
+                                    End Using
+                                Else
+                                    Throw New Exception($"Critical Error: Could not map SAP success key '{sapKey}' back to a RunNo.")
+                                End If
+                            Next
 
-                            If sapKeyToRunNoMap.ContainsKey(sapKey) Then
-                                Dim runNoToUpdate As Integer = sapKeyToRunNoMap(sapKey)
+                            transaction.Commit()
 
-                                ' This is the record we need to update
-                                Dim updateQuery As String = "
-                                    UPDATE [dbo].[Template_Upload_Draft_OTB]
-                                    SET 
-                                        [OTBStatus] = @OTBStatus,
-                                        [ApprovedBy] = @ApprovedBy,
-                                        [ApprovedDT] = GETDATE(),
-                                        [SAPStatus] = @SAPStatus,
-                                        [SAPErrorMessage] = @SAPErrorMessage,
-                                        [SAPDate] = GETDATE(),
-                                        [Remark] = ISNULL(@Remark, Remark) ' Only update remark if one was provided
-                                    WHERE 
-                                        [RunNo] = @RunNo
-                                        AND (OTBStatus IS NULL OR OTBStatus = 'Draft')
-                                "
+                            ' 9. Send success response (Full Success)
+                            responseJson("success") = True
+                            responseJson("action") = "preview"
+                            responseJson("message") = $"Successfully approved and updated {updateCount} / {sapSuccessResults.Count} records in the database."
+                            responseJson("detailedResults") = detailedResults
 
-                                Using cmd As New SqlCommand(updateQuery, conn, transaction)
-                                    cmd.Parameters.AddWithValue("@OTBStatus", "Approved")
-                                    cmd.Parameters.AddWithValue("@ApprovedBy", approvedBy)
-                                    cmd.Parameters.AddWithValue("@SAPStatus", successResult.MessageType)
-                                    cmd.Parameters.AddWithValue("@SAPErrorMessage", If(String.IsNullOrEmpty(successResult.Message), DBNull.Value, successResult.Message))
-                                    cmd.Parameters.AddWithValue("@Remark", If(remark Is Nothing, DBNull.Value, remark))
-                                    cmd.Parameters.AddWithValue("@RunNo", runNoToUpdate)
-
-                                    updateCount += cmd.ExecuteNonQuery()
-                                End Using
-                            Else
-                                ' This would indicate a logic error in key matching
-                                Throw New Exception($"Critical Error: Could not map SAP success key '{sapKey}' back to a RunNo.")
-                            End If
-                        Next
-
-                        transaction.Commit()
-
-                        ' 9. Send success response back to client
-                        Dim response As New With {
-                            .success = True,
-                            .message = $"Successfully updated {updateCount} / {sapSuccessResults.Count} records to 'Approved' status.",
-                            .approvedCount = updateCount,
-                            .sapDate = DateTime.Now
-                        }
-                        context.Response.Write(JsonConvert.SerializeObject(response))
-
-                    Catch ex As Exception
-                        transaction.Rollback()
-                        Throw New Exception("Database update failed after SAP success: " & ex.Message)
-                    End Try
+                        Catch ex As Exception
+                            transaction.Rollback()
+                            Throw New Exception("Database update failed after SAP success: " & ex.Message)
+                        End Try
+                    End Using
                 End Using
-            End Using
+            Else
+                ' *** PARTIAL OR TOTAL FAILURE ***
+                ' Do NOT update database.
+                ' 9. Send failure response (Partial/Total Failure)
+                responseJson("success") = False
+                responseJson("action") = "preview"
+                responseJson("message") = $"SAP processing failed or was incomplete. Total: {sapResponse.Status.Total}, Success: {sapResponse.Status.Success}, Error: {sapResponse.Status.ErrorCount}. No records were updated in the database."
+                responseJson("detailedResults") = detailedResults
+            End If
 
-            ' ===================================================================
-            ' ===== END: NEW LOGIC ==============================================
-            ' ===================================================================
+            context.Response.Write(JsonConvert.SerializeObject(responseJson))
 
         Catch ex As Exception
             ' Catch all errors (from validation, SAP call, or DB update)
-            Dim errorResponse As New With {
-            .success = False,
-            .message = "Error approving records: " & ex.Message
-        }
-            context.Response.StatusCode = 500 ' Internal Server Error
-            context.Response.Write(JsonConvert.SerializeObject(errorResponse))
+            responseJson("success") = False
+            responseJson("action") = "error" ' General error
+            responseJson("message") = "Error approving records: " & ex.Message
+            context.Response.StatusCode = 500
+            context.Response.Write(JsonConvert.SerializeObject(responseJson))
         End Try
     End Sub
     ' ===================================================================
@@ -903,13 +933,24 @@ Public Class DataOTBHandler
             paramNames.Add($"@p{i}")
         Next
 
-        ' ===== MODIFIED QUERY (เพิ่ม [RunNo]) =====
+        ' ===== MODIFIED QUERY (เพิ่ม [RunNo] และ Join Master Data เพื่อ Preview) =====
         Dim query As String = $"
-            SELECT [RunNo], [Version], [OTBCompany], [OTBCategory], [OTBVendor], 
-                   [OTBSegment], [OTBBrand], [Amount], [OTBYear], 
-                   [OTBMonth], [Remark]
-            FROM [BMS].[dbo].[View_OTB_Draft]
-            WHERE RunNo IN ({String.Join(",", paramNames)})"
+            SELECT 
+                d.RunNo, d.Version, d.OTBCompany, d.OTBCategory, d.OTBVendor, 
+                d.OTBSegment, d.OTBBrand, d.Amount, d.OTBYear, 
+                d.OTBMonth, d.Remark, d.OTBType,
+                c.Category AS CateName,
+                co.CompanyNameShort AS CompanyName,
+                s.SegmentName,
+                b.[Brand Name] AS BrandName,
+                v.Vendor
+            FROM [BMS].[dbo].[View_OTB_Draft] d
+            LEFT JOIN [dbo].[MS_Category] c ON d.OTBCategory = c.Cate
+            LEFT JOIN [dbo].[MS_Company] co ON d.OTBCompany = co.CompanyCode
+            LEFT JOIN [dbo].[MS_Segment] s ON d.OTBSegment = s.SegmentCode
+            LEFT JOIN [dbo].[MS_Brand] b ON d.OTBBrand = b.[Brand Code]
+            LEFT JOIN [dbo].[MS_Vendor] v ON d.OTBVendor = v.VendorCode AND d.OTBSegment = v.SegmentCode
+            WHERE d.RunNo IN ({String.Join(",", paramNames)})"
         ' ===== END: MODIFIED QUERY =====
 
         Using conn As New SqlConnection(connectionString)
