@@ -124,11 +124,9 @@ Public Class DataOTBHandler
                 If context.Request("action") = "obtlistbyfilter" Then
                     dt = GetOTBDraftDataWithFilter(OTBtype, OTByear, OTBmonth, OTBCompany, OTBCategory, OTBSegment, OTBBrand, OTBVendor)
                     context.Response.Write(GenerateHtmlDraftTable(dt))
-                    ' เพิ่มใน ProcessRequest method
                 ElseIf context.Request("action") = "approveDraftOTB" Then
-                    ApproveDraftOTB(context)
+                    ApproveDraftOTB(context) ' <<< นี่คือ Sub ที่เราจะแก้ไข
                 ElseIf context.Request("action") = "deleteDraftOTB" Then
-
                     DeleteDraftOTB(context)
                 ElseIf context.Request("action") = "obtApprovelistbyfilter" Then
                     dt = GetOTBApproveDataWithFilter(OTBtype, OTByear, OTBmonth, OTBCompany, OTBCategory, OTBSegment, OTBBrand, OTBVendor, OTBVersion)
@@ -136,39 +134,7 @@ Public Class DataOTBHandler
                 ElseIf context.Request("action") = "obtswitchlistbyfilter" Then
                     dt = GetOTBSwitchDataWithFilter(OTBtype, OTByear, OTBmonth, OTBCompany, OTBCategory, OTBSegment, OTBBrand, OTBVendor)
                     context.Response.Write(GenerateHtmlSwitchable(dt))
-                ElseIf context.Request("action") = "approveDraftOTB" Then
-                    Dim runNosJson As String = If(String.IsNullOrWhiteSpace(context.Request.Form("runNos")), "[]", context.Request.Form("runNos"))
-                    Dim approvedBy As String = If(String.IsNullOrWhiteSpace(context.Request.Form("approvedBy")), "unknown", context.Request.Form("approvedBy").Trim())
-
-                    Dim serializer As New JavaScriptSerializer()
-                    Dim runNosString As List(Of String) = serializer.Deserialize(Of List(Of String))(runNosJson)
-
-
-                    Dim runNosInt As New List(Of Integer)()
-                    For Each idStr As String In runNosString
-                        Dim idInt As Integer
-                        If Integer.TryParse(idStr, idInt) Then
-                            runNosInt.Add(idInt)
-                        End If
-                    Next
-
-                    If runNosInt.Count > 0 Then
-
-                        Dim result As Dictionary(Of String, Object) = ApprovedOTBManager.ApproveDraftOTB(runNosInt, approvedBy)
-
-
-                        If result("Status").ToString() = "Success" Then
-                            context.Response.Write("Success")
-                        Else
-                            Dim errorMessage As String = "Unknown error during approval."
-                            If result.ContainsKey("ErrorMessage") Then
-                                errorMessage = result("ErrorMessage").ToString()
-                            End If
-                            Throw New Exception(errorMessage)
-                        End If
-                    Else
-                        Throw New Exception("No valid items selected for approval.")
-                    End If
+                    ' (ลบ ElseIf ที่ซ้ำซ้อนสำหรับ "approveDraftOTB" ออก)
                 End If
             End If
         Catch ex As Exception
@@ -603,29 +569,25 @@ Public Class DataOTBHandler
         Return dt
     End Function
 
+    ' ===================================================================
+    ' ===== START: REPLACEMENT LOGIC FOR ApproveDraftOTB ================
+    ' ===================================================================
     Private Sub ApproveDraftOTB(context As HttpContext)
-        Try
-            ' Get selected IDs
-            context.Response.ContentType = "application/json"
-            Dim idsString As String = If(String.IsNullOrWhiteSpace(context.Request.Form("runNos")), "", context.Request.Form("runNos").Trim())
-            Dim approvedBy As String = If(String.IsNullOrWhiteSpace(context.Request.Form("approvedBy")), "System", context.Request.Form("approvedBy").Trim())
-            Dim remark As String = If(String.IsNullOrWhiteSpace(context.Request.Form("remark")), Nothing, context.Request.Form("remark").Trim())
+        context.Response.ContentType = "application/json"
+        Dim approvedBy As String = If(String.IsNullOrWhiteSpace(context.Request.Form("approvedBy")), "System", context.Request.Form("approvedBy").Trim())
+        Dim remark As String = If(String.IsNullOrWhiteSpace(context.Request.Form("remark")), Nothing, context.Request.Form("remark").Trim())
 
-            If String.IsNullOrEmpty(idsString) Then
-                Dim errorResponse As New With {
-                .success = False,
-                .message = "No records selected for approval"
-            }
-                context.Response.Write(JsonConvert.SerializeObject(errorResponse))
-                Return
+        Try
+            ' 1. Get selected IDs
+            Dim idsString As String = If(String.IsNullOrWhiteSpace(context.Request.Form("runNos")), "[]", context.Request.Form("runNos").Trim())
+            If String.IsNullOrEmpty(idsString) OrElse idsString = "[]" Then
+                Throw New Exception("No records selected for approval.")
             End If
 
-            ' Convert comma-separated IDs to List
+            ' 2. Convert comma-separated IDs to List(Of Integer)
             Dim runNos As New List(Of Integer)
             Try
-
                 Dim jsonArray As List(Of String) = JsonConvert.DeserializeObject(Of List(Of String))(idsString)
-
                 For Each idStr As String In jsonArray
                     Dim id As Integer
                     If Integer.TryParse(idStr.Trim(), id) Then
@@ -633,7 +595,7 @@ Public Class DataOTBHandler
                     End If
                 Next
             Catch jsonEx As Exception
-                ' ถ้า deserialize ไม่ได้ ลองแบบเก่า (comma-separated)
+                ' Fallback for old comma-separated format
                 For Each idStr As String In idsString.Split(","c)
                     Dim id As Integer
                     If Integer.TryParse(idStr.Trim().Replace("""", ""), id) Then
@@ -642,54 +604,205 @@ Public Class DataOTBHandler
                 Next
             End Try
 
-            Dim draftData As DataTable = GetOTBDraftDataByRunNos(runNos)
+            If runNos.Count = 0 Then
+                Throw New Exception("No valid RunNos provided.")
+            End If
 
+            ' 3. Get data for selected RunNos (This now includes RunNo in the DataTable)
+            Dim draftData As DataTable = GetOTBDraftDataByRunNos(runNos)
             If draftData.Rows.Count = 0 Then
                 Throw New Exception("Could not find draft records to approve.")
             End If
 
+            ' 4. Build list to send to SAP API
             Dim plansToUpload As New List(Of OtbPlanUploadItem)()
+            ' *** NEW: Create a map to link SAP's Key back to our RunNo ***
+            Dim sapKeyToRunNoMap As New Dictionary(Of String, Integer)
+
             For Each row As DataRow In draftData.Rows
+                Dim amountStr As String = If(row("Amount") IsNot DBNull.Value, Convert.ToDecimal(row("Amount")).ToString("F2"), "0.00")
+
+                ' Create the unique key for SAP (matching the fields in the JSON response)
+                Dim sapKey As String = String.Join("|",
+                    If(row("Version") IsNot DBNull.Value, row("Version").ToString(), "R1"),
+                    If(row("OTBCompany") IsNot DBNull.Value, row("OTBCompany").ToString(), ""),
+                    If(row("OTBCategory") IsNot DBNull.Value, row("OTBCategory").ToString(), ""),
+                    If(row("OTBVendor") IsNot DBNull.Value, row("OTBVendor").ToString(), ""),
+                    If(row("OTBSegment") IsNot DBNull.Value, row("OTBSegment").ToString(), ""),
+                    If(row("OTBBrand") IsNot DBNull.Value, row("OTBBrand").ToString(), ""),
+                    amountStr,
+                    If(row("OTBYear") IsNot DBNull.Value, row("OTBYear").ToString(), ""),
+                    If(row("OTBMonth") IsNot DBNull.Value, row("OTBMonth").ToString(), "")
+                )
+
+                ' Add to map
+                If Not sapKeyToRunNoMap.ContainsKey(sapKey) Then
+                    sapKeyToRunNoMap.Add(sapKey, Convert.ToInt32(row("RunNo")))
+                End If
+
                 plansToUpload.Add(New OtbPlanUploadItem With {
-                    .Version = If(row("Version") IsNot DBNull.Value, row("Version").ToString(), "R1"), ' (ใช้ R1 ถ้าไม่มี)
+                    .Version = If(row("Version") IsNot DBNull.Value, row("Version").ToString(), "R1"),
                     .CompCode = If(row("OTBCompany") IsNot DBNull.Value, row("OTBCompany").ToString(), ""),
                     .Category = If(row("OTBCategory") IsNot DBNull.Value, row("OTBCategory").ToString(), ""),
                     .VendorCode = If(row("OTBVendor") IsNot DBNull.Value, row("OTBVendor").ToString(), ""),
                     .SegmentCode = If(row("OTBSegment") IsNot DBNull.Value, row("OTBSegment").ToString(), ""),
                     .BrandCode = If(row("OTBBrand") IsNot DBNull.Value, row("OTBBrand").ToString(), ""),
-                    .Amount = If(row("Amount") IsNot DBNull.Value, Convert.ToDecimal(row("Amount")).ToString("F2"), "0.00"),
+                    .Amount = amountStr,
                     .Year = If(row("OTBYear") IsNot DBNull.Value, row("OTBYear").ToString(), ""),
                     .Month = If(row("OTBMonth") IsNot DBNull.Value, row("OTBMonth").ToString(), ""),
                     .Remark = If(row("Remark") IsNot DBNull.Value, row("Remark").ToString(), "")
                 })
             Next
 
+            ' 5. Call SAP API
             Dim sapResponse As SapApiResponse(Of SapUploadResultItem) = Task.Run(Async Function()
                                                                                      Return Await SapApiHelper.UploadOtbPlanAsync(plansToUpload)
                                                                                  End Function).Result
 
+            ' ===================================================================
+            ' ===== START: NEW LOGIC BASED ON USER REQUEST ======================
+            ' ===================================================================
 
+            If sapResponse Is Nothing Then
+                Throw New Exception("No response received from SAP API. Approval aborted.")
+            End If
 
-            ' Call Approve function
-            Dim result As Dictionary(Of String, Object) = ApprovedOTBManager.ApproveDraftOTB(runNos, approvedBy, remark)
+            ' 6. Requirement 1: Check if Total = Success
+            If sapResponse.Status.Total <> sapResponse.Status.Success Then
+                Dim errorMessages As New StringBuilder()
+                errorMessages.Append($"SAP processing failed or was incomplete. Total: {sapResponse.Status.Total}, Success: {sapResponse.Status.Success}, Error: {sapResponse.Status.ErrorCount}. ")
 
-            Dim response As New With {
-            .success = If(result("Status").ToString() = "Success", True, False),
-            .message = If(result.ContainsKey("ErrorMessage"), result("ErrorMessage").ToString(), $"Successfully approved {result("ApprovedCount")} records"),
-            .approvedCount = result("ApprovedCount"),
-            .sapDate = If(result.ContainsKey("SAPDate"), result("SAPDate"), Nothing)
-        }
+                If sapResponse.Results IsNot Nothing Then
+                    For Each item In sapResponse.Results
+                        If Not item.MessageType.Equals("S", StringComparison.OrdinalIgnoreCase) Then
+                            errorMessages.Append($"[Record (Yr/Mth/Cat): {item.Year}/{item.Month}/{item.Category} -> SAP Error: {item.Message}] ")
+                        End If
+                    Next
+                End If
+                Throw New Exception(errorMessages.ToString())
+            End If
 
-            context.Response.Write(JsonConvert.SerializeObject(response))
+            ' 7. Requirement 2 & 3: Filter the RunNos that were successful (messageType = "S")
+            Dim sapSuccessResults As New List(Of SapUploadResultItem)
+            Dim sapErrors As New List(Of String)
+
+            If sapResponse.Results Is Nothing Then
+                Throw New Exception("SAP response was successful, but returned no results array. Approval aborted.")
+            End If
+
+            ' Iterate the SAP results
+            For Each sapResult As SapUploadResultItem In sapResponse.Results
+                If sapResult.MessageType.Equals("S", StringComparison.OrdinalIgnoreCase) Then
+                    ' This one is successful ("S")
+                    sapSuccessResults.Add(sapResult) ' Keep track of this successful item
+                Else
+                    ' SAP reported an error (not "S") for this specific item
+                    sapErrors.Add($"Record (Yr/Mth/Cat): {sapResult.Year}/{sapResult.Month}/{sapResult.Category} -> SAP Error: {sapResult.Message}")
+                End If
+            Next
+
+            ' If SAP reported success overall, but individual items had errors (non-"S")
+            If sapErrors.Count > 0 Then
+                Throw New Exception($"SAP process finished, but {sapErrors.Count} items had errors: " & String.Join("; ", sapErrors))
+            End If
+
+            ' Check if there are any items left to approve
+            If sapSuccessResults.Count = 0 Then
+                Throw New Exception("SAP reported success, but no items returned the 'S' messageType. No records approved.")
+            End If
+
+            ' 8. NEW LOGIC: Update Draft, DON'T Insert to OTB_Transaction
+            ' We will run our own UPDATE query instead of calling the Stored Procedure
+
+            Dim updateCount As Integer = 0
+            Using conn As New SqlConnection(connectionString)
+                conn.Open()
+                Using transaction As SqlTransaction = conn.BeginTransaction()
+                    Try
+                        For Each successResult In sapSuccessResults
+                            ' Re-create the key from the SAP result to find its RunNo
+                            Dim sapKey As String = String.Join("|",
+                                successResult.Version,
+                                successResult.CompCode,
+                                successResult.Category,
+                                successResult.VendorCode,
+                                successResult.SegmentCode,
+                                successResult.BrandCode,
+                                successResult.Amount, ' Amount is part of our map key
+                                successResult.Year,
+                                successResult.Month
+                            )
+
+                            If sapKeyToRunNoMap.ContainsKey(sapKey) Then
+                                Dim runNoToUpdate As Integer = sapKeyToRunNoMap(sapKey)
+
+                                ' This is the record we need to update
+                                Dim updateQuery As String = "
+                                    UPDATE [dbo].[Template_Upload_Draft_OTB]
+                                    SET 
+                                        [OTBStatus] = @OTBStatus,
+                                        [ApprovedBy] = @ApprovedBy,
+                                        [ApprovedDT] = GETDATE(),
+                                        [SAPStatus] = @SAPStatus,
+                                        [SAPErrorMessage] = @SAPErrorMessage,
+                                        [SAPDate] = GETDATE(),
+                                        [Remark] = ISNULL(@Remark, Remark) ' Only update remark if one was provided
+                                    WHERE 
+                                        [RunNo] = @RunNo
+                                        AND (OTBStatus IS NULL OR OTBStatus = 'Draft')
+                                "
+
+                                Using cmd As New SqlCommand(updateQuery, conn, transaction)
+                                    cmd.Parameters.AddWithValue("@OTBStatus", "Approved")
+                                    cmd.Parameters.AddWithValue("@ApprovedBy", approvedBy)
+                                    cmd.Parameters.AddWithValue("@SAPStatus", successResult.MessageType)
+                                    cmd.Parameters.AddWithValue("@SAPErrorMessage", If(String.IsNullOrEmpty(successResult.Message), DBNull.Value, successResult.Message))
+                                    cmd.Parameters.AddWithValue("@Remark", If(remark Is Nothing, DBNull.Value, remark))
+                                    cmd.Parameters.AddWithValue("@RunNo", runNoToUpdate)
+
+                                    updateCount += cmd.ExecuteNonQuery()
+                                End Using
+                            Else
+                                ' This would indicate a logic error in key matching
+                                Throw New Exception($"Critical Error: Could not map SAP success key '{sapKey}' back to a RunNo.")
+                            End If
+                        Next
+
+                        transaction.Commit()
+
+                        ' 9. Send success response back to client
+                        Dim response As New With {
+                            .success = True,
+                            .message = $"Successfully updated {updateCount} / {sapSuccessResults.Count} records to 'Approved' status.",
+                            .approvedCount = updateCount,
+                            .sapDate = DateTime.Now
+                        }
+                        context.Response.Write(JsonConvert.SerializeObject(response))
+
+                    Catch ex As Exception
+                        transaction.Rollback()
+                        Throw New Exception("Database update failed after SAP success: " & ex.Message)
+                    End Try
+                End Using
+            End Using
+
+            ' ===================================================================
+            ' ===== END: NEW LOGIC ==============================================
+            ' ===================================================================
 
         Catch ex As Exception
+            ' Catch all errors (from validation, SAP call, or DB update)
             Dim errorResponse As New With {
             .success = False,
             .message = "Error approving records: " & ex.Message
         }
+            context.Response.StatusCode = 500 ' Internal Server Error
             context.Response.Write(JsonConvert.SerializeObject(errorResponse))
         End Try
     End Sub
+    ' ===================================================================
+    ' ===== END: REPLACEMENT LOGIC ======================================
+    ' ===================================================================
 
     Private Sub DeleteDraftOTB(context As HttpContext)
         Try
@@ -776,6 +889,9 @@ Public Class DataOTBHandler
     ''' <summary>
     ''' (ฟังก์ชันใหม่) ดึงข้อมูล Draft OTB จาก List ของ RunNo
     ''' </summary>
+    ' ===================================================================
+    ' ===== START: MODIFIED FUNCTION GetOTBDraftDataByRunNos ==========
+    ' ===================================================================
     Private Function GetOTBDraftDataByRunNos(runNos As List(Of Integer)) As DataTable
         Dim dt As New DataTable()
         If runNos Is Nothing OrElse runNos.Count = 0 Then
@@ -787,12 +903,14 @@ Public Class DataOTBHandler
             paramNames.Add($"@p{i}")
         Next
 
+        ' ===== MODIFIED QUERY (เพิ่ม [RunNo]) =====
         Dim query As String = $"
-            SELECT [Version], [OTBCompany], [OTBCategory], [OTBVendor], 
+            SELECT [RunNo], [Version], [OTBCompany], [OTBCategory], [OTBVendor], 
                    [OTBSegment], [OTBBrand], [Amount], [OTBYear], 
                    [OTBMonth], [Remark]
             FROM [BMS].[dbo].[View_OTB_Draft]
             WHERE RunNo IN ({String.Join(",", paramNames)})"
+        ' ===== END: MODIFIED QUERY =====
 
         Using conn As New SqlConnection(connectionString)
             conn.Open()
@@ -808,6 +926,10 @@ Public Class DataOTBHandler
         End Using
         Return dt
     End Function
+    ' ===================================================================
+    ' ===== END: MODIFIED FUNCTION ======================================
+    ' ===================================================================
+
     ReadOnly Property IsReusable() As Boolean Implements IHttpHandler.IsReusable
         Get
             Return False
