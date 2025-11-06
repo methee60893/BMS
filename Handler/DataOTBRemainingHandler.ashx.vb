@@ -26,7 +26,7 @@ Public Class DataOTBRemainingHandler
             Dim vendor As String = If(context.Request.Form("OTBVendor"), "")
 
             ' 2. ตรวจสอบว่ามี Parameter ครบหรือไม่
-            If year = 0 OrElse month = 0 OrElse String.IsNullOrEmpty(company) OrElse String.IsNullOrEmpty(category) OrElse String.IsNullOrEmpty(segment) OrElse String.IsNullOrEmpty(brand) OrElse String.IsNullOrEmpty(vendor) Then
+            If year = 0 Then
                 Throw New Exception("All filter fields are required to view the report.")
             End If
 

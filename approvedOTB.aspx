@@ -639,7 +639,8 @@
 
             <!-- Export Button -->
             <div class="export-section">
-                <button class="btn btn-export btn-custom" id="btnExport">
+                <!-- *** MODIFIED: Changed ID from btnExport to btnExportTXN for consistency *** -->
+                <button class="btn btn-export btn-custom" id="btnExportTXN">
                     <i class="bi bi-file-earmark-excel"></i> Export TXN
                 </button>
             </div>
@@ -700,11 +701,15 @@
         let btnView = document.getElementById("btnView");
         let versionDropdown = document.getElementById("DDVersion");
 
+        // *** ADDED: btnExportTXN variable ***
+        let btnExportTXN = document.getElementById("btnExportTXN");
+
+
         // Toggle Sidebar
         function toggleSidebar() {
             const sidebar = document.getElementById('sidebar');
             const overlay = document.getElementById('sidebarOverlay');
-            
+
             sidebar.classList.toggle('active');
             overlay.classList.toggle('active');
         }
@@ -713,10 +718,10 @@
         function toggleSubmenu(event, submenuId) {
             event.preventDefault();
             event.stopPropagation();
-            
+
             const submenu = document.getElementById(submenuId);
             const menuLink = event.currentTarget;
-            
+
             // Toggle submenu
             submenu.classList.toggle('show');
             menuLink.classList.toggle('expanded');
@@ -725,25 +730,25 @@
         // Load Page
         function loadPage(event, pageName) {
             event.preventDefault();
-            
+
             // Remove active class from all submenu links
             document.querySelectorAll('.submenu .menu-link').forEach(link => {
                 link.classList.remove('active');
             });
-            
+
             // Add active class to clicked link
             event.currentTarget.classList.add('active');
-            
+
             // Update page title
             document.getElementById('pageTitle').textContent = pageName;
-            
+
             // Close sidebar on mobile after selection
             if (window.innerWidth <= 768) {
                 toggleSidebar();
             }
-            
+
             console.log('Loading page:', pageName);
-            
+
             // Here you would implement page content loading
             // Example: Load different content based on pageName
             if (pageName === 'Draft OTB Plan') {
@@ -769,10 +774,10 @@
         }
 
         // Close sidebar when clicking outside on mobile
-        document.addEventListener('click', function(event) {
+        document.addEventListener('click', function (event) {
             const sidebar = document.getElementById('sidebar');
             const menuToggle = document.querySelector('.menu-toggle');
-            
+
             if (!sidebar.contains(event.target) && !menuToggle.contains(event.target)) {
                 if (sidebar.classList.contains('active')) {
                     toggleSidebar();
@@ -797,6 +802,8 @@
             });
             btnView.addEventListener('click', search);
 
+            // *** ADDED: Event listener for Export button ***
+            btnExportTXN.addEventListener('click', exportTXN);
 
         }
 
@@ -835,6 +842,26 @@
                     console.log('Error getlist data: ' + error);
                 }
             });
+        }
+
+        // *** ADDED: exportTXN function ***
+        let exportTXN = function () {
+            console.log("Export TXN clicked");
+            // Build query string from filters
+            var params = new URLSearchParams();
+            params.append('action', 'exportapprovedotb'); // <-- NEW ACTION
+            params.append('OTBtype', typeDropdown.value);
+            params.append('OTByear', yearDropdown.value);
+            params.append('OTBmonth', monthDropdown.value);
+            params.append('OTBCompany', companyDropdown.value);
+            params.append('OTBCategory', categoryDropdown.value);
+            params.append('OTBSegment', segmentDropdown.value);
+            params.append('OTBBrand', brandDropdown.value);
+            params.append('OTBVendor', vendorDropdown.value);
+            params.append('OTBVersion', versionDropdown.value); // <-- Added Version
+
+            // Use window.location to trigger file download (GET request)
+            window.location.href = 'Handler/DataOTBHandler.ashx?' + params.toString();
         }
 
         let InitMSData = function () {

@@ -290,7 +290,7 @@ Public Class UploadHandler : Implements IHttpHandler
 
 
             ' Month Column
-            Dim monthDisplay As String = yearValue
+            Dim monthDisplay As String = monthValue
             Select Case monthValue
                 Case "1" : monthDisplay = "Jan"
                 Case "2" : monthDisplay = "Feb"

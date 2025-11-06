@@ -26,86 +26,14 @@ Public Class DataOTBHandler
             Dim action As String = If(context.Request("action"), "").ToLower().Trim()
 
             If action = "exportdraftotb" Then
-                ' *** ADDED: Handle Export Action ***
-                ' (Note: We use QueryString because the JS call is a GET request for file download)
-                Dim OTBtype As String = If(String.IsNullOrWhiteSpace(context.Request.QueryString("OTBtype")), "", context.Request.QueryString("OTBtype").Trim())
-                Dim OTByear As String = If(String.IsNullOrWhiteSpace(context.Request.QueryString("OTByear")), "", context.Request.QueryString("OTByear").Trim())
-                Dim OTBmonth As String = If(String.IsNullOrWhiteSpace(context.Request.QueryString("OTBmonth")), "", context.Request.QueryString("OTBmonth").Trim())
-                Dim OTBCompany As String = If(String.IsNullOrWhiteSpace(context.Request.QueryString("OTBCompany")), "", context.Request.QueryString("OTBCompany").Trim())
-                Dim OTBCategory As String = If(String.IsNullOrWhiteSpace(context.Request.QueryString("OTBCategory")), "", context.Request.QueryString("OTBCategory").Trim())
-                Dim OTBSegment As String = If(String.IsNullOrWhiteSpace(context.Request.QueryString("OTBSegment")), "", context.Request.QueryString("OTBSegment").Trim())
-                Dim OTBBrand As String = If(String.IsNullOrWhiteSpace(context.Request.QueryString("OTBBrand")), "", context.Request.QueryString("OTBBrand").Trim())
-                Dim OTBVendor As String = If(String.IsNullOrWhiteSpace(context.Request.QueryString("OTBVendor")), "", context.Request.QueryString("OTBVendor").Trim())
-
-                ' 1. Get Raw Data
-                Dim dtRaw As DataTable = GetOTBDraftDataWithFilter(OTBtype, OTByear, OTBmonth, OTBCompany, OTBCategory, OTBSegment, OTBBrand, OTBVendor)
-
-                ' 2. Create Export-formatted DataTable (to match the HTML table)
-                Dim dtExport As New DataTable("DraftOTB")
-                dtExport.Columns.Add("Create Date", GetType(String))
-                dtExport.Columns.Add("Type", GetType(String))
-                dtExport.Columns.Add("Year", GetType(String))
-                dtExport.Columns.Add("Month", GetType(String))
-                dtExport.Columns.Add("Category", GetType(String))
-                dtExport.Columns.Add("Category Name", GetType(String))
-                dtExport.Columns.Add("Company", GetType(String))
-                dtExport.Columns.Add("Segment", GetType(String))
-                dtExport.Columns.Add("Segment Name", GetType(String))
-                dtExport.Columns.Add("Brand", GetType(String))
-                dtExport.Columns.Add("Brand Name", GetType(String))
-                dtExport.Columns.Add("Vendor", GetType(String))
-                dtExport.Columns.Add("Vendor Name", GetType(String))
-                dtExport.Columns.Add("TO-BE Amount (THB)", GetType(Decimal))
-                dtExport.Columns.Add("Current Approved", GetType(Decimal))
-                dtExport.Columns.Add("Diff", GetType(Decimal))
-                dtExport.Columns.Add("Status", GetType(String))
-                dtExport.Columns.Add("Version", GetType(String))
-                dtExport.Columns.Add("Remark", GetType(String))
-
-                ' 3. Populate dtExport with calculated fields (mirroring GenerateHtmlDraftTable)
-                For Each row As DataRow In dtRaw.Rows
-                    Dim OTBYear_Calc As String = If(row("OTBYear") IsNot DBNull.Value, row("OTBYear").ToString(), "")
-                    Dim OTBMonth_Calc As String = If(row("OTBMonth") IsNot DBNull.Value, row("OTBMonth").ToString(), "")
-                    Dim OTBCategory_Calc As String = If(row("OTBCategory") IsNot DBNull.Value, row("OTBCategory").ToString(), "")
-                    Dim OTBCompany_Calc As String = If(row("OTBCompany") IsNot DBNull.Value, row("OTBCompany").ToString(), "")
-                    Dim OTBSegment_Calc As String = If(row("OTBSegment") IsNot DBNull.Value, row("OTBSegment").ToString(), "")
-                    Dim OTBBrand_Calc As String = If(row("OTBBrand") IsNot DBNull.Value, row("OTBBrand").ToString(), "")
-                    Dim OTBVendor_Calc As String = If(row("OTBVendor") IsNot DBNull.Value, row("OTBVendor").ToString(), "")
-
-                    Dim amountValue As Decimal = 0
-                    Decimal.TryParse(If(row("Amount") IsNot DBNull.Value, row("Amount").ToString(), ""), amountValue)
-
-                    Dim currentBudget As Decimal = OTBBudgetCalculator.CalculateCurrentApprovedBudget(OTBYear_Calc, OTBMonth_Calc, OTBCategory_Calc, OTBCompany_Calc, OTBSegment_Calc, OTBBrand_Calc, OTBVendor_Calc)
-                    Dim diffAmount As Decimal = amountValue - currentBudget
-                    Dim OTBStatus As String = If(row("OTBStatus") IsNot DBNull.Value, row("OTBStatus").ToString(), "Draft")
-
-                    dtExport.Rows.Add(
-                        If(row("CreateDT") IsNot DBNull.Value, row("CreateDT").ToString(), ""),
-                        If(row("OTBType") IsNot DBNull.Value, row("OTBType").ToString(), ""),
-                        OTBYear_Calc,
-                        If(row("month_name_sh") IsNot DBNull.Value, row("month_name_sh").ToString(), ""),
-                        OTBCategory_Calc,
-                        If(row("CateName") IsNot DBNull.Value, row("CateName").ToString(), ""),
-                        If(row("CompanyName") IsNot DBNull.Value, row("CompanyName").ToString(), ""),
-                        OTBSegment_Calc,
-                        If(row("SegmentName") IsNot DBNull.Value, row("SegmentName").ToString(), ""),
-                        OTBBrand_Calc,
-                        If(row("BrandName") IsNot DBNull.Value, row("BrandName").ToString(), ""),
-                        OTBVendor_Calc,
-                        If(row("Vendor") IsNot DBNull.Value, row("Vendor").ToString(), ""),
-                        amountValue,
-                        currentBudget,
-                        diffAmount,
-                        OTBStatus,
-                        If(row("Version") IsNot DBNull.Value, row("Version").ToString(), ""),
-                        If(row("Remark") IsNot DBNull.Value, row("Remark").ToString(), "")
-                    )
-                Next
-
-                ' 4. Call Export Function
-                ExportDraftToExcel(context, dtExport, "Draft_OTB_" & DateTime.Now.ToString("yyyyMMdd_HHmmss") & ".xlsx")
-
+                ' *** NEW: Call dedicated export function ***
+                HandleExportDraftOTB(context)
+            ElseIf action = "exportapprovedotb" Then
+                HandleExportApprovedOTB(context)
+            ElseIf action = "exportswitchingtxn" Then
+                HandleExportSwitchingOTB(context)
             Else
+                ' *** MOVED: The rest of the logic into an Else block ***
                 context.Response.Clear()
                 context.Response.ContentType = "text/html"
                 context.Response.ContentEncoding = Encoding.UTF8
@@ -144,30 +72,230 @@ Public Class DataOTBHandler
 
     End Sub
 
+    ' *** NEW: Function for Switching Export ***
+    Private Sub HandleExportSwitchingOTB(ByVal context As HttpContext)
+        ' 1. Read filters from QueryString
+        Dim OTBtype As String = If(String.IsNullOrWhiteSpace(context.Request.QueryString("OTBtype")), "", context.Request.QueryString("OTBtype").Trim())
+        Dim OTByear As String = If(String.IsNullOrWhiteSpace(context.Request.QueryString("OTByear")), "", context.Request.QueryString("OTByear").Trim())
+        Dim OTBmonth As String = If(String.IsNullOrWhiteSpace(context.Request.QueryString("OTBmonth")), "", context.Request.QueryString("OTBmonth").Trim())
+        Dim OTBCompany As String = If(String.IsNullOrWhiteSpace(context.Request.QueryString("OTBCompany")), "", context.Request.QueryString("OTBCompany").Trim())
+        Dim OTBCategory As String = If(String.IsNullOrWhiteSpace(context.Request.QueryString("OTBCategory")), "", context.Request.QueryString("OTBCategory").Trim())
+        Dim OTBSegment As String = If(String.IsNullOrWhiteSpace(context.Request.QueryString("OTBSegment")), "", context.Request.QueryString("OTBSegment").Trim())
+        Dim OTBBrand As String = If(String.IsNullOrWhiteSpace(context.Request.QueryString("OTBBrand")), "", context.Request.QueryString("OTBBrand").Trim())
+        Dim OTBVendor As String = If(String.IsNullOrWhiteSpace(context.Request.QueryString("OTBVendor")), "", context.Request.QueryString("OTBVendor").Trim())
+
+        ' 2. Get Raw Data
+        Dim dtRaw As DataTable = GetOTBSwitchDataWithFilter(OTBtype, OTByear, OTBmonth, OTBCompany, OTBCategory, OTBSegment, OTBBrand, OTBVendor)
+
+        ' 3. Format data for export
+        Dim dtExport As DataTable = FormatSwitchDataForExport(dtRaw)
+
+        ' 4. Call generic export function
+        ExportDataTableToExcel(context, dtExport, "Switching_OTB_" & DateTime.Now.ToString("yyyyMMdd_HHmmss") & ".xlsx")
+    End Sub
+
+    ' *** NEW: Helper to format Switching data for export ***
+    Private Function FormatSwitchDataForExport(dtRaw As DataTable) As DataTable
+        Dim dtExport As New DataTable("SwitchingOTB")
+
+        ' Add headers matching the complex table structure
+        dtExport.Columns.Add("Create Date", GetType(String))
+        dtExport.Columns.Add("Type (From)", GetType(String))
+        dtExport.Columns.Add("Year (From)", GetType(String))
+        dtExport.Columns.Add("Month (From)", GetType(String))
+        dtExport.Columns.Add("Category (From)", GetType(String))
+        dtExport.Columns.Add("Category Name (From)", GetType(String))
+        dtExport.Columns.Add("Company (From)", GetType(String))
+        dtExport.Columns.Add("Segment (From)", GetType(String))
+        dtExport.Columns.Add("Segment Name (From)", GetType(String))
+        dtExport.Columns.Add("Brand (From)", GetType(String))
+        dtExport.Columns.Add("Brand Name (From)", GetType(String))
+        dtExport.Columns.Add("Vendor (From)", GetType(String))
+        dtExport.Columns.Add("Vendor Name (From)", GetType(String))
+
+        dtExport.Columns.Add("Type (To)", GetType(String))
+        dtExport.Columns.Add("Year (To)", GetType(String))
+        dtExport.Columns.Add("Month (To)", GetType(String))
+        dtExport.Columns.Add("Category (To)", GetType(String))
+        dtExport.Columns.Add("Company (To)", GetType(String))
+        dtExport.Columns.Add("Segment (To)", GetType(String))
+        dtExport.Columns.Add("Brand (To)", GetType(String))
+        dtExport.Columns.Add("Vendor (To)", GetType(String))
+
+        dtExport.Columns.Add("Amount (THB)", GetType(Decimal))
+        dtExport.Columns.Add("Release", GetType(Decimal))
+        dtExport.Columns.Add("Batch", GetType(String))
+        dtExport.Columns.Add("Remark", GetType(String))
+        dtExport.Columns.Add("Status", GetType(String))
+        dtExport.Columns.Add("Approved Date", GetType(String))
+        dtExport.Columns.Add("SAP Date", GetType(String))
+        dtExport.Columns.Add("Action By", GetType(String))
+
+        For Each row As DataRow In dtRaw.Rows
+            dtExport.Rows.Add(
+                If(row("CreateDT") IsNot DBNull.Value, Convert.ToDateTime(row("CreateDT")).ToString("dd/MM/yyyy HH:mm"), ""),
+                If(row("Type") IsNot DBNull.Value, row("Type").ToString(), ""),
+                If(row("Year") IsNot DBNull.Value, row("Year").ToString(), ""),
+                If(row("MonthName") IsNot DBNull.Value, row("MonthName").ToString(), ""),
+                If(row("Category") IsNot DBNull.Value, row("Category").ToString(), ""),
+                If(row("CategoryName") IsNot DBNull.Value, row("CategoryName").ToString(), ""),
+                If(row("Company") IsNot DBNull.Value, row("Company").ToString(), ""),
+                If(row("Segment") IsNot DBNull.Value, row("Segment").ToString(), ""),
+                If(row("SegmentName") IsNot DBNull.Value, row("SegmentName").ToString(), ""),
+                If(row("Brand") IsNot DBNull.Value, row("Brand").ToString(), ""),
+                If(row("BrandName") IsNot DBNull.Value, row("BrandName").ToString(), ""),
+                If(row("Vendor") IsNot DBNull.Value, row("Vendor").ToString(), ""),
+                If(row("VendorName") IsNot DBNull.Value, row("VendorName").ToString(), ""),
+                If(row("ToType") IsNot DBNull.Value, row("ToType").ToString(), ""), ' Assuming column name from SP is 'ToType'
+                If(row("SwitchYear") IsNot DBNull.Value, row("SwitchYear").ToString(), ""),
+                If(row("SwitchMonthName") IsNot DBNull.Value, row("SwitchMonthName").ToString(), ""),
+                If(row("SwitchCategory") IsNot DBNull.Value, row("SwitchCategory").ToString(), ""),
+                If(row("SwitchCompany") IsNot DBNull.Value, row("SwitchCompany").ToString(), ""),
+                If(row("SwitchSegment") IsNot DBNull.Value, row("SwitchSegment").ToString(), ""),
+                If(row("SwitchBrand") IsNot DBNull.Value, row("SwitchBrand").ToString(), ""),
+                If(row("SwitchVendor") IsNot DBNull.Value, row("SwitchVendor").ToString(), ""),
+                If(row("BudgetAmount") IsNot DBNull.Value, Convert.ToDecimal(row("BudgetAmount")), 0),
+                If(row("Release") IsNot DBNull.Value, Convert.ToDecimal(row("Release")), 0),
+                If(row("Batch") IsNot DBNull.Value, row("Batch").ToString(), ""),
+                If(row("Remark") IsNot DBNull.Value, row("Remark").ToString(), ""),
+                If(row("OTBStatus") IsNot DBNull.Value, row("OTBStatus").ToString(), ""),
+                If(row("ApproveDT") IsNot DBNull.Value, Convert.ToDateTime(row("ApproveDT")).ToString("dd/MM/yyyy HH:mm"), ""),
+                If(row("SAPDate") IsNot DBNull.Value, Convert.ToDateTime(row("SAPDate")).ToString("dd/MM/yyyy HH:mm"), ""),
+                If(row("ActionBy") IsNot DBNull.Value, row("ActionBy").ToString(), ""))
+        Next
+
+        Return dtExport
+    End Function
 
 
-    ' *** ADDED: New function to create and send the Excel file ***
-    Private Sub ExportDraftToExcel(context As HttpContext, dt As DataTable, filename As String)
+    ' *** (Refactored) Function for Draft Export ***
+    Private Sub HandleExportDraftOTB(ByVal context As HttpContext)
+        ' (Note: We use QueryString because the JS call is a GET request for file download)
+        Dim OTBtype As String = If(String.IsNullOrWhiteSpace(context.Request.QueryString("OTBtype")), "", context.Request.QueryString("OTBtype").Trim())
+        Dim OTByear As String = If(String.IsNullOrWhiteSpace(context.Request.QueryString("OTByear")), "", context.Request.QueryString("OTByear").Trim())
+        Dim OTBmonth As String = If(String.IsNullOrWhiteSpace(context.Request.QueryString("OTBmonth")), "", context.Request.QueryString("OTBmonth").Trim())
+        Dim OTBCompany As String = If(String.IsNullOrWhiteSpace(context.Request.QueryString("OTBCompany")), "", context.Request.QueryString("OTBCompany").Trim())
+        Dim OTBCategory As String = If(String.IsNullOrWhiteSpace(context.Request.QueryString("OTBCategory")), "", context.Request.QueryString("OTBCategory").Trim())
+        Dim OTBSegment As String = If(String.IsNullOrWhiteSpace(context.Request.QueryString("OTBSegment")), "", context.Request.QueryString("OTBSegment").Trim())
+        Dim OTBBrand As String = If(String.IsNullOrWhiteSpace(context.Request.QueryString("OTBBrand")), "", context.Request.QueryString("OTBBrand").Trim())
+        Dim OTBVendor As String = If(String.IsNullOrWhiteSpace(context.Request.QueryString("OTBVendor")), "", context.Request.QueryString("OTBVendor").Trim())
+
+        ' 1. Get Raw Data
+        Dim dtRaw As DataTable = GetOTBDraftDataWithFilter(OTBtype, OTByear, OTBmonth, OTBCompany, OTBCategory, OTBSegment, OTBBrand, OTBVendor)
+
+        ' 2. Create Export-formatted DataTable (to match the HTML table)
+        Dim dtExport As New DataTable("DraftOTB")
+        dtExport.Columns.Add("Create Date", GetType(String))
+        dtExport.Columns.Add("Type", GetType(String))
+        dtExport.Columns.Add("Year", GetType(String))
+        dtExport.Columns.Add("Month", GetType(String))
+        dtExport.Columns.Add("Category", GetType(String))
+        dtExport.Columns.Add("Category Name", GetType(String))
+        dtExport.Columns.Add("Company", GetType(String))
+        dtExport.Columns.Add("Segment", GetType(String))
+        dtExport.Columns.Add("Segment Name", GetType(String))
+        dtExport.Columns.Add("Brand", GetType(String))
+        dtExport.Columns.Add("Brand Name", GetType(String))
+        dtExport.Columns.Add("Vendor", GetType(String))
+        dtExport.Columns.Add("Vendor Name", GetType(String))
+        dtExport.Columns.Add("TO-BE Amount (THB)", GetType(Decimal))
+        dtExport.Columns.Add("Current Approved", GetType(Decimal))
+        dtExport.Columns.Add("Diff", GetType(Decimal))
+        dtExport.Columns.Add("Status", GetType(String))
+        dtExport.Columns.Add("Version", GetType(String))
+        dtExport.Columns.Add("Remark", GetType(String))
+
+        ' 3. Populate dtExport with calculated fields (mirroring GenerateHtmlDraftTable)
+        For Each row As DataRow In dtRaw.Rows
+            Dim OTBYear_Calc As String = If(row("OTBYear") IsNot DBNull.Value, row("OTBYear").ToString(), "")
+            Dim OTBMonth_Calc As String = If(row("OTBMonth") IsNot DBNull.Value, row("OTBMonth").ToString(), "")
+            Dim OTBCategory_Calc As String = If(row("OTBCategory") IsNot DBNull.Value, row("OTBCategory").ToString(), "")
+            Dim OTBCompany_Calc As String = If(row("OTBCompany") IsNot DBNull.Value, row("OTBCompany").ToString(), "")
+            Dim OTBSegment_Calc As String = If(row("OTBSegment") IsNot DBNull.Value, row("OTBSegment").ToString(), "")
+            Dim OTBBrand_Calc As String = If(row("OTBBrand") IsNot DBNull.Value, row("OTBBrand").ToString(), "")
+            Dim OTBVendor_Calc As String = If(row("OTBVendor") IsNot DBNull.Value, row("OTBVendor").ToString(), "")
+
+            Dim amountValue As Decimal = 0
+            Decimal.TryParse(If(row("Amount") IsNot DBNull.Value, row("Amount").ToString(), ""), amountValue)
+
+            Dim currentBudget As Decimal = OTBBudgetCalculator.CalculateCurrentApprovedBudget(OTBYear_Calc, OTBMonth_Calc, OTBCategory_Calc, OTBCompany_Calc, OTBSegment_Calc, OTBBrand_Calc, OTBVendor_Calc)
+            Dim diffAmount As Decimal = amountValue - currentBudget
+            Dim OTBStatus As String = If(row("OTBStatus") IsNot DBNull.Value, row("OTBStatus").ToString(), "Draft")
+
+            dtExport.Rows.Add(
+                If(row("CreateDT") IsNot DBNull.Value, row("CreateDT").ToString(), ""),
+                If(row("OTBType") IsNot DBNull.Value, row("OTBType").ToString(), ""),
+                OTBYear_Calc,
+                If(row("month_name_sh") IsNot DBNull.Value, row("month_name_sh").ToString(), ""),
+                OTBCategory_Calc,
+                If(row("CateName") IsNot DBNull.Value, row("CateName").ToString(), ""),
+                If(row("CompanyName") IsNot DBNull.Value, row("CompanyName").ToString(), ""),
+                OTBSegment_Calc,
+                If(row("SegmentName") IsNot DBNull.Value, row("SegmentName").ToString(), ""),
+                OTBBrand_Calc,
+                If(row("BrandName") IsNot DBNull.Value, row("BrandName").ToString(), ""),
+                OTBVendor_Calc,
+                If(row("Vendor") IsNot DBNull.Value, row("Vendor").ToString(), ""),
+                amountValue,
+                currentBudget,
+                diffAmount,
+                OTBStatus,
+                If(row("Version") IsNot DBNull.Value, row("Version").ToString(), ""),
+                If(row("Remark") IsNot DBNull.Value, row("Remark").ToString(), "")
+            )
+        Next
+
+        ' 4. Call Export Function
+        ExportDataTableToExcel(context, dtExport, "Draft_OTB_" & DateTime.Now.ToString("yyyyMMdd_HHmmss") & ".xlsx")
+    End Sub
+
+    ' *** NEW: Function for Approved Export ***
+    Private Sub HandleExportApprovedOTB(ByVal context As HttpContext)
+        ' 1. Read filters from QueryString
+        Dim OTBtype As String = If(String.IsNullOrWhiteSpace(context.Request.QueryString("OTBtype")), "", context.Request.QueryString("OTBtype").Trim())
+        Dim OTByear As String = If(String.IsNullOrWhiteSpace(context.Request.QueryString("OTByear")), "", context.Request.QueryString("OTByear").Trim())
+        Dim OTBmonth As String = If(String.IsNullOrWhiteSpace(context.Request.QueryString("OTBmonth")), "", context.Request.QueryString("OTBmonth").Trim())
+        Dim OTBCompany As String = If(String.IsNullOrWhiteSpace(context.Request.QueryString("OTBCompany")), "", context.Request.QueryString("OTBCompany").Trim())
+        Dim OTBCategory As String = If(String.IsNullOrWhiteSpace(context.Request.QueryString("OTBCategory")), "", context.Request.QueryString("OTBCategory").Trim())
+        Dim OTBSegment As String = If(String.IsNullOrWhiteSpace(context.Request.QueryString("OTBSegment")), "", context.Request.QueryString("OTBSegment").Trim())
+        Dim OTBBrand As String = If(String.IsNullOrWhiteSpace(context.Request.QueryString("OTBBrand")), "", context.Request.QueryString("OTBBrand").Trim())
+        Dim OTBVendor As String = If(String.IsNullOrWhiteSpace(context.Request.QueryString("OTBVendor")), "", context.Request.QueryString("OTBVendor").Trim())
+        Dim OTBVersion As String = If(String.IsNullOrWhiteSpace(context.Request.QueryString("OTBVersion")), "", context.Request.QueryString("OTBVersion").Trim())
+
+        ' 2. Get Raw Data (using the same function as the 'View' action)
+        Dim dtRaw As DataTable = GetOTBApproveDataWithFilter(OTBtype, OTByear, OTBmonth, OTBCompany, OTBCategory, OTBSegment, OTBBrand, OTBVendor, OTBVersion)
+
+        ' 3. Format data for export (using existing function from ApprovedOTBManager)
+        Dim dtExport As DataTable = ApprovedOTBManager.ExportToDataTable(dtRaw)
+
+        ' 4. Call generic export function
+        ExportDataTableToExcel(context, dtExport, "Approved_OTB_" & DateTime.Now.ToString("yyyyMMdd_HHmmss") & ".xlsx")
+    End Sub
+
+
+    ' *** RENAMED: from ExportDraftToExcel to ExportDataTableToExcel ***
+    Private Sub ExportDataTableToExcel(context As HttpContext, dt As DataTable, filename As String)
         ' Set the license context for EPPlus
         ExcelPackage.License.SetNonCommercialOrganization("KingPower")
 
-
         Using package As New ExcelPackage()
-            Dim worksheet = package.Workbook.Worksheets.Add("Draft OTB")
+            Dim worksheet = package.Workbook.Worksheets.Add("Data")
             worksheet.Cells("A1").LoadFromDataTable(dt, True)
 
             ' Format header
             Using range = worksheet.Cells(1, 1, 1, dt.Columns.Count)
                 range.Style.Font.Bold = True
                 range.Style.Fill.PatternType = ExcelFillStyle.Solid
-                range.Style.Fill.BackgroundColor.SetColor(System.Drawing.Color.FromArgb(255, 107, 53)) ' Header Orange
+                range.Style.Fill.BackgroundColor.SetColor(System.Drawing.Color.FromArgb(13, 110, 253)) ' Header Blue
                 range.Style.Font.Color.SetColor(System.Drawing.Color.White)
             End Using
 
-            ' Format number columns
-            worksheet.Column(15).Style.Numberformat.Format = "#,##0.00" ' TO-BE Amount
-            worksheet.Column(16).Style.Numberformat.Format = "#,##0.00" ' Current Approved
-            worksheet.Column(17).Style.Numberformat.Format = "#,##0.00" ' Diff
+            ' Format number columns (Generic formatting for potential decimals)
+            For i As Integer = 1 To dt.Columns.Count
+                If dt.Columns(i - 1).DataType Is GetType(Decimal) Or dt.Columns(i - 1).DataType Is GetType(Double) Then
+                    worksheet.Column(i).Style.Numberformat.Format = "#,##0.00"
+                End If
+            Next
 
             ' Auto-fit columns
             worksheet.Cells.AutoFitColumns()
@@ -181,6 +309,7 @@ Public Class DataOTBHandler
             context.ApplicationInstance.CompleteRequest()
         End Using
     End Sub
+
     Private Function GenerateHtmlDraftTable(dt As DataTable) As String
         Dim sb As New StringBuilder()
 

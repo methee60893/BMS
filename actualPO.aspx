@@ -530,7 +530,7 @@
         <div class="content-area">
             <!-- Page Header -->
             <div class="page-header">
-                Draft PO and Actual PO
+                Actual PO
             </div>
             <!-- Filter Box -->
             <div class="filter-box">

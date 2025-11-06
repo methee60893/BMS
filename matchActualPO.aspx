@@ -18,6 +18,8 @@
             --table-header: #4A90E2;
             --green-btn: #28a745;
             --pink-highlight: #FFB6C1;
+            /* (เพิ่ม) สีสำหรับแถวที่ Match */
+            --green-highlight: #d4edda; 
         }
 
         * {
@@ -30,6 +32,13 @@
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
             background-color: #f5f5f5;
             overflow-x: hidden;
+        }
+
+        /* ( ... CSS อื่นๆ เหมือนเดิม ... ) */
+        
+        /* (เพิ่ม) สีสำหรับแถวที่ Match */
+        .highlight-matched {
+             background-color: var(--green-highlight);
         }
 
         /* Sidebar Styles */
@@ -284,11 +293,17 @@
             cursor: pointer;
         }
 
-        .btn-submit:hover {
+        .btn-submit:hover:not(:disabled) {
             background: #218838;
             transform: translateY(-2px);
             box-shadow: 0 4px 12px rgba(40,167,69,0.3);
         }
+        
+        .btn-submit:disabled {
+            background: #6c757d;
+            cursor: not-allowed;
+        }
+
 
         /* Data Table */
         .table-container {
@@ -522,10 +537,11 @@
             </div>
             <!-- Submit Section -->
             <div class="submit-section">
-                <button type="button" id="btnSyncSAP" class="btn-submit me-3">
-                    <i class="bi bi-check-circle"></i> Sync SAP
+                <button type="button" id="btnSyncSAP" class="btn-submit me-3" style="background-color: var(--primary-blue);">
+                    <i class="bi bi-arrow-repeat"></i> Sync SAP
                 </button>
-                <button type="button" id="btnSubmit" class="btn-submit">
+                <!-- (MODIFIED: Added 'disabled' by default) -->
+                <button type="button" id="btnSubmit" class="btn-submit" disabled>
                     <i class="bi bi-check-circle"></i> Submit
                 </button>
             </div>
@@ -575,10 +591,11 @@
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script>
+        // (MODIFIED: Cache all buttons)
         let btnSyncSAP = document.getElementById("btnSyncSAP");
         let btnSubmit = document.getElementById("btnSubmit");
-        let tableBody = document.getElementById("matchTableBody"); // (เพิ่ม)
-        let loadingOverlay = document.getElementById("loadingOverlay"); // (เพิ่ม)
+        let tableBody = document.getElementById("matchTableBody");
+        let loadingOverlay = document.getElementById("loadingOverlay");
 
 
         // Toggle Sidebar
@@ -593,10 +610,10 @@
         function toggleSubmenu(event, submenuId) {
             event.preventDefault();
             event.stopPropagation();
-            
+
             const submenu = document.getElementById(submenuId);
             const menuLink = event.currentTarget;
-            
+
             submenu.classList.toggle('show');
             menuLink.classList.toggle('expanded');
         }
@@ -604,14 +621,14 @@
         // Load Page
         function loadPage(event, pageName) {
             event.preventDefault();
-            
+
             document.querySelectorAll('.submenu .menu-link').forEach(link => {
                 link.classList.remove('active');
             });
-            
+
             event.currentTarget.classList.add('active');
             document.getElementById('pageTitle').textContent = pageName;
-            
+
             if (window.innerWidth <= 768) {
                 toggleSidebar();
             }
@@ -640,32 +657,38 @@
             return names[monthInt] || month;
         }
 
-        // (เพิ่ม) Function สำหรับสร้างตาราง
+        // (MODIFIED) Function สร้างตาราง
         function buildTable(data) {
             tableBody.innerHTML = ''; // Clear table
             if (!data || data.length === 0) {
                 tableBody.innerHTML = '<tr><td colspan="18" class="text-center p-4 text-muted">No data found.</td></tr>';
+                btnSubmit.disabled = true; // (MODIFIED: Disable submit if no data)
                 return;
             }
 
             let html = '';
-            data.forEach(item => {
+            data.forEach((item, index) => {
                 const key = item.Key;
                 const draft = item.Draft;
                 const actual = item.Actual;
 
+                // (MODIFIED: Set class based on MatchStatus)
                 let rowClass = '';
-                if (item.MatchStatus === 'DraftOnly') {
-                    rowClass = 'highlight-draft';
-                } else if (item.MatchStatus === 'ActualOnly') {
-                    rowClass = 'highlight-actual';
-                } else if (item.MatchStatus === 'Matched') {
-                    rowClass = 'highlight-matched';
+                if (item.MatchStatus === 'Matched') {
+                    rowClass = 'highlight-matched'; // Green highlight
                 }
 
                 html += `<tr class="${rowClass}">`;
-                // Select
-                html += `<td><input type="checkbox" class="form-check-input" ${draft && actual ? 'checked' : ''}></td>`;
+
+                // (MODIFIED: Add data attributes to checkbox for submission)
+                html += `<td>
+                            <input type="checkbox" 
+                                   class="form-check-input match-checkbox" 
+                                   ${item.MatchStatus === 'Matched' ? 'checked' : ''}
+                                   data-draft-pos="${draft ? HttpUtility.HtmlAttributeEncode(draft.DraftPONo) : ''}"
+                                   data-actual-po="${actual ? HttpUtility.HtmlAttributeEncode(actual.ActualPONo) : ''}"
+                            >
+                         </td>`;
 
                 // --- Group Keys ---
                 html += `<td>${key.Year || ''}</td>`;
@@ -678,67 +701,139 @@
 
                 // --- Draft PO Data ---
                 html += `<td>${draft ? (draft.DraftPODate || '') : ''}</td>`;
-                html += `<td>${draft ? (draft.DraftPONo || '') : ''}</td>`;
+                html += `<td style="max-width: 150px; overflow: hidden; text-overflow: ellipsis;" title="${draft ? HttpUtility.HtmlAttributeEncode(draft.DraftPONo) : ''}">${draft ? (draft.DraftPONo || '') : ''}</td>`;
                 html += `<td class="text-end">${draft ? formatNumber(draft.DraftAmountTHB) : ''}</td>`;
+                html += `<td class="text-end">${draft ? formatNumber(draft.DraftAmountCCY) : ''}</td>`; // (MODIFIED: Re-ordered)
 
                 // --- Actual PO Data ---
                 html += `<td class="text-end">${actual ? formatNumber(actual.ActualAmountTHB) : ''}</td>`;
-                html += `<td>${actual ? (actual.ActualPONo || '') : ''}</td>`;
-                html += `<td>${actual ? (actual.ActualPODate || '') : ''}</td>`; // (TODO: Format Date)
+                html += `<td class="text-end">${actual ? formatNumber(actual.ActualAmountCCY) : ''}</td>`; // (MODIFIED: Re-ordered)
                 html += `<td>${actual ? (actual.ActualCCY || '') : ''}</td>`;
                 html += `<td class="text-end">${actual ? formatNumber(actual.ActualExRate) : ''}</td>`;
-
-                // --- CCY Amounts (Side-by-side) ---
-                html += `<td class="text-end">${draft ? formatNumber(draft.DraftAmountCCY) : ''}</td>`;
-                html += `<td class="text-end">${actual ? formatNumber(actual.ActualAmountCCY) : ''}</td>`;
+                html += `<td>${actual ? (actual.ActualPODate || '') : ''}</td>`;
+                html += `<td style="max-width: 150px; overflow: hidden; text-overflow: ellipsis;" title="${actual ? HttpUtility.HtmlAttributeEncode(actual.ActualPONo) : ''}">${actual ? (actual.ActualPONo || '') : ''}</td>`;
 
                 html += '</tr>';
             });
             tableBody.innerHTML = html;
+
+            // (MODIFIED: Enable submit button after loading data)
+            btnSubmit.disabled = false;
         }
 
-        let initial = function () {
-            btnSyncSAP.addEventListener('click', function () {
-                showLoading(true, 'Syncing with SAP...');
+        // (MODIFIED: Helper for encoding attributes)
+        const HttpUtility = {
+            HtmlAttributeEncode: function (text) {
+                if (!text) return '';
+                return text.toString()
+                    .replace(/"/g, '&quot;')
+                    .replace(/'/g, '&#39;')
+                    .replace(/</g, '&lt;')
+                    .replace(/>/g, '&gt;');
+            }
+        };
 
-                $.ajax({
-                    url: 'Handler/POMatchingHandler.ashx?action=getpo',
-                    type: 'POST',
-                    processData: false,
-                    contentType: false,
-                    dataType: 'json', // (ระบุว่าคาดหวัง JSON)
-                    success: function (response) {
-                        showLoading(false);
-                        if (response.success) {
-                            console.log(response.data);
-                            buildTable(response.data); // (เรียก Function สร้างตาราง)
-                        } else {
-                            alert('Error: ' + response.message);
-                            tableBody.innerHTML = `<tr><td colspan="18" class="text-center p-4 text-danger">${response.message}</td></tr>`;
-                        }
-                    },
-                    error: function (xhr, status, error) {
-                        showLoading(false);
-                        console.error(error);
-                        console.log(status);
-                        console.log(xhr);
-                        alert('Fatal error connecting to handler: ' + xhr.responseText);
-                        tableBody.innerHTML = `<tr><td colspan="18" class="text-center p-4 text-danger">Fatal error: ${xhr.responseText}</td></tr>`;
+        // (MODIFIED: Refactored sync logic into its own function)
+        function syncAndLoadData() {
+            showLoading(true, 'Syncing with SAP...');
+            btnSubmit.disabled = true; // Disable submit during sync
+            btnSyncSAP.disabled = true;
+
+            $.ajax({
+                url: 'Handler/POMatchingHandler.ashx?action=getpo',
+                type: 'POST',
+                processData: false,
+                contentType: false,
+                dataType: 'json',
+                success: function (response) {
+                    showLoading(false);
+                    btnSyncSAP.disabled = false;
+                    if (response.success) {
+                        console.log(response.data);
+                        buildTable(response.data); // This will re-enable submit if data exists
+                        // (MODIFIED: Show sync stats)
+                        alert(response.syncStats || "Sync completed.");
+                    } else {
+                        alert('Error: ' + response.message);
+                        tableBody.innerHTML = `<tr><td colspan="18" class="text-center p-4 text-danger">${response.message}</td></tr>`;
                     }
+                },
+                error: function (xhr, status, error) {
+                    showLoading(false);
+                    btnSyncSAP.disabled = false;
+                    console.error(error);
+                    alert('Fatal error connecting to handler: ' + xhr.responseText);
+                    tableBody.innerHTML = `<tr><td colspan="18" class="text-center p-4 text-danger">Fatal error: ${xhr.responseText}</td></tr>`;
+                }
+            });
+        }
+
+        // (MODIFIED: New function to handle submit)
+        function handleSubmit() {
+            let selectedMatches = [];
+
+            // Find all *checked* checkboxes
+            document.querySelectorAll('.match-checkbox:checked').forEach(cb => {
+                selectedMatches.push({
+                    DraftPOs: cb.dataset.draftPos, // "PO-001, PO-002"
+                    ActualPO: cb.dataset.actualPo  // "SAP-12345"
                 });
             });
 
-            btnSubmit.addEventListener('click', function () {
-                // (เพิ่ม Logic การ Submit ที่นี่)
-                alert('Submit button clicked!');
+            if (selectedMatches.length === 0) {
+                alert("Please select at least one matched row to submit.");
+                return;
+            }
+
+            if (!confirm(`Are you sure you want to submit ${selectedMatches.length} matched group(s)? This will update the Draft POs.`)) {
+                return;
+            }
+
+            showLoading(true, `Submitting ${selectedMatches.length} match(es)...`);
+            btnSubmit.disabled = true;
+            btnSyncSAP.disabled = true;
+
+            $.ajax({
+                url: 'Handler/POMatchingHandler.ashx?action=submitmatches',
+                type: 'POST',
+                data: {
+                    matches: JSON.stringify(selectedMatches)
+                },
+                dataType: 'json',
+                success: function (response) {
+                    showLoading(false);
+                    if (response.success) {
+                        alert(response.message);
+                        // Refresh the data table
+                        syncAndLoadData();
+                    } else {
+                        alert('Error submitting: ' + response.message);
+                        btnSubmit.disabled = false; // Re-enable on error
+                        btnSyncSAP.disabled = false;
+                    }
+                },
+                error: function (xhr, status, error) {
+                    showLoading(false);
+                    btnSubmit.disabled = false; // Re-enable on error
+                    btnSyncSAP.disabled = false;
+                    alert('Fatal error during submit: ' + xhr.responseText);
+                }
             });
         }
 
+        let initial = function () {
+            // (MODIFIED: Call the refactored sync function)
+            btnSyncSAP.addEventListener('click', syncAndLoadData);
+
+            // (MODIFIED: Add click listener for submit)
+            btnSubmit.addEventListener('click', handleSubmit);
+        }
+
         // Close sidebar when clicking outside
-        document.addEventListener('click', function(event) {
+        document.addEventListener('click', function (event) {
             const sidebar = document.getElementById('sidebar');
             const menuToggle = document.querySelector('.menu-toggle');
-            
+
             if (!sidebar.contains(event.target) && !menuToggle.contains(event.target)) {
                 if (sidebar.classList.contains('active')) {
                     toggleSidebar();

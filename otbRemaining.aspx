@@ -878,8 +878,8 @@
             formData.append('OTBVendor', vendorCode);
 
             // Check if all fields are selected
-            if (!OTByear || !OTBmonth || !OTBcompany || !cate || !segmentCode || !brandCode || !vendorCode) {
-                alert("Please select all filter options to view the report.");
+            if (!OTByear) {
+                alert("Please select year to view the report.");
                 return;
             }
 

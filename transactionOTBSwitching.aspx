@@ -672,22 +672,17 @@
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
     <script>
-        let typeDropdown = document.getElementById("DDSwitchType");
-        let yearDropdown = document.getElementById("DDYear");
-        let monthDropdown = document.getElementById("DDMonth");
-        let companyDropdown = document.getElementById("DDCompany");
-        let segmentDropdown = document.getElementById("DDSegment");
-        let categoryDropdown = document.getElementById("DDCategory");
-        let brandDropdown = document.getElementById("DDBrand");
-        let vendorDropdown = document.getElementById("DDVendor");
-        let btnClearFilter = document.getElementById("btnClearFilter");
-        let btnView = document.getElementById("btnView");
+        // *** MODIFIED: Declare variables here, but assign them inside initial() ***
+        let typeDropdown, yearDropdown, monthDropdown, companyDropdown;
+        let segmentDropdown, categoryDropdown, brandDropdown, vendorDropdown;
+        let btnClearFilter, btnView, btnExport;
+        let tableViewBody; // <-- Added missing variable
 
         // Toggle Sidebar
         function toggleSidebar() {
             const sidebar = document.getElementById('sidebar');
             const overlay = document.getElementById('sidebarOverlay');
-            
+
             sidebar.classList.toggle('active');
             overlay.classList.toggle('active');
         }
@@ -696,10 +691,11 @@
         function toggleSubmenu(event, submenuId) {
             event.preventDefault();
             event.stopPropagation();
-            
+
             const submenu = document.getElementById(submenuId);
             const menuLink = event.currentTarget;
-            
+
+            // Toggle submenu
             submenu.classList.toggle('show');
             menuLink.classList.toggle('expanded');
         }
@@ -707,14 +703,14 @@
         // Load Page
         function loadPage(event, pageName) {
             event.preventDefault();
-            
+
             document.querySelectorAll('.submenu .menu-link').forEach(link => {
                 link.classList.remove('active');
             });
-            
+
             event.currentTarget.classList.add('active');
             document.getElementById('pageTitle').textContent = pageName;
-            
+
             if (window.innerWidth <= 768) {
                 toggleSidebar();
             }
@@ -724,12 +720,12 @@
         function switchTab(tab) {
             const tabs = document.querySelectorAll('.tab-button');
             tabs.forEach(t => t.classList.remove('active'));
-            
+
             const tabContents = document.querySelectorAll('.tab-content');
             tabContents.forEach(tc => tc.classList.remove('active'));
-            
+
             event.target.closest('.tab-button').classList.add('active');
-            
+
             if (tab === 'txn') {
                 document.getElementById('txnTab').classList.add('active');
             } else if (tab === 'upload') {
@@ -738,10 +734,10 @@
         }
 
         // Close sidebar when clicking outside
-        document.addEventListener('click', function(event) {
+        document.addEventListener('click', function (event) {
             const sidebar = document.getElementById('sidebar');
             const menuToggle = document.querySelector('.menu-toggle');
-            
+
             if (!sidebar.contains(event.target) && !menuToggle.contains(event.target)) {
                 if (sidebar.classList.contains('active')) {
                     toggleSidebar();
@@ -750,24 +746,56 @@
         });
 
         let initial = function () {
+            // *** MODIFIED: Assign variables inside initial() after DOM is loaded ***
+            typeDropdown = document.getElementById("DDSwitchType");
+            yearDropdown = document.getElementById("DDYear");
+            monthDropdown = document.getElementById("DDMonth");
+            companyDropdown = document.getElementById("DDCompany");
+            segmentDropdown = document.getElementById("DDSegment");
+            categoryDropdown = document.getElementById("DDCategory");
+            brandDropdown = document.getElementById("DDBrand");
+            vendorDropdown = document.getElementById("DDVendor");
+            btnClearFilter = document.getElementById("btnClearFilter");
+            btnView = document.getElementById("btnView");
+            btnExport = document.getElementById("btnExport");
+            tableViewBody = document.getElementById("tableViewBody"); // <-- Added missing assignment
+
             const firstMenuLink = document.querySelector('.menu-link');
             if (firstMenuLink) {
                 firstMenuLink.classList.add('expanded');
             }
 
-
             //InitData master
             InitMSData();
-            segmentDropdown.addEventListener('change', changeVendor);
-            btnClearFilter.addEventListener('click', function () {
-                //mainForm.reset();
-                InitMSData();
-                tableViewBody.innerHTML = "";
-            });
-            btnView.addEventListener('click', search);
 
-
+            // *** FIX: Check if elements exist before adding listeners ***
+            if (segmentDropdown) {
+                segmentDropdown.addEventListener('change', changeVendor);
+            }
+            if (btnClearFilter) {
+                btnClearFilter.addEventListener('click', function () {
+                    //mainForm.reset(); // No mainForm here
+                    // Manual reset
+                    if (typeDropdown) typeDropdown.value = "D";
+                    if (yearDropdown) yearDropdown.value = "";
+                    if (monthDropdown) monthDropdown.value = "";
+                    if (companyDropdown) companyDropdown.value = "";
+                    if (categoryDropdown) categoryDropdown.value = "";
+                    if (segmentDropdown) segmentDropdown.value = "";
+                    if (brandDropdown) brandDropdown.value = "";
+                    if (vendorDropdown) vendorDropdown.value = "";
+                    InitVendor(vendorDropdown); // Reset vendor
+                    if (tableViewBody) tableViewBody.innerHTML = "<tr><td colspan='30' class='text-center text-muted'>No switch OTB records found</td></tr>";
+                });
+            }
+            if (btnView) {
+                btnView.addEventListener('click', search);
+            }
+            if (btnExport) {
+                btnExport.addEventListener('click', exportTXN);
+            }
         }
+
         let search = function () {
             var segmentCode = segmentDropdown.value;
             var cate = categoryDropdown.value;
@@ -797,12 +825,31 @@
                 processData: false,
                 contentType: false,
                 success: function (response) {
-                    tableViewBody.innerHTML = response;
+                    if (tableViewBody) tableViewBody.innerHTML = response; // <-- Added check
                 },
                 error: function (xhr, status, error) {
                     console.log('Error getlist data: ' + error);
                 }
             });
+        }
+
+        // *** ADDED: exportTXN function ***
+        let exportTXN = function () {
+            console.log("Export TXN (Switching) clicked");
+            // Build query string from filters
+            var params = new URLSearchParams();
+            params.append('action', 'exportswitchingtxn'); // This action needs to be implemented in DataOTBHandler.ashx.vb
+            params.append('OTBtype', typeDropdown.value);
+            params.append('OTByear', yearDropdown.value);
+            params.append('OTBmonth', monthDropdown.value);
+            params.append('OTBCompany', companyDropdown.value);
+            params.append('OTBCategory', categoryDropdown.value);
+            params.append('OTBSegment', segmentDropdown.value);
+            params.append('OTBBrand', brandDropdown.value);
+            params.append('OTBVendor', vendorDropdown.value);
+
+            // Use window.location to trigger file download (GET request)
+            window.location.href = 'Handler/DataOTBHandler.ashx?' + params.toString();
         }
 
         let InitMSData = function () {
@@ -822,7 +869,7 @@
                 processData: false,
                 contentType: false,
                 success: function (response) {
-                    segmentDropdown.innerHTML = response;
+                    if (segmentDropdown) segmentDropdown.innerHTML = response; // <-- Added check
                 },
                 error: function (xhr, status, error) {
                     console.log('Error getlist data: ' + error);
@@ -837,7 +884,7 @@
                 processData: false,
                 contentType: false,
                 success: function (response) {
-                    yearDropdown.innerHTML = response;
+                    if (yearDropdown) yearDropdown.innerHTML = response; // <-- Added check
                 },
                 error: function (xhr, status, error) {
                     console.log('Error getlist data: ' + error);
@@ -852,7 +899,7 @@
                 processData: false,
                 contentType: false,
                 success: function (response) {
-                    monthDropdown.innerHTML = response;
+                    if (monthDropdown) monthDropdown.innerHTML = response; // <-- Added check
                 },
                 error: function (xhr, status, error) {
                     console.log('Error getlist data: ' + error);
@@ -867,7 +914,7 @@
                 processData: false,
                 contentType: false,
                 success: function (response) {
-                    companyDropdown.innerHTML = response;
+                    if (companyDropdown) companyDropdown.innerHTML = response; // <-- Added check
                 },
                 error: function (xhr, status, error) {
                     console.log('Error getlist data: ' + error);
@@ -882,7 +929,7 @@
                 processData: false,
                 contentType: false,
                 success: function (response) {
-                    categoryDropdown.innerHTML = response;
+                    if (categoryDropdown) categoryDropdown.innerHTML = response; // <-- Added check
                 },
                 error: function (xhr, status, error) {
                     console.log('Error getlist data: ' + error);
@@ -897,7 +944,7 @@
                 processData: false,
                 contentType: false,
                 success: function (response) {
-                    brandDropdown.innerHTML = response;
+                    if (brandDropdown) brandDropdown.innerHTML = response; // <-- Added check
                 },
                 error: function (xhr, status, error) {
                     console.log('Error getlist data: ' + error);
@@ -912,7 +959,7 @@
                 processData: false,
                 contentType: false,
                 success: function (response) {
-                    vendorDropdown.innerHTML = response;
+                    if (vendorDropdown) vendorDropdown.innerHTML = response; // <-- Added check
                 },
                 error: function (xhr, status, error) {
                     console.log('Error getlist data: ' + error);
@@ -936,7 +983,7 @@
                 processData: false,
                 contentType: false,
                 success: function (response) {
-                    vendorDropdown.innerHTML = response;
+                    if (vendorDropdown) vendorDropdown.innerHTML = response; // <-- Added check
                 },
                 error: function (xhr, status, error) {
                     console.log('Error getlist data: ' + error);
@@ -947,3 +994,6 @@
         document.addEventListener('DOMContentLoaded', initial);
 
     </script>
+
+</body>
+</html>

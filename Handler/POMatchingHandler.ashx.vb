@@ -1,100 +1,195 @@
 ﻿Imports System
 Imports System.Data
 Imports System.Data.SqlClient
+Imports System.Globalization ' (เพิ่ม Import นี้สำหรับ CultureInfo)
+Imports System.Linq
 Imports System.Threading.Tasks
 Imports System.Web
 Imports System.Web.Script.Serialization
 Imports System.Web.SessionState
 Imports Newtonsoft.Json
-Imports System.Linq
-Imports System.Globalization ' (เพิ่ม Import นี้สำหรับ CultureInfo)
 
 Public Class POMatchingHandler
     Implements System.Web.IHttpHandler, IRequiresSessionState
 
     Private Shared connectionString As String = ConfigurationManager.ConnectionStrings("BMSConnectionString")?.ConnectionString
+    ' (เพิ่ม) Class สำหรับรับข้อมูลตอน Submit
+    Private Class MatchPayload
+        Public Property DraftPOs As String ' "PO-001, PO-002"
+        Public Property ActualPO As String ' "SAP-12345"
+    End Class
 
     Sub ProcessRequest(ByVal context As HttpContext) Implements IHttpHandler.ProcessRequest
         Dim action As String = If(context.Request("action"), "").ToLower().Trim()
 
         If action = "getpo" Then
-            Try
-                ' 1. รับค่า Parameters (ตัวอย่าง)
-                Dim top As Integer = 5000 ' (เพิ่มจำนวนดึงข้อมูล)
-                Dim skip As Integer = 0
-
-                ' --- 2. (อัปเดต) ดึงข้อมูล SAP POs  ---
-                Dim combinedPoList As New List(Of SapPOResultItem)()
-
-                ' 2.3 ดึงข้อมูล "สองวันก่อน"
-                Dim poListTwoDaysAgo As List(Of SapPOResultItem) = Task.Run(Async Function()
-                                                                                Return Await SapApiHelper.GetPOsAsync(Date.Today.AddDays(-2), top, skip)
-                                                                            End Function).Result
-                If poListTwoDaysAgo IsNot Nothing Then
-                    combinedPoList.AddRange(poListTwoDaysAgo)
-                End If
-
-                If combinedPoList.Count = 0 AndAlso poListTwoDaysAgo Is Nothing Then
-                    Throw New Exception("Failed to get any PO data from SAP (All requests returned Nothing).")
-                End If
-
-                ' --- 3. (ใหม่) บันทึก SAP POs ลง Staging DB ---
-                Dim upsertStats As String = SyncPOsToStaging(combinedPoList)
-
-                ' --- 4. ดึงและ Group Draft POs (Local DB) ---
-                ' (GetGroupedDraftPOs ถูกแก้ไขให้ใช้ Key ที่ตรงกัน)
-                Dim groupedDraftPOs As Dictionary(Of POMatchKey, GroupedDraftPO) = GetGroupedDraftPOs()
-
-                ' --- 5. (ใหม่) ดึงและ Group Actual POs (จาก Staging DB) ---
-                Dim groupedActualPOs As Dictionary(Of POMatchKey, GroupedActualPO) = GetGroupedActualPOsFromStaging()
-
-                ' --- 6. Join ข้อมูล (แก้ไขเป็น INNER JOIN ตามที่ผู้ใช้ขอ) ---
-                ' Dim combinedKeys = groupedDraftPOs.Keys.Union(groupedActualPOs.Keys) ' (Original: Full Outer Join)
-                Dim results As New List(Of MatchedPOItem)()
-
-                ' (วนลูปจาก Draft POs ซึ่งเป็นฝั่งหลัก)
-                For Each draftKVP In groupedDraftPOs
-                    Dim key = draftKVP.Key
-                    Dim draftPO = draftKVP.Value
-
-                    Dim actualPO As GroupedActualPO = Nothing
-
-                    ' (ตรวจสอบว่า Key นี้มีใน Actual POs หรือไม่)
-                    If groupedActualPOs.TryGetValue(key, actualPO) Then
-                        ' *** ถ้า Match เท่านั้น (INNER JOIN) ***
-
-                        Dim item As New MatchedPOItem With {
-                            .Key = key,
-                            .Draft = draftPO,
-                            .Actual = actualPO,
-                            .MatchStatus = "Matched" ' (สถานะเป็น Matched เสมอ)
-                        }
-                        results.Add(item)
-                    End If
-                    ' (ถ้า Key จาก Draft PO ไม่มีใน Actual POs ก็จะไม่ทำอะไรเลย -> ข้ามไป)
-                Next
-
-                ' --- 7. ส่งข้อมูลที่ Match แล้วกลับไป ---
-                context.Response.ContentType = "application/json"
-                Dim successResponse = New With {
-                    .success = True,
-                    .count = results.Count,
-                    .data = results, ' (ส่ง List ที่ Match แล้วกลับไป)
-                    .syncStats = upsertStats ' (เพิ่มข้อความสถานะการ Sync)
-                }
-                context.Response.Write(JsonConvert.SerializeObject(successResponse))
-
-            Catch ex As Exception
-                context.Response.ContentType = "application/json"
-                context.Response.StatusCode = 500
-                Dim errorResponse As New With {
-                    .success = False,
-                    .message = ex.Message & If(ex.InnerException IsNot Nothing, " | Inner: " & ex.InnerException.Message, "")
-                }
-                context.Response.Write(JsonConvert.SerializeObject(errorResponse))
-            End Try
+            GetPOData(context)
+        ElseIf action = "submitmatches" Then
+            SubmitMatches(context)
         End If
 
+    End Sub
+
+
+    ' (เพิ่ม) Sub ใหม่สำหรับ Submit
+    Private Sub SubmitMatches(context As HttpContext)
+        context.Response.ContentType = "application/json"
+        Dim statusBy As String = "System_Matcher" ' (TODO: ควรดึงจาก Session ถ้ามี)
+        ' If context.Session("user") IsNot Nothing Then
+        '     statusBy = context.Session("user").ToString()
+        ' End If
+
+        Dim jsonPayload As String = context.Request.Form("matches")
+        If String.IsNullOrEmpty(jsonPayload) Then
+            Throw New Exception("No match data received.")
+        End If
+
+        Dim matches As List(Of MatchPayload) = JsonConvert.DeserializeObject(Of List(Of MatchPayload))(jsonPayload)
+        If matches Is Nothing OrElse matches.Count = 0 Then
+            Throw New Exception("No matches were selected.")
+        End If
+
+        Dim totalRowsAffected As Integer = 0
+
+        Using conn As New SqlConnection(connectionString)
+            conn.Open()
+            Using transaction As SqlTransaction = conn.BeginTransaction()
+                Try
+                    ' วนลูปทุก Group ที่ถูกส่งมา
+                    For Each match As MatchPayload In matches
+                        Dim actualPoRef As String = match.ActualPO.Trim()
+
+                        ' แยก Draft POs (อาจมีหลายใบ)
+                        Dim draftPoList As String() = match.DraftPOs.Split(New Char() {","c}, StringSplitOptions.RemoveEmptyEntries)
+
+                        ' วนลูปทุก Draft PO ใน Group นี้
+                        For Each po As String In draftPoList
+                            Dim draftPoNo As String = po.Trim()
+                            If String.IsNullOrEmpty(draftPoNo) Then Continue For
+
+                            Dim updateQuery As String = "
+                                UPDATE [BMS].[dbo].[Draft_PO_Transaction]
+                                SET 
+                                    [Actual_PO_Ref] = @ActualPO,
+                                    [Status] = 'Matched',
+                                    [Status_Date] = GETDATE(),
+                                    [Status_By] = @StatusBy
+                                WHERE 
+                                    [DraftPO_No] = @DraftPONo
+                                    AND ISNULL([Actual_PO_Ref], '') = '' 
+                                    AND ISNULL([Status], '') <> 'Cancelled'
+                            "
+
+                            Using cmd As New SqlCommand(updateQuery, conn, transaction)
+                                cmd.Parameters.AddWithValue("@ActualPO", actualPoRef)
+                                cmd.Parameters.AddWithValue("@StatusBy", statusBy)
+                                cmd.Parameters.AddWithValue("@DraftPONo", draftPoNo)
+
+                                totalRowsAffected += cmd.ExecuteNonQuery()
+                            End Using
+                        Next
+                    Next
+
+                    transaction.Commit()
+
+                    ' ส่งผลลัพธ์กลับ
+                    Dim successResponse = New With {
+                        .success = True,
+                        .message = $"Successfully updated {totalRowsAffected} draft PO record(s) to 'Matched'."
+                    }
+                    context.Response.Write(JsonConvert.SerializeObject(successResponse))
+
+                Catch ex As Exception
+                    transaction.Rollback()
+                    ' ส่ง Error กลับ
+                    context.Response.StatusCode = 500
+                    Dim errorResponse As New With {
+                        .success = False,
+                        .message = ex.Message
+                    }
+                    context.Response.Write(JsonConvert.SerializeObject(errorResponse))
+                End Try
+            End Using
+        End Using
+    End Sub
+
+
+    ' (เปลี่ยน) แยก GetPO ออกมาเป็น Sub
+    Private Sub GetPOData(context As HttpContext)
+        Try
+            ' 1. รับค่า Parameters (ตัวอย่าง)
+            Dim top As Integer = 5000 ' (เพิ่มจำนวนดึงข้อมูล)
+            Dim skip As Integer = 0
+
+            ' --- 2. (อัปเดต) ดึงข้อมูล SAP POs  ---
+            Dim combinedPoList As New List(Of SapPOResultItem)()
+
+            ' 2.3 ดึงข้อมูล "สองวันก่อน"
+            Dim poListTwoDaysAgo As List(Of SapPOResultItem) = Task.Run(Async Function()
+                                                                            Return Await SapApiHelper.GetPOsAsync(Date.Today.AddDays(-2), top, skip)
+                                                                        End Function).Result
+            If poListTwoDaysAgo IsNot Nothing Then
+                combinedPoList.AddRange(poListTwoDaysAgo)
+            End If
+
+            If combinedPoList.Count = 0 AndAlso poListTwoDaysAgo Is Nothing Then
+                Throw New Exception("Failed to get any PO data from SAP (All requests returned Nothing).")
+            End If
+
+            ' --- 3. (ใหม่) บันทึก SAP POs ลง Staging DB ---
+            Dim upsertStats As String = SyncPOsToStaging(combinedPoList)
+
+            ' --- 4. ดึงและ Group Draft POs (Local DB) ---
+            ' (GetGroupedDraftPOs ถูกแก้ไขให้ใช้ Key ที่ตรงกัน)
+            Dim groupedDraftPOs As Dictionary(Of POMatchKey, GroupedDraftPO) = GetGroupedDraftPOs()
+
+            ' --- 5. (ใหม่) ดึงและ Group Actual POs (จาก Staging DB) ---
+            Dim groupedActualPOs As Dictionary(Of POMatchKey, GroupedActualPO) = GetGroupedActualPOsFromStaging()
+
+            ' --- 6. Join ข้อมูล (แก้ไขเป็น INNER JOIN ตามที่ผู้ใช้ขอ) ---
+            Dim results As New List(Of MatchedPOItem)()
+
+            ' (วนลูปจาก Draft POs ซึ่งเป็นฝั่งหลัก)
+            For Each draftKVP In groupedDraftPOs
+                Dim key = draftKVP.Key
+                Dim draftPO = draftKVP.Value
+
+                Dim actualPO As GroupedActualPO = Nothing
+
+                ' (ตรวจสอบว่า Key นี้มีใน Actual POs หรือไม่)
+                If groupedActualPOs.TryGetValue(key, actualPO) Then
+                    ' *** ถ้า Match เท่านั้น (INNER JOIN) ***
+
+                    Dim item As New MatchedPOItem With {
+                        .Key = key,
+                        .Draft = draftPO,
+                        .Actual = actualPO,
+                        .MatchStatus = "Matched" ' (สถานะเป็น Matched เสมอ)
+                    }
+                    results.Add(item)
+                End If
+                ' (ถ้า Key จาก Draft PO ไม่มีใน Actual POs ก็จะไม่ทำอะไรเลย -> ข้ามไป)
+            Next
+
+            ' --- 7. ส่งข้อมูลที่ Match แล้วกลับไป ---
+            context.Response.ContentType = "application/json"
+            Dim successResponse = New With {
+                .success = True,
+                .count = results.Count,
+                .data = results, ' (ส่ง List ที่ Match แล้วกลับไป)
+                .syncStats = upsertStats ' (เพิ่มข้อความสถานะการ Sync)
+            }
+            context.Response.Write(JsonConvert.SerializeObject(successResponse))
+
+        Catch ex As Exception
+            context.Response.ContentType = "application/json"
+            context.Response.StatusCode = 500
+            Dim errorResponse As New With {
+                .success = False,
+                .message = ex.Message & If(ex.InnerException IsNot Nothing, " | Inner: " & ex.InnerException.Message, "")
+            }
+            context.Response.Write(JsonConvert.SerializeObject(errorResponse))
+        End Try
     End Sub
 
     ' --- (อัปเดต Function) ---
@@ -253,7 +348,7 @@ Public Class POMatchingHandler
                     End Using
 
                     transaction.Commit()
-                    Return $"Sync completed. Total SAP (3 days): {poList.Count} | Inserted: {insertedCount} | Updated: {updatedCount}"
+                    Return $"Sync completed. Total SAP (2 days): {poList.Count} | Inserted: {insertedCount} | Updated: {updatedCount}"
 
                 Catch ex As Exception
                     transaction.Rollback()
