@@ -900,6 +900,7 @@
     let btnClearFilter = document.getElementById("btnClearFilter");
     let btnView = document.getElementById("btnView");
     let btnExportTXN = document.getElementById("btnExportTXN");
+    let btnExportSUM = document.getElementById("btnExportSUM");
     let btnApprove = document.getElementById('btnApprove');
     let btnDelete = document.getElementById('btnDelete');
     let btnSelectAll = document.getElementById('btnSelectAll');
@@ -1130,6 +1131,7 @@
             });
             btnView.addEventListener('click', search);
             btnExportTXN.addEventListener('click', exportTXN);
+            btnExportSUM.addEventListener('click', exportSum);
 
             // *** ADDED: Approve Button Click Event ***
             btnApprove.addEventListener('click', approveSelectedItems);
@@ -1389,6 +1391,41 @@
 
         // Use window.location to trigger file download
         // This is a GET request, so the handler must be adjusted to read from QueryString
+        window.location.href = 'Handler/DataOTBHandler.ashx?' + params.toString();
+    }
+
+    let exportSum = function () {
+        console.log("Export Sum clicked");
+
+        // **สำคัญ**: เราจะใช้แค่ Filter 3 ตัวตามที่รูปภาพระบุ (Year, Company, Segment)
+        // แม้ว่าหน้าเว็บจะมี Filter อื่นๆ ก็ตาม
+        let OTBtype = typeDropdown.value; // (ดูเหมือน SP จะไม่ใช้ แต่ส่งไปเผื่อ)
+        let OTByear = yearDropdown.value;
+        let OTBmonth = monthDropdown.value; // (SP ไม่ใช้)
+        let OTBcompany = companyDropdown.value;
+        let OTBCategory = categoryDropdown.value; // (SP ไม่ใช้)
+        let OTBSegment = segmentDropdown.value;
+        let OTBBrand = brandDropdown.value; // (SP ไม่ใช้)
+        let OTBVendor = vendorDropdown.value; // (SP ไม่ใช้)
+
+        if (!OTByear) {
+            alert("Please select a Year to export the summary.");
+            return;
+        }
+
+        var params = new URLSearchParams();
+        params.append('action', 'exportdraftotbsum'); // Action ใหม่
+        params.append('OTByear', OTByear);
+
+        // ส่งค่า Company และ Segment ถ้ามี
+        if (OTBcompany) {
+            params.append('OTBCompany', OTBcompany);
+        }
+        if (OTBSegment) {
+            params.append('OTBSegment', OTBSegment);
+        }
+
+        // ใช้ window.location เพื่อดาวน์โหลดไฟล์ (GET request)
         window.location.href = 'Handler/DataOTBHandler.ashx?' + params.toString();
     }
 

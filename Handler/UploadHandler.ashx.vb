@@ -637,6 +637,28 @@ Public Class UploadHandler : Implements IHttpHandler
 
         Dim updateList As New List(Of Dictionary(Of String, Object))
 
+        ' --- (START) NEW DE-DUPLICATION LOGIC ---
+        ' 3.5. สร้าง Dictionary เพื่อเก็บแถวที่ไม่ซ้ำกัน (ยึดแถวสุดท้าย)
+        Dim uniqueRowsToProcess As New Dictionary(Of String, OTBUploadPreviewRow)(StringComparer.OrdinalIgnoreCase)
+        Dim totalSelected As Integer = selectedRows.Count
+        Dim duplicateInBatchCount As Integer = 0
+
+        For Each row As OTBUploadPreviewRow In selectedRows
+            ' สร้าง Key จากทุกฟิลด์ *ยกเว้น* Amount
+            Dim compositeKey As String = String.Join("|", New String() {
+                row.Type, row.Year, row.Month, row.Category, row.Company,
+                row.Segment, row.Brand, row.Vendor,
+                If(row.Remark, "") ' (เพิ่ม Remark เข้าไปใน Key ด้วย)
+            })
+
+            If uniqueRowsToProcess.ContainsKey(compositeKey) Then
+                duplicateInBatchCount += 1
+            End If
+            ' Add or Overwrite: การทำแบบนี้จะทำให้ Dictionary เก็บเฉพาะแถว "สุดท้าย" ที่มี Key นี้
+            uniqueRowsToProcess(compositeKey) = row
+        Next
+        ' --- (END) NEW DE-DUPLICATION LOGIC ---
+
         Dim savedCount As Integer = 0
         Dim updatedCount As Integer = 0
 
@@ -695,6 +717,7 @@ Public Class UploadHandler : Implements IHttpHandler
                         updateData.Add("UploadBy", uploadBy)
                         updateData.Add("Batch", newBatch)
                         updateData.Add("UpdateDT", createDT)
+                        updateData.Add("Remark", If(String.IsNullOrEmpty(remarkValue), DBNull.Value, remarkValue))
                         updateList.Add(updateData)
                         updatedCount += 1
                     Else
@@ -712,6 +735,7 @@ Public Class UploadHandler : Implements IHttpHandler
                         newRow("Version") = versionValue
                         newRow("UploadBy") = uploadBy
                         newRow("Batch") = newBatch
+                        newRow("Remark") = If(String.IsNullOrEmpty(remarkValue), DBNull.Value, remarkValue) ' (เพิ่ม Remark)
                         newRow("CreateDT") = createDT
                         insertTable.Rows.Add(newRow)
                         savedCount += 1
@@ -758,6 +782,7 @@ Public Class UploadHandler : Implements IHttpHandler
                             cmd.Parameters.AddWithValue("@UploadBy", updateData("UploadBy"))
                             cmd.Parameters.AddWithValue("@Batch", updateData("Batch"))
                             cmd.Parameters.AddWithValue("@UpdateDT", updateData("UpdateDT"))
+                            cmd.Parameters.AddWithValue("@Remark", updateData("Remark")) ' (เพิ่ม Parameter)
                             cmd.ExecuteNonQuery()
                         End Using
                     Next
@@ -772,7 +797,11 @@ Public Class UploadHandler : Implements IHttpHandler
         End Using
 
         ' === 6. ส่งผลลัพธ์กลับ ===
-        context.Response.Write($"Successfully saved {savedCount} new rows and updated {updatedCount} rows to Draft OTB (Batch: {newBatch})")
+        Dim duplicateMessage As String = ""
+        If duplicateInBatchCount > 0 Then
+            duplicateMessage = $" ({duplicateInBatchCount} duplicate rows in the file were consolidated based on the last row.)"
+        End If
+        context.Response.Write($"Successfully saved {savedCount} new rows and updated {updatedCount} existing DB rows (Batch: {newBatch}).{duplicateMessage}")
     End Sub
 
     Public ReadOnly Property IsReusable() As Boolean Implements IHttpHandler.IsReusable

@@ -32,6 +32,8 @@ Public Class DataOTBHandler
                 HandleExportApprovedOTB(context)
             ElseIf action = "exportswitchingtxn" Then
                 HandleExportSwitchingOTB(context)
+            ElseIf action = "exportdraftotbsum" Then
+                ExportDraftOTBSum(context)
             Else
                 ' *** MOVED: The rest of the logic into an Else block ***
                 context.Response.Clear()
@@ -309,6 +311,109 @@ Public Class DataOTBHandler
             context.ApplicationInstance.CompleteRequest()
         End Using
     End Sub
+
+    ' --- (START) NEW FUNCTION FOR SUMMARY EXPORT ---
+    ''' <summary>
+    ''' สร้างไฟล์ Excel สรุป OTB Plan ตามรูปแบบในรูปภาพ
+    ''' </summary>
+    Private Sub ExportDraftOTBSum(context As HttpContext)
+        ' 1. รับ Filters (จาก QueryString)
+        Dim year As Integer = 0
+        Integer.TryParse(context.Request.QueryString("OTByear"), year)
+        Dim company As String = If(String.IsNullOrWhiteSpace(context.Request.QueryString("OTBCompany")), "", context.Request.QueryString("OTBCompany").Trim())
+        Dim segment As String = If(String.IsNullOrWhiteSpace(context.Request.QueryString("OTBSegment")), "", context.Request.QueryString("OTBSegment").Trim())
+
+        ' (บังคับต้องมี Year)
+        If year = 0 Then
+            Throw New Exception("Year is required for summary export.")
+        End If
+
+        ' 2. ดึงข้อมูลจาก SP ใหม่
+        Dim dt As New DataTable()
+        Using conn As New SqlConnection(connectionString)
+            conn.Open()
+            Using cmd As New SqlCommand("SP_Get_OTB_Summary_Report", conn)
+                cmd.CommandType = CommandType.StoredProcedure
+                cmd.Parameters.AddWithValue("@Year", year)
+                cmd.Parameters.AddWithValue("@Company", If(String.IsNullOrEmpty(company), DBNull.Value, company))
+                cmd.Parameters.AddWithValue("@Segment", If(String.IsNullOrEmpty(segment), DBNull.Value, segment))
+
+                Using adapter As New SqlDataAdapter(cmd)
+                    adapter.Fill(dt)
+                End Using
+            End Using
+        End Using
+
+        ' 3. สร้างไฟล์ Excel
+        ExcelPackage.License.SetNonCommercialOrganization("KingPower")
+
+        Using package As New ExcelPackage()
+            Dim ws = package.Workbook.Worksheets.Add("OTB Plan Summary")
+
+            ' --- สร้าง Headers ตามรูปภาพ (FIXED) ---
+            ws.Cells("A1").Value = "Categories"
+            ws.Cells("A1:B2").Merge = True ' *** FIX: Merge A1:B2 (2 columns) ***
+            ws.Cells("A1:B2").Style.Fill.PatternType = ExcelFillStyle.Solid
+            ws.Cells("A1:B2").Style.Fill.BackgroundColor.SetColor(Color.FromArgb(217, 217, 217)) ' Light Gray
+
+            ws.Cells("C1").Value = "OTB Amount"
+            ws.Cells("C1:N1").Merge = True ' *** FIX: C1 to N1 (Cols 3-14) ***
+            ws.Cells("C1:N1").Style.Fill.PatternType = ExcelFillStyle.Solid
+            ws.Cells("C1:N1").Style.Fill.BackgroundColor.SetColor(Color.FromArgb(204, 229, 255)) ' Light Blue
+
+            ws.Cells("O1").Value = "TO-BE Amount (Revised)"
+            ws.Cells("O1:Z1").Merge = True ' *** FIX: O1 to Z1 (Cols 15-26) ***
+            ws.Cells("O1:Z1").Style.Fill.PatternType = ExcelFillStyle.Solid
+            ws.Cells("O1:Z1").Style.Fill.BackgroundColor.SetColor(Color.FromArgb(255, 229, 204)) ' Light Orange
+
+            ws.Cells("AA1").Value = "DIFF"
+            ws.Cells("AA1:AL1").Merge = True ' *** FIX: AA1 to AL1 (Cols 27-38) ***
+            ws.Cells("AA1:AL1").Style.Fill.PatternType = ExcelFillStyle.Solid
+            ws.Cells("AA1:AL1").Style.Fill.BackgroundColor.SetColor(Color.FromArgb(229, 255, 204)) ' Light Green
+
+            ' --- สร้าง Sub-Headers (Jan-Dec) 3 ครั้ง ---
+            Dim months() As String = {"Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"}
+            For i As Integer = 0 To 2
+                For m As Integer = 0 To 11
+                    ' *** FIX: Start col at 3 (Col C) ***
+                    Dim col As Integer = (i * 12) + m + 3
+                    ws.Cells(2, col).Value = months(m)
+                Next
+            Next
+
+            ' (จัดกลาง Headers)
+            ws.Cells("A1:AL2").Style.HorizontalAlignment = ExcelHorizontalAlignment.Center ' *** FIX: A1:AL2 ***
+            ws.Cells("A1:AL2").Style.VerticalAlignment = ExcelVerticalAlignment.Center
+            ws.Cells("A1:AL2").Style.Font.Bold = True
+
+            ' --- ใส่ Data ---
+            If dt.Rows.Count > 0 Then
+                ' dt (38 cols) จะถูกโหลดลง A3:AL...
+                ws.Cells("A3").LoadFromDataTable(dt, False)
+            End If
+
+            ' --- จัด Format ตัวเลข ---
+            ' dt มี 38 คอลัมน์ (CatCode(A), CatName(B), Data(C)...Data(AL))
+            ' เราจะ Format ตั้งแต่คอลัมน์ที่ 3 (C) ถึง 38 (AL)
+            If dt.Rows.Count > 0 Then
+                ws.Cells(3, 3, dt.Rows.Count + 2, 38).Style.Numberformat.Format = "#,##0.00"
+            End If
+
+            ws.Cells.AutoFitColumns()
+
+            ' --- ส่งไฟล์กลับ ---
+            context.Response.Clear()
+            context.Response.ContentType = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+            context.Response.AddHeader("content-disposition", $"attachment; filename=OTB_Plan_Summary_{year}_{DateTime.Now.ToString("yyyyMMdd")}.xlsx")
+            context.Response.BinaryWrite(package.GetAsByteArray())
+            context.Response.Flush()
+            context.ApplicationInstance.CompleteRequest()
+
+        End Using
+
+    End Sub
+    ' --- (END) NEW FUNCTION FOR SUMMARY EXPORT ---
+
 
     Private Function GenerateHtmlDraftTable(dt As DataTable) As String
         Dim sb As New StringBuilder()
