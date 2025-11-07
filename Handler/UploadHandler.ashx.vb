@@ -826,11 +826,10 @@ Public Class UploadHandler : Implements IHttpHandler
 
         Return (currentMax + 1).ToString()
     End Function
-
     ''' <summary>
     ''' คำนวณ Version โดยดูจาก History ของ Key นี้
-    ''' - ถ้ายังไม่เคยมีข้อมูล Key นี้ → A1
-    ''' - ถ้าเคยมี Original แล้ว และ Type=Revise → R1, R2, R3...
+    ''' (MODIFIED) - Checks both OTB_Transaction (Approved) and Template_Upload_Draft_OTB (Drafts).
+    ''' (MODIFIED) - Enforces R15 limit.
     ''' </summary>
     Private Function CalculateVersionFromHistory(type As String, year As String, month As String,
                                                  category As String, company As String, segment As String,
@@ -841,66 +840,112 @@ Public Class UploadHandler : Implements IHttpHandler
                 Return "A1"
             End If
 
-            ' ถ้าเป็น Revise → ต้องหา Version ล่าสุดของ Key นี้
-            If type.Equals("Revise", StringComparison.OrdinalIgnoreCase) Then
-                Using conn As New SqlConnection(connectionString)
-                    conn.Open()
+            ' --- [BMS Gem MODIFICATION START] ---
+            ' Requirement 2 & 3: Check both tables and limit to R15.
 
-                    ' Query หา Version ล่าสุดของ Key เดียวกัน
-                    Dim query As String = "SELECT TOP 1 [Version]
-                                      FROM [dbo].[Template_Upload_Draft_OTB]
-                                      WHERE [Year] = @Year
-                                        AND [Month] = @Month
-                                        AND [Category] = @Category
-                                        AND [Company] = @Company
-                                        AND [Segment] = @Segment
-                                        AND [Brand] = @Brand
-                                        AND [Vendor] = @Vendor
-                                      ORDER BY [CreateDT] DESC, [Batch] DESC"
+            Dim latestVersionNum As Integer = -1 ' A1 = 0, R1 = 1, R2 = 2
 
-                    Using cmd As New SqlCommand(query, conn)
-                        cmd.Parameters.AddWithValue("@Year", year)
-                        cmd.Parameters.AddWithValue("@Month", month)
-                        cmd.Parameters.AddWithValue("@Category", category)
-                        cmd.Parameters.AddWithValue("@Company", company)
-                        cmd.Parameters.AddWithValue("@Segment", segment)
-                        cmd.Parameters.AddWithValue("@Brand", brand)
-                        cmd.Parameters.AddWithValue("@Vendor", vendor)
+            ' Helper function to parse version string
+            Dim getVersionNum = Function(v As String)
+                                    If String.IsNullOrEmpty(v) Then Return -1
+                                    If v.Equals("A1", StringComparison.OrdinalIgnoreCase) Then Return 0
+                                    If v.StartsWith("R", StringComparison.OrdinalIgnoreCase) Then
+                                        Dim numPart As Integer
+                                        If Integer.TryParse(v.Substring(1), numPart) Then
+                                            Return numPart ' R1=1, R2=2
+                                        End If
+                                    End If
+                                    Return -1 ' Unknown format
+                                End Function
 
-                        Dim lastVersion As Object = cmd.ExecuteScalar()
+            Using conn As New SqlConnection(connectionString)
+                conn.Open()
 
-                        If lastVersion IsNot Nothing AndAlso Not IsDBNull(lastVersion) Then
-                            Dim lastVersionStr As String = lastVersion.ToString()
+                ' 1. Queryหา Version ล่าสุดจาก OTB_Transaction (Approved History)
+                ' (ใช้ ApprovedDate หรือ CreateDate ที่ใหม่ที่สุด)
+                Dim queryApproved As String = "
+                    SELECT TOP 1 [Version]
+                    FROM [dbo].[OTB_Transaction]
+                    WHERE [Year] = @Year
+                      AND [Month] = @Month
+                      AND [Category] = @Category
+                      AND [Company] = @Company
+                      AND [Segment] = @Segment
+                      AND [Brand] = @Brand
+                      AND [Vendor] = @Vendor
+                    ORDER BY ISNULL([ApprovedDate], [CreateDate]) DESC, [ID] DESC"
 
-                            ' แยก Version number
-                            ' A1 → ไม่ควรมาถึงตรงนี้ (เพราะ Type=Revise)
-                            ' R1 → R2
-                            ' R2 → R3
-                            If lastVersionStr.StartsWith("R") Then
-                                Dim numPart As String = lastVersionStr.Substring(1)
-                                Dim reviseNum As Integer
-                                If Integer.TryParse(numPart, reviseNum) Then
-                                    Return $"R{reviseNum + 1}"
-                                End If
-                            ElseIf lastVersionStr.StartsWith("A") Then
-                                ' ถ้า Version ล่าสุดเป็น A1 แสดงว่านี่คือ Revise แรก
-                                Return "R1"
-                            End If
-                        Else
-                            ' ไม่พบข้อมูลเก่า แต่ Type=Revise → Error (แต่ให้ default R1)
-                            Return "R1"
-                        End If
-                    End Using
+                Using cmd As New SqlCommand(queryApproved, conn)
+                    cmd.Parameters.AddWithValue("@Year", year)
+                    cmd.Parameters.AddWithValue("@Month", month)
+                    cmd.Parameters.AddWithValue("@Category", category)
+                    cmd.Parameters.AddWithValue("@Company", company)
+                    cmd.Parameters.AddWithValue("@Segment", segment)
+                    cmd.Parameters.AddWithValue("@Brand", brand)
+                    cmd.Parameters.AddWithValue("@Vendor", vendor)
+
+                    Dim lastApprovedVersion As Object = cmd.ExecuteScalar()
+                    If lastApprovedVersion IsNot Nothing AndAlso Not IsDBNull(lastApprovedVersion) Then
+                        latestVersionNum = getVersionNum(lastApprovedVersion.ToString())
+                    End If
                 End Using
+
+                ' 2. Query หา Version ล่าสุดจาก Template_Upload_Draft_OTB (Drafts)
+                Dim queryDraft As String = "
+                    SELECT TOP 1 [Version]
+                    FROM [dbo].[Template_Upload_Draft_OTB]
+                    WHERE [Year] = @Year
+                      AND [Month] = @Month
+                      AND [Category] = @Category
+                      AND [Company] = @Company
+                      AND [Segment] = @Segment
+                      AND [Brand] = @Brand
+                      AND [Vendor] = @Vendor
+                    ORDER BY ISNULL([UpdateDT], [CreateDT]) DESC, [Batch] DESC"
+
+                Using cmd As New SqlCommand(queryDraft, conn)
+                    cmd.Parameters.AddWithValue("@Year", year)
+                    cmd.Parameters.AddWithValue("@Month", month)
+                    cmd.Parameters.AddWithValue("@Category", category)
+                    cmd.Parameters.AddWithValue("@Company", company)
+                    cmd.Parameters.AddWithValue("@Segment", segment)
+                    cmd.Parameters.AddWithValue("@Brand", brand)
+                    cmd.Parameters.AddWithValue("@Vendor", vendor)
+
+                    Dim lastDraftVersion As Object = cmd.ExecuteScalar()
+                    If lastDraftVersion IsNot Nothing AndAlso Not IsDBNull(lastDraftVersion) Then
+                        Dim draftVersionNum As Integer = getVersionNum(lastDraftVersion.ToString())
+                        If draftVersionNum > latestVersionNum Then
+                            latestVersionNum = draftVersionNum ' Draft version is newer
+                        End If
+                    End If
+                End Using
+            End Using
+
+            ' 3. Calculate next version
+            Dim nextVersionNum As Integer
+            If latestVersionNum = -1 Then
+                ' Requirement 1: Allow R1 even if no A1 exists
+                nextVersionNum = 1 ' No history, this is R1
+            Else
+                nextVersionNum = latestVersionNum + 1 ' (A1 (0) -> R1 (1)) or (R1 (1) -> R2 (2))
             End If
 
-            ' Default
-            Return "A1"
+            ' 4. Enforce R15 limit (Requirement 2 & 3)
+            If nextVersionNum > 15 Then
+                ' This should have been caught by preview, but we enforce it here too.
+                Throw New Exception($"Cannot save. The next version (R{nextVersionNum}) would exceed the R15 limit.")
+            End If
+
+            Return $"R{nextVersionNum}"
+
+            ' --- [BMS Gem MODIFICATION END] ---
 
         Catch ex As Exception
-            ' ถ้า error ให้ return default
-            Return "A1"
+            ' ถ้า error ให้โยน Exception เพื่อหยุดการ Save
+            Throw ex
         End Try
     End Function
+
 
 End Class

@@ -11,10 +11,9 @@ Public Class OTBValidate
     Private dtVendors As DataTable
     Private dtCompanies As DataTable
 
-    ' Draft OTB Data (สำหรับเช็ค duplicate)
+
     Private dtDraftOTB As DataTable
 
-    ' Approved OTB Data (สำหรับเช็ค Type validation)
     Private dtApprovedOTB As DataTable
 
     ' Constructor - โหลดข้อมูล Master ทั้งหมดครั้งเดียว
@@ -336,6 +335,33 @@ Public Class OTBValidate
                 errors.Append("Duplicated_Approved OTB (Cannot Update) ")
             End If
 
+            ' --- [BMS Gem MODIFICATION START] ---
+            ' Requirement 2, 3, 4: Check R15 limit at Preview
+            If type.Equals("Revise", StringComparison.OrdinalIgnoreCase) Then
+                ' Find the latest version (A1, R1, R2...) from EITHER Draft or Approved tables
+                Dim latestVersion As String = GetLatestVersionFromDB(year, month, category, company, segment, brand, vendor)
+
+                Dim nextVersionNum As Integer = 1 ' Default to R1 if no history
+
+                If latestVersion IsNot Nothing Then
+                    If latestVersion.Equals("A1", StringComparison.OrdinalIgnoreCase) Then
+                        nextVersionNum = 1 ' Next is R1
+                    ElseIf latestVersion.StartsWith("R", StringComparison.OrdinalIgnoreCase) Then
+                        Dim numPart As Integer
+                        If Integer.TryParse(latestVersion.Substring(1), numPart) Then
+                            nextVersionNum = numPart + 1 ' Next is R(N+1)
+                        End If
+                    End If
+                End If
+
+                ' Check the limit (Req 2 & 3)
+                If nextVersionNum > 15 Then
+                    ' The *next* version would be R16, which is not allowed
+                    errors.Append($"Revise_limit_exceeded_(R15_is_max) ") ' (Req 4: Notify at preview)
+                End If
+            End If
+            ' --- [BMS Gem MODIFICATION END] ---
+
             ' เงื่อนไขที่ 3-4: เช็ค Type กับ Draft/Approved data
             Dim typeError As String = ValidateTypeWithData(type, year, month, category, company, segment, brand, vendor)
             If Not String.IsNullOrEmpty(typeError) Then
@@ -398,6 +424,74 @@ Public Class OTBValidate
         End Try
 
         Return ""
+    End Function
+
+    ''' <summary>
+    ''' (NEW) Finds the latest version (e.g., A1, R1, R2) for a specific OTB key 
+    ''' by checking both Draft and Approved tables loaded in memory.
+    ''' </summary>
+    ''' <returns>The latest version string (e.g., "R2") or Nothing if not found.</returns>
+    Private Function GetLatestVersionFromDB(year As String, month As String, category As String,
+                                            company As String, segment As String, brand As String,
+                                            vendor As String) As String
+
+        Dim latestVersion As String = Nothing
+        Dim latestVersionNum As Integer = -1 ' A1 = 0, R1 = 1, R2 = 2
+
+        Dim filter As String = $"[Year] = '{year.Replace("'", "''")}' AND " &
+                              $"[Month] = '{month.Replace("'", "''")}' AND " &
+                              $"[Category] = '{category.Replace("'", "''")}' AND " &
+                              $"[Company] = '{company.Replace("'", "''")}' AND " &
+                              $"[Segment] = '{segment.Replace("'", "''")}' AND " &
+                              $"[Brand] = '{brand.Replace("'", "''")}' AND " &
+                              $"[Vendor] = '{vendor.Replace("'", "''")}'"
+
+        ' Helper function to parse version string
+        Dim getVersionNum = Function(v As String)
+                                If String.IsNullOrEmpty(v) Then Return -1
+                                If v.Equals("A1", StringComparison.OrdinalIgnoreCase) Then Return 0
+                                If v.StartsWith("R", StringComparison.OrdinalIgnoreCase) Then
+                                    Dim numPart As Integer
+                                    If Integer.TryParse(v.Substring(1), numPart) Then
+                                        Return numPart ' R1=1, R2=2
+                                    End If
+                                End If
+                                Return -1 ' Unknown format
+                            End Function
+
+        ' Check Draft table (Template_Upload_Draft_OTB)
+        If dtDraftOTB IsNot Nothing AndAlso dtDraftOTB.Columns.Contains("Version") Then
+            Try
+                For Each row As DataRow In dtDraftOTB.Select(filter)
+                    Dim currentVersionStr As String = row("Version").ToString()
+                    Dim currentVersionNum As Integer = getVersionNum(currentVersionStr)
+                    If currentVersionNum > latestVersionNum Then
+                        latestVersionNum = currentVersionNum
+                        latestVersion = currentVersionStr
+                    End If
+                Next
+            Catch ex As Exception
+                ' Handle potential filter errors if data is bad
+            End Try
+        End If
+
+        ' Check Approved table (OTB_Transaction)
+        If dtApprovedOTB IsNot Nothing AndAlso dtApprovedOTB.Columns.Contains("Version") Then
+            Try
+                For Each row As DataRow In dtApprovedOTB.Select(filter)
+                    Dim currentVersionStr As String = row("Version").ToString()
+                    Dim currentVersionNum As Integer = getVersionNum(currentVersionStr)
+                    If currentVersionNum > latestVersionNum Then
+                        latestVersionNum = currentVersionNum
+                        latestVersion = currentVersionStr
+                    End If
+                Next
+            Catch ex As Exception
+                ' Handle potential filter errors
+            End Try
+        End If
+
+        Return latestVersion
     End Function
 
 End Class
