@@ -43,11 +43,39 @@ Public Class SapUploadResultItem
     <JsonProperty("category")>
     Public Property Category As String
 
+
     <JsonProperty("vendorCode")>
     Public Property VendorCode As String
+    Public ReadOnly Property VendorMap As String
+        Get
 
+            If String.IsNullOrEmpty(Me.VendorCode) Then
+                Return Me.VendorCode
+            End If
+
+            Try
+                Return Convert.ToInt64(Me.VendorCode).ToString()
+            Catch ex As Exception
+                Return Me.VendorCode
+            End Try
+        End Get
+    End Property
     <JsonProperty("segmentCode")>
     Public Property SegmentCode As String
+    Public ReadOnly Property SegmentCodeMap As String
+        Get
+
+            If String.IsNullOrEmpty(Me.SegmentCode) OrElse Me.SegmentCode.Length < 3 Then
+                Return Me.SegmentCode
+            End If
+
+            Try
+                Return Me.SegmentCode.Substring(1, Me.SegmentCode.Length - 2)
+            Catch ex As Exception
+                Return Me.SegmentCode
+            End Try
+        End Get
+    End Property
 
     <JsonProperty("brandCode")>
     Public Property BrandCode As String

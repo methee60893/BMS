@@ -993,7 +993,7 @@ Public Class DataOTBHandler
                                 ' Re-create the key to find RunNo
                                 Dim sapKey As String = String.Join("|",
                                     successResult.Version, successResult.CompCode, successResult.Category,
-                                    successResult.VendorCode, successResult.SegmentCode, successResult.BrandCode,
+                                    successResult.VendorMap, successResult.SegmentCodeMap, successResult.BrandCode,
                                     successResult.Amount, successResult.Year, successResult.Month
                                 )
 
@@ -1005,12 +1005,10 @@ Public Class DataOTBHandler
                                         UPDATE [dbo].[Template_Upload_Draft_OTB]
                                         SET 
                                             [OTBStatus] = @OTBStatus,
-                                            [ApprovedBy] = @ApprovedBy,
-                                            [ApprovedDT] = GETDATE(),
+                                            [UpdateBy] = @ApprovedBy,
+                                            [UpdateDT] = GETDATE(),
                                             [SAPStatus] = @SAPStatus,
-                                            [SAPErrorMessage] = @SAPErrorMessage,
-                                            [SAPDate] = GETDATE(),
-                                            [Remark] = ISNULL(@Remark, Remark)
+                                            [SAPErrorMessage] = @SAPErrorMessage
                                         WHERE 
                                             [RunNo] = @RunNo
                                             AND (OTBStatus IS NULL OR OTBStatus = 'Draft')
@@ -1021,7 +1019,6 @@ Public Class DataOTBHandler
                                         cmd.Parameters.AddWithValue("@ApprovedBy", approvedBy)
                                         cmd.Parameters.AddWithValue("@SAPStatus", successResult.MessageType)
                                         cmd.Parameters.AddWithValue("@SAPErrorMessage", If(String.IsNullOrEmpty(successResult.Message), DBNull.Value, successResult.Message))
-                                        cmd.Parameters.AddWithValue("@Remark", If(remark Is Nothing, DBNull.Value, remark))
                                         cmd.Parameters.AddWithValue("@RunNo", runNoToUpdate)
                                         updateCount += cmd.ExecuteNonQuery()
                                     End Using
