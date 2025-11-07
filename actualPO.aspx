@@ -535,7 +535,7 @@
             <!-- Filter Box -->
             <div class="filter-box">
                 <div class="filter-title">
-                    Actual PO
+                   Search Actual PO
                 </div>
 
                 <%-- *** MODIFIED: Added IDs to all controls *** --%>
@@ -722,7 +722,7 @@
         // --- Initializer ---
         function initial() {
             InitMSData();
-
+            
             // Add Event Listeners
             btnView.addEventListener('click', search);
             btnClearFilter.addEventListener('click', clearFilters);
@@ -803,6 +803,7 @@
             InitMSYear(ddYearFilter);
             InitMonth(ddMonthFilter);
             InitCompany(ddCompanyFilter);
+            search();
         }
 
         function InitSegment(element, addAll = true) {

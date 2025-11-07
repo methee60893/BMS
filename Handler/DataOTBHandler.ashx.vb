@@ -771,6 +771,7 @@ Public Class DataOTBHandler
                                       AND (@OTBSegment = '' OR OTBSegment = @OTBSegment)
                                       AND (@OTBBrand = '' OR OTBBrand = @OTBBrand)
                                       AND (@OTBVendor = '' OR OTBVendor = @OTBVendor)
+                                      ORDER BY CreateDT DESC
                                     "
             Using cmd As New SqlCommand(query, conn)
                 cmd.Parameters.AddWithValue("@OTBtype", OTBtype)

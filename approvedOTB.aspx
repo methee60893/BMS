@@ -873,6 +873,7 @@
             InitMonth(monthDropdown);
             InitCompany(companyDropdown);
             InitVersion(versionDropdown);
+            search();
         }
 
         let InitSegment = function (segmentDropdown) {

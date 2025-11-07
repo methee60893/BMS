@@ -1499,6 +1499,7 @@
         InitMSYear(yearDropdown);
         InitMonth(monthDropdown);
         InitCompany(companyDropdown);
+        search();
     }
 
     let InitSegment = function (segmentDropdown) {
