@@ -663,7 +663,7 @@ Public Class UploadHandler : Implements IHttpHandler
         Dim updatedCount As Integer = 0
 
         ' === 4. วนลูปข้อมูลที่ส่งมาจาก Preview (นี่คือส่วนที่เปลี่ยน) ===
-        For Each row As OTBUploadPreviewRow In selectedRows
+        For Each row As OTBUploadPreviewRow In uniqueRowsToProcess.Values
             Try
                 ' ดึงค่าจาก Object (ไม่ใช่ DataRow)
                 Dim typeValue As String = row.Type
