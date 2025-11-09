@@ -184,7 +184,7 @@ Public Class DataOTBHandler
 
         ' 1. Get Raw Data
         Dim dtRaw As DataTable = GetOTBDraftDataWithFilter(OTBtype, OTByear, OTBmonth, OTBCompany, OTBCategory, OTBSegment, OTBBrand, OTBVendor)
-
+        Dim budgetCalculator As New OTBBudgetCalculator()
         ' 2. Create Export-formatted DataTable (to match the HTML table)
         Dim dtExport As New DataTable("DraftOTB")
         dtExport.Columns.Add("Create Date", GetType(String))
@@ -220,7 +220,7 @@ Public Class DataOTBHandler
             Dim amountValue As Decimal = 0
             Decimal.TryParse(If(row("Amount") IsNot DBNull.Value, row("Amount").ToString(), ""), amountValue)
 
-            Dim currentBudget As Decimal = OTBBudgetCalculator.CalculateCurrentApprovedBudget(OTBYear_Calc, OTBMonth_Calc, OTBCategory_Calc, OTBCompany_Calc, OTBSegment_Calc, OTBBrand_Calc, OTBVendor_Calc)
+            Dim currentBudget As Decimal = budgetCalculator.CalculateCurrentApprovedBudget(OTBYear_Calc, OTBMonth_Calc, OTBCategory_Calc, OTBCompany_Calc, OTBSegment_Calc, OTBBrand_Calc, OTBVendor_Calc)
             Dim diffAmount As Decimal = amountValue - currentBudget
             Dim OTBStatus As String = If(row("OTBStatus") IsNot DBNull.Value, row("OTBStatus").ToString(), "Draft")
 
@@ -417,7 +417,7 @@ Public Class DataOTBHandler
 
     Private Function GenerateHtmlDraftTable(dt As DataTable) As String
         Dim sb As New StringBuilder()
-
+        Dim budgetCalculator As New OTBBudgetCalculator()
         If dt.Rows.Count = 0 Then
             sb.Append("<tr><td colspan='20' class='text-center text-muted'>No Draft OTB records found</td></tr>")
         Else
@@ -446,7 +446,7 @@ Public Class DataOTBHandler
                 If Decimal.TryParse(If(dt.Rows(i)("Amount") IsNot DBNull.Value, dt.Rows(i)("Amount").ToString(), ""), amountValue) Then
                     Amount = amountValue.ToString("N2")
                 End If
-                Dim currentBudget As Decimal = OTBBudgetCalculator.CalculateCurrentApprovedBudget(OTBYear, OTBMonth, OTBCategory, OTBCompany, OTBSegment, OTBBrand, OTBVendor)
+                Dim currentBudget As Decimal = budgetCalculator.CalculateCurrentApprovedBudget(OTBYear, OTBMonth, OTBCategory, OTBCompany, OTBSegment, OTBBrand, OTBVendor)
                 CurrentBudgetAmount = currentBudget.ToString("N2")
 
                 Dim diffamout As Decimal = amountValue - currentBudget
@@ -819,6 +819,7 @@ Public Class DataOTBHandler
         Dim responseJson As New Dictionary(Of String, Object)
 
         Try
+            Dim budgetCalculator As New OTBBudgetCalculator()
             ' 1. Get selected IDs (Same as original code)
             Dim idsString As String = If(String.IsNullOrWhiteSpace(context.Request.Form("runNos")), "[]", context.Request.Form("runNos").Trim())
             If String.IsNullOrEmpty(idsString) OrElse idsString = "[]" Then
@@ -1046,7 +1047,7 @@ Public Class DataOTBHandler
 
                                         Dim revisedDiffValue As Decimal = 0
                                         If calc_Type.Equals("Revise", StringComparison.OrdinalIgnoreCase) Then
-                                            Dim currentBudget As Decimal = OTBBudgetCalculator.CalculateCurrentApprovedBudget(
+                                            Dim currentBudget As Decimal = budgetCalculator.CalculateCurrentApprovedBudget(
                                                 calc_Year, calc_Month, calc_Category, calc_Company, calc_Segment, calc_Brand, calc_Vendor)
                                             revisedDiffValue = calc_Amount - currentBudget
                                         End If

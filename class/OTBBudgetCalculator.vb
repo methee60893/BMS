@@ -3,291 +3,277 @@ Imports System.Data.SqlClient
 
 Public Class OTBBudgetCalculator
     Private Shared connectionString As String = ConfigurationManager.ConnectionStrings("BMSConnectionString")?.ConnectionString
+
+    ' --- 1. สร้างตัวแปร Private สำหรับเก็บข้อมูลที่โหลดมา ---
+    Private dtOtbTransaction As DataTable
+    Private dtSwitchingTransaction As DataTable
+
     ''' <summary>
-    ''' คำนวณ Current Total Approved Budget
-    ''' = Original + Rev.diff + Extra + Switch In + Balance In + Carry In - Switch Out - Balance Out - Carry Out
+    ''' Constructor: เมื่อคลาสนี้ถูก New() จะดึงข้อมูลทั้งหมดจาก DB มาเก็บไว้ก่อน
     ''' </summary>
-    Public Shared Function CalculateCurrentApprovedBudget(year As String, month As String,
-                                                          category As String, company As String,
-                                                          segment As String, brand As String,
-                                                          vendor As String) As Decimal
-        Dim totalBudget As Decimal = 0
+    Public Sub New()
+        LoadAllTransactionData()
+    End Sub
+
+    ''' <summary>
+    ''' (ใหม่) เปิด Connection ครั้งเดียว แล้วดึงข้อมูลทั้งหมดที่ Approved แล้วมาเก็บไว้
+    ''' </summary>
+    Private Sub LoadAllTransactionData()
+        dtOtbTransaction = New DataTable()
+        dtSwitchingTransaction = New DataTable()
 
         Try
             Using conn As New SqlConnection(connectionString)
                 conn.Open()
 
-                ' 1. ดึง Amount จาก Original (Approved)
-                Dim originalAmount As Decimal = GetOriginalAmount(conn, year, month, category, company, segment, brand, vendor)
-                totalBudget += originalAmount
+                ' --- โหลดข้อมูล OTB_Transaction (สำหรับ Original และ Revise) ---
+                Dim queryOtb As String = "
+                    SELECT [Type], [Year], [Month], [Category], [Company], [Segment], 
+                           [Brand], [Vendor], [Amount], [Version] 
+                    FROM [dbo].[OTB_Transaction] 
+                    WHERE [OTBStatus] = 'Approved'"
 
-                ' 2. ดึง Rev.diff จากทุก Revise (Approved)
-                Dim revDiff As Decimal = GetRevisionDiff(conn, year, month, category, company, segment, brand, vendor)
-                totalBudget += revDiff
+                Using cmd As New SqlCommand(queryOtb, conn)
+                    Using reader As SqlDataReader = cmd.ExecuteReader()
+                        dtOtbTransaction.Load(reader)
+                    End Using
+                End Using
 
-                ' 3. คำนวณจาก Switching Transaction (โครงสร้างใหม่)
-                Dim switchingAmounts As Dictionary(Of String, Decimal) = CalculateSwitchingAmounts(conn, year, month, category, company, segment, brand, vendor)
+                ' --- โหลดข้อมูล OTB_Switching_Transaction (สำหรับ Extra, Switch, Balance, Carry) ---
+                Dim querySwitch As String = "
+                    SELECT [Year], [Month], [Category], [Company], [Segment], [Brand], [Vendor], 
+                           [From], [BudgetAmount], 
+                           [To], [SwitchYear], [SwitchMonth], [SwitchCompany], [SwitchCategory], 
+                           [SwitchSegment], [SwitchBrand], [SwitchVendor] 
+                    FROM [dbo].[OTB_Switching_Transaction] 
+                    WHERE [OTBStatus] = 'Approved'"
 
-                totalBudget += switchingAmounts("Extra")
-                totalBudget += switchingAmounts("SwitchIn")
-                totalBudget += switchingAmounts("BalanceIn")
-                totalBudget += switchingAmounts("CarryIn")
-                totalBudget -= switchingAmounts("SwitchOut")
-                totalBudget -= switchingAmounts("BalanceOut")
-                totalBudget -= switchingAmounts("CarryOut")
+                Using cmd As New SqlCommand(querySwitch, conn)
+                    Using reader As SqlDataReader = cmd.ExecuteReader()
+                        dtSwitchingTransaction.Load(reader)
+                    End Using
+                End Using
             End Using
+        Catch ex As Exception
+            Throw New Exception("Failed to load budget calculator data: " & ex.Message)
+        End Try
+    End Sub
+
+    ''' <summary>
+    ''' (แก้ไข) เปลี่ยนเป็น Instance Function (ลบ Shared)
+    ''' </summary>
+    Public Function CalculateCurrentApprovedBudget(year As String, month As String,
+                                                   category As String, company As String,
+                                                   segment As String, brand As String,
+                                                   vendor As String) As Decimal
+        Dim totalBudget As Decimal = 0
+        Try
+            totalBudget += GetOriginalAmount(year, month, category, company, segment, brand, vendor)
+            totalBudget += GetRevisionDiff(year, month, category, company, segment, brand, vendor)
+
+            Dim switchingAmounts As Dictionary(Of String, Decimal) = CalculateSwitchingAmounts(year, month, category, company, segment, brand, vendor)
+
+            totalBudget += switchingAmounts("Extra")
+            totalBudget += switchingAmounts("SwitchIn")
+            totalBudget += switchingAmounts("BalanceIn")
+            totalBudget += switchingAmounts("CarryIn")
+            totalBudget -= switchingAmounts("SwitchOut")
+            totalBudget -= switchingAmounts("BalanceOut")
+            totalBudget -= switchingAmounts("CarryOut")
 
         Catch ex As Exception
-            System.Diagnostics.Debug.WriteLine("Error calculating budget: " & ex.Message)
+            System.Diagnostics.Debug.WriteLine($"Error calculating budget for key [{year}-{month}-{category}...]: {ex.Message}")
             Return 0
         End Try
-
         Return totalBudget
     End Function
 
     ''' <summary>
-    ''' ดึง Original Amount (Approved)
+    ''' (แก้ไข) ลบ Shared และ 'conn' Parameter, เปลี่ยนไปใช้ .Compute จาก dtOtbTransaction
     ''' </summary>
-    Private Shared Function GetOriginalAmount(conn As SqlConnection, year As String, month As String,
-                                              category As String, company As String, segment As String,
-                                              brand As String, vendor As String) As Decimal
+    Private Function GetOriginalAmount(year As String, month As String,
+                                       category As String, company As String, segment As String,
+                                       brand As String, vendor As String) As Decimal
         Try
-            Dim query As String = "SELECT ISNULL(SUM(CAST([Amount] AS DECIMAL(18,2))), 0)
-                                  FROM [dbo].[OTB_Transaction]
-                                  WHERE [Type] = 'Original'
-                                    AND [OTBStatus] = 'Approved'
-                                    AND [Year] = @Year
-                                    AND [Month] = @Month
-                                    AND [Category] = @Category
-                                    AND [Company] = @Company
-                                    AND [Segment] = @Segment
-                                    AND [Brand] = @Brand
-                                    AND [Vendor] = @Vendor"
+            Dim filter As String = BuildKeyFilter(year, month, category, company, segment, brand, vendor)
+            filter &= " AND [Type] = 'Original'"
 
-            Using cmd As New SqlCommand(query, conn)
-                cmd.Parameters.AddWithValue("@Year", year)
-                cmd.Parameters.AddWithValue("@Month", month)
-                cmd.Parameters.AddWithValue("@Category", category)
-                cmd.Parameters.AddWithValue("@Company", company)
-                cmd.Parameters.AddWithValue("@Segment", segment)
-                cmd.Parameters.AddWithValue("@Brand", brand)
-                cmd.Parameters.AddWithValue("@Vendor", vendor)
+            Dim originalAmount As Object = dtOtbTransaction.Compute("SUM(Amount)", filter)
+            Return If(originalAmount IsNot DBNull.Value, Convert.ToDecimal(originalAmount), 0)
 
-                Dim result As Object = cmd.ExecuteScalar()
-                Return If(result IsNot Nothing AndAlso Not IsDBNull(result), Convert.ToDecimal(result), 0)
-            End Using
         Catch ex As Exception
-            System.Diagnostics.Debug.WriteLine("Error getting original amount: " & ex.Message)
+            System.Diagnostics.Debug.WriteLine("Error in GetOriginalAmount (In-Memory): " & ex.Message)
             Return 0
         End Try
     End Function
 
     ''' <summary>
-    ''' คำนวณ Rev.diff = ผลรวม (Revise Amount - Previous Amount)
+    ''' (แก้ไข) ลบ Shared และ 'conn' Parameter, เปลี่ยนไปใช้ .Select จาก dtOtbTransaction
     ''' </summary>
-    Private Shared Function GetRevisionDiff(conn As SqlConnection, year As String, month As String,
-                                           category As String, company As String, segment As String,
-                                           brand As String, vendor As String) As Decimal
+    Private Function GetRevisionDiff(year As String, month As String,
+                                     category As String, company As String, segment As String,
+                                     brand As String, vendor As String) As Decimal
         Try
-            ' ดึง Original Amount
-            Dim originalAmount As Decimal = GetOriginalAmount(conn, year, month, category, company, segment, brand, vendor)
+            Dim originalAmount As Decimal = GetOriginalAmount(year, month, category, company, segment, brand, vendor)
 
-            ' ดึง Revise Amounts ทั้งหมด (เรียงตาม Version)
-            Dim query As String = "SELECT CAST([Amount] AS DECIMAL(18,2)) as Amount
-                                  FROM [dbo].[OTB_Transaction]
-                                  WHERE [Type] = 'Revise'
-                                    AND [OTBStatus] = 'Approved'
-                                    AND [Year] = @Year
-                                    AND [Month] = @Month
-                                    AND [Category] = @Category
-                                    AND [Company] = @Company
-                                    AND [Segment] = @Segment
-                                    AND [Brand] = @Brand
-                                    AND [Vendor] = @Vendor
-                                  ORDER BY [Version]"
+            Dim filter As String = BuildKeyFilter(year, month, category, company, segment, brand, vendor)
+            filter &= " AND [Type] = 'Revise'"
 
-            Using cmd As New SqlCommand(query, conn)
-                cmd.Parameters.AddWithValue("@Year", year)
-                cmd.Parameters.AddWithValue("@Month", month)
-                cmd.Parameters.AddWithValue("@Category", category)
-                cmd.Parameters.AddWithValue("@Company", company)
-                cmd.Parameters.AddWithValue("@Segment", segment)
-                cmd.Parameters.AddWithValue("@Brand", brand)
-                cmd.Parameters.AddWithValue("@Vendor", vendor)
+            Dim reviseRows As DataRow() = dtOtbTransaction.Select(filter, "Version ASC")
 
-                Dim totalRevDiff As Decimal = 0
-                Dim previousAmount As Decimal = originalAmount
+            Dim totalRevDiff As Decimal = 0
+            Dim previousAmount As Decimal = originalAmount
 
-                Using reader As SqlDataReader = cmd.ExecuteReader()
-                    While reader.Read()
-                        Dim reviseAmount As Decimal = If(reader("Amount") IsNot DBNull.Value, Convert.ToDecimal(reader("Amount")), 0)
-                        Dim diff As Decimal = reviseAmount - previousAmount
-                        totalRevDiff += diff
-                        previousAmount = reviseAmount ' Update สำหรับ Revise ถัดไป
-                    End While
-                End Using
+            For Each row As DataRow In reviseRows
+                Dim reviseAmount As Decimal = If(row("Amount") IsNot DBNull.Value, Convert.ToDecimal(row("Amount")), 0)
+                Dim diff As Decimal = reviseAmount - previousAmount
+                totalRevDiff += diff
+                previousAmount = reviseAmount
+            Next
 
-                Return totalRevDiff
-            End Using
+            Return totalRevDiff
         Catch ex As Exception
-            System.Diagnostics.Debug.WriteLine("Error getting revision diff: " & ex.Message)
+            System.Diagnostics.Debug.WriteLine("Error in GetRevisionDiff (In-Memory): " & ex.Message)
             Return 0
         End Try
     End Function
 
     ''' <summary>
-    ''' คำนวณยอดจาก Switching Transaction (โครงสร้างใหม่)
-    ''' ใช้ [From] และ [To] character fields
+    ''' (แก้ไข) ลบ Shared และ 'conn' Parameter, เปลี่ยนไปใช้ .Select จาก dtSwitchingTransaction
     ''' </summary>
-    Private Shared Function CalculateSwitchingAmounts(conn As SqlConnection, year As String, month As String,
-                                                      category As String, company As String, segment As String,
-                                                      brand As String, vendor As String) As Dictionary(Of String, Decimal)
+    Private Function CalculateSwitchingAmounts(year As String, month As String,
+                                               category As String, company As String, segment As String,
+                                               brand As String, vendor As String) As Dictionary(Of String, Decimal)
         Dim result As New Dictionary(Of String, Decimal) From {
-            {"Extra", 0},
-            {"SwitchIn", 0},
-            {"SwitchOut", 0},
-            {"BalanceIn", 0},
-            {"BalanceOut", 0},
-            {"CarryIn", 0},
-            {"CarryOut", 0}
+            {"Extra", 0}, {"SwitchIn", 0}, {"SwitchOut", 0},
+            {"BalanceIn", 0}, {"BalanceOut", 0}, {"CarryIn", 0}, {"CarryOut", 0}
         }
 
         Try
             ' ========================================
             ' คำนวณ OUT (จาก Source) - ลบออก
             ' ========================================
-            Dim queryOut As String = "
-                SELECT 
-                    [From],
-                    SUM([BudgetAmount]) as TotalAmount
-                FROM [dbo].[OTB_Switching_Transaction]
-                WHERE [OTBStatus] = 'Approved'
-                  AND [Year] = @Year
-                  AND [Month] = @Month
-                  AND [Category] = @Category
-                  AND [Company] = @Company
-                  AND [Segment] = @Segment
-                  AND [Brand] = @Brand
-                  AND [Vendor] = @Vendor
-                GROUP BY [From]"
+            Dim filterOut As String = BuildKeyFilter(year, month, category, company, segment, brand, vendor)
+            Dim outRows() As DataRow = dtSwitchingTransaction.Select(filterOut)
 
-            Using cmd As New SqlCommand(queryOut, conn)
-                cmd.Parameters.AddWithValue("@Year", Convert.ToInt32(year))
-                cmd.Parameters.AddWithValue("@Month", Convert.ToInt32(month))
-                cmd.Parameters.AddWithValue("@Category", category)
-                cmd.Parameters.AddWithValue("@Company", company)
-                cmd.Parameters.AddWithValue("@Segment", segment)
-                cmd.Parameters.AddWithValue("@Brand", brand)
-                cmd.Parameters.AddWithValue("@Vendor", vendor)
+            For Each row As DataRow In outRows
+                Dim fromType As String = If(row("From") IsNot DBNull.Value, row("From").ToString().Trim().ToUpper(), "")
+                Dim amount As Decimal = If(row("BudgetAmount") IsNot DBNull.Value, Convert.ToDecimal(row("BudgetAmount")), 0)
 
-                Using reader As SqlDataReader = cmd.ExecuteReader()
-                    While reader.Read()
-                        Dim fromType As String = If(reader("From") IsNot DBNull.Value, reader("From").ToString().Trim(), "")
-                        Dim amount As Decimal = If(reader("TotalAmount") IsNot DBNull.Value, Convert.ToDecimal(reader("TotalAmount")), 0)
-
-                        Select Case fromType.ToUpper()
-                            Case "D" ' Switch Out
-                                result("SwitchOut") = amount
-                            Case "G" ' Carry Out
-                                result("CarryOut") = amount
-                            Case "I" ' Balance Out
-                                result("BalanceOut") = amount
-                            Case "E" ' Extra (บวกเข้า ไม่ลบออก)
-                                result("Extra") = amount
-                        End Select
-                    End While
-                End Using
-            End Using
+                Select Case fromType
+                    Case "D" : result("SwitchOut") += amount
+                    Case "G" : result("CarryOut") += amount
+                    Case "I" : result("BalanceOut") += amount
+                    Case "E" : result("Extra") += amount
+                End Select
+            Next
 
             ' ========================================
             ' คำนวณ IN (ไป Destination) - บวกเข้า
             ' ========================================
-            Dim queryIn As String = "
-                SELECT 
-                    [To],
-                    SUM([BudgetAmount]) as TotalAmount
-                FROM [dbo].[OTB_Switching_Transaction]
-                WHERE [OTBStatus] = 'Approved'
-                  AND [To] IS NOT NULL
-                  AND [SwitchYear] = @Year
-                  AND [SwitchCompany] = @Company
-                  AND [SwitchCategory] = @Category
-                  AND [SwitchSegment] = @Segment
-                  AND [SwitchBrand] = @Brand
-                  AND [SwitchVendor] = @Vendor
-                GROUP BY [To]"
+            Dim filterIn As String = BuildSwitchKeyFilter(year, month, category, company, segment, brand, vendor)
+            Dim inRows() As DataRow = dtSwitchingTransaction.Select(filterIn)
 
-            Using cmd As New SqlCommand(queryIn, conn)
-                cmd.Parameters.AddWithValue("@Year", Convert.ToInt32(year))
-                cmd.Parameters.AddWithValue("@Company", company)
-                cmd.Parameters.AddWithValue("@Category", category)
-                cmd.Parameters.AddWithValue("@Segment", segment)
-                cmd.Parameters.AddWithValue("@Brand", brand)
-                cmd.Parameters.AddWithValue("@Vendor", vendor)
+            For Each row As DataRow In inRows
+                Dim toType As String = If(row("To") IsNot DBNull.Value, row("To").ToString().Trim().ToUpper(), "")
+                Dim amount As Decimal = If(row("BudgetAmount") IsNot DBNull.Value, Convert.ToDecimal(row("BudgetAmount")), 0)
 
-                Using reader As SqlDataReader = cmd.ExecuteReader()
-                    While reader.Read()
-                        Dim toType As String = If(reader("To") IsNot DBNull.Value, reader("To").ToString().Trim(), "")
-                        Dim amount As Decimal = If(reader("TotalAmount") IsNot DBNull.Value, Convert.ToDecimal(reader("TotalAmount")), 0)
-
-                        Select Case toType.ToUpper()
-                            Case "D" ' Switch In
-                                result("SwitchIn") = amount
-                            Case "G" ' Carry In
-                                result("CarryIn") = amount
-                            Case "I" ' Balance In
-                                result("BalanceIn") = amount
-                        End Select
-                    End While
-                End Using
-            End Using
+                Select Case toType
+                    Case "D" : result("SwitchIn") += amount
+                    Case "G" : result("CarryIn") += amount
+                    Case "I" : result("BalanceIn") += amount
+                End Select
+            Next
 
         Catch ex As Exception
-            System.Diagnostics.Debug.WriteLine("Error calculating switching amounts: " & ex.Message)
+            System.Diagnostics.Debug.WriteLine("Error in CalculateSwitchingAmounts (In-Memory): " & ex.Message)
         End Try
 
         Return result
     End Function
 
+    ' =================================================================
+    ' ===== START: MODIFICATION (แก้ไขจุดที่ Error) ===================
+    ' =================================================================
+
     ''' <summary>
-    ''' ดึงรายละเอียดการคำนวณ (สำหรับแสดง Breakdown)
+    ''' (ใหม่) Helper Function สำหรับ Escape ' (single quote) สำหรับ .Select Filter
     ''' </summary>
-    Public Shared Function GetBudgetBreakdown(year As String, month As String,
-                                             category As String, company As String,
-                                             segment As String, brand As String,
-                                             vendor As String) As Dictionary(Of String, Decimal)
+    Private Function EscapeFilter(s As String) As String
+        If String.IsNullOrEmpty(s) Then
+            Return ""
+        End If
+        Return s.Replace("'", "''")
+    End Function
+
+    ''' <summary>
+    ''' (ใหม่) Helper Function สำหรับสร้าง .Select Filter
+    ''' </summary>
+    Private Function BuildKeyFilter(year As String, month As String, category As String, company As String, segment As String, brand As String, vendor As String) As String
+        Return $"[Year] = '{EscapeFilter(year)}' AND " &
+               $"[Month] = '{EscapeFilter(month)}' AND " &
+               $"[Category] = '{EscapeFilter(category)}' AND " &
+               $"[Company] = '{EscapeFilter(company)}' AND " &
+               $"[Segment] = '{EscapeFilter(segment)}' AND " &
+               $"[Brand] = '{EscapeFilter(brand)}' AND " &
+               $"[Vendor] = '{EscapeFilter(vendor)}'"
+    End Function
+
+    ''' <summary>
+    ''' (ใหม่) Helper Function สำหรับสร้าง .Select Filter (ฝั่ง To/Switch)
+    ''' </summary>
+    Private Function BuildSwitchKeyFilter(year As String, month As String, category As String, company As String, segment As String, brand As String, vendor As String) As String
+        Return $"[SwitchYear] = '{EscapeFilter(year)}' AND " &
+               $"[SwitchMonth] = '{EscapeFilter(month)}' AND " &
+               $"[SwitchCompany] = '{EscapeFilter(company)}' AND " &
+               $"[SwitchCategory] = '{EscapeFilter(category)}' AND " &
+               $"[SwitchSegment] = '{EscapeFilter(segment)}' AND " &
+               $"[SwitchBrand] = '{EscapeFilter(brand)}' AND " &
+               $"[SwitchVendor] = '{EscapeFilter(vendor)}' AND " &
+               $"[To] IS NOT NULL"
+    End Function
+
+    ' =================================================================
+    ' ===== END: MODIFICATION =========================================
+    ' =================================================================
+
+
+    ''' <summary>
+    ''' (แก้ไข) ดึงรายละเอียดการคำนวณ (สำหรับแสดง Breakdown) - ลบ Shared
+    ''' </summary>
+    Public Function GetBudgetBreakdown(year As String, month As String,
+                                         category As String, company As String,
+                                         segment As String, brand As String,
+                                         vendor As String) As Dictionary(Of String, Decimal)
         Dim breakdown As New Dictionary(Of String, Decimal)
 
         Try
-            Using conn As New SqlConnection(connectionString)
-                conn.Open()
+            ' ดึงข้อมูลแต่ละส่วน
+            Dim originalAmt As Decimal = GetOriginalAmount(year, month, category, company, segment, brand, vendor)
+            Dim revDiffAmt As Decimal = GetRevisionDiff(year, month, category, company, segment, brand, vendor)
+            Dim switching As Dictionary(Of String, Decimal) = CalculateSwitchingAmounts(year, month, category, company, segment, brand, vendor)
 
-                ' ดึงข้อมูลแต่ละส่วน
-                Dim originalAmt As Decimal = GetOriginalAmount(conn, year, month, category, company, segment, brand, vendor)
-                Dim revDiffAmt As Decimal = GetRevisionDiff(conn, year, month, category, company, segment, brand, vendor)
-                Dim switching As Dictionary(Of String, Decimal) = CalculateSwitchingAmounts(conn, year, month, category, company, segment, brand, vendor)
+            ' เพิ่มเข้า breakdown
+            breakdown.Add("Original", originalAmt)
+            breakdown.Add("RevDiff", revDiffAmt)
+            breakdown.Add("Extra", switching("Extra"))
+            breakdown.Add("SwitchIn", switching("SwitchIn"))
+            breakdown.Add("BalanceIn", switching("BalanceIn"))
+            breakdown.Add("CarryIn", switching("CarryIn"))
+            breakdown.Add("SwitchOut", switching("SwitchOut"))
+            breakdown.Add("BalanceOut", switching("BalanceOut"))
+            breakdown.Add("CarryOut", switching("CarryOut"))
 
-                ' เพิ่มเข้า breakdown
-                breakdown.Add("Original", originalAmt)
-                breakdown.Add("RevDiff", revDiffAmt)
-                breakdown.Add("Extra", switching("Extra"))
-                breakdown.Add("SwitchIn", switching("SwitchIn"))
-                breakdown.Add("BalanceIn", switching("BalanceIn"))
-                breakdown.Add("CarryIn", switching("CarryIn"))
-                breakdown.Add("SwitchOut", switching("SwitchOut"))
-                breakdown.Add("BalanceOut", switching("BalanceOut"))
-                breakdown.Add("CarryOut", switching("CarryOut"))
-
-                ' คำนวณ Total
-                Dim total As Decimal = originalAmt + revDiffAmt +
-                                      switching("Extra") + switching("SwitchIn") + switching("BalanceIn") + switching("CarryIn") -
-                                      switching("SwitchOut") - switching("BalanceOut") - switching("CarryOut")
-                breakdown.Add("Total", total)
-            End Using
+            ' คำนวณ Total
+            Dim total As Decimal = originalAmt + revDiffAmt +
+                                   switching("Extra") + switching("SwitchIn") + switching("BalanceIn") + switching("CarryIn") -
+                                   switching("SwitchOut") - switching("BalanceOut") - switching("CarryOut")
+            breakdown.Add("Total", total)
 
         Catch ex As Exception
             System.Diagnostics.Debug.WriteLine("Error getting budget breakdown: " & ex.Message)
-            ' Return empty breakdown with zeros
+            ' (ควรจะ Clear และ Add default values 0 ถ้าต้องการให้ปลอดภัย)
+            breakdown.Clear()
             breakdown.Add("Original", 0)
             breakdown.Add("RevDiff", 0)
             breakdown.Add("Extra", 0)
@@ -304,7 +290,7 @@ Public Class OTBBudgetCalculator
     End Function
 
     ''' <summary>
-    ''' สร้าง HTML Tooltip สำหรับแสดง Breakdown
+    ''' สร้าง HTML Tooltip สำหรับแสดง Breakdown (ฟังก์ชันนี้เป็น Shared ได้ เพราะไม่ขึ้นกับข้อมูลใน Class)
     ''' </summary>
     Public Shared Function GetBreakdownTooltip(breakdown As Dictionary(Of String, Decimal)) As String
         Try

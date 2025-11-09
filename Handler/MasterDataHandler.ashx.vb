@@ -100,8 +100,10 @@ Public Class MasterDataHandler
             conn.Open()
             Dim query As String = "SELECT  [VersionCode]
                                           ,[OTBTypeCode]
+                                          ,[Seq]
                                       FROM [BMS].[dbo].[MS_Version]
                                         WHERE [OTBTypeCode] = @OTBTypeCode
+                                       ORDER BY [Seq] ASC
                                     "
             Using cmd As New SqlCommand(query, conn)
                 cmd.Parameters.AddWithValue("@OTBTypeCode", OTBTypeCode)

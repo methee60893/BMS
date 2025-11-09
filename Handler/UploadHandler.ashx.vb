@@ -162,7 +162,7 @@ Public Class UploadHandler : Implements IHttpHandler
         sb.Append("<th class='text-center' style='width:90px;'>Vendor</th>")
         sb.Append("<th style='width:150px;'>Vendor name</th>")
         sb.Append("<th class='text-end' style='width:130px;'>T0-BE Amount (TH)</th>")
-        sb.Append("<th class='text-end' style='width:150px;'>Current total approved budget</th>")
+        'sb.Append("<th class='text-end' style='width:150px;'>Current total approved budget</th>")
         sb.Append("<th style='width:100px;'>Remark</th>")
         sb.Append("<th class='text-danger' style='min-width:250px;'>Error</th>")
         sb.Append("</tr></thead>")
@@ -345,7 +345,7 @@ Public Class UploadHandler : Implements IHttpHandler
 
 
             ' Current Budget (ยังไม่มีข้อมูล)
-            sb.AppendFormat("<td class='text-end'>{0}</td>", HttpUtility.HtmlEncode(0.00))
+            'sb.AppendFormat("<td class='text-end'>{0}</td>", HttpUtility.HtmlEncode(0.00))
 
             ' Remark
             sb.AppendFormat("<td>{0}</td>", HttpUtility.HtmlEncode(remarkValue))
@@ -454,7 +454,7 @@ Public Class UploadHandler : Implements IHttpHandler
                 Dim brandValue As String = If(row("Brand") IsNot DBNull.Value, row("Brand").ToString().Trim(), "")
                 Dim vendorValue As String = If(row("Vendor") IsNot DBNull.Value, row("Vendor").ToString().Trim(), "")
                 Dim amountValue As String = If(row("Amount") IsNot DBNull.Value, row("Amount").ToString().Trim(), "")
-                Dim remarkValue As String = If(row("Remark") AndAlso row("Remark") IsNot DBNull.Value, row("Remark").ToString().Trim(), "")
+                Dim remarkValue As String = If(row("Remark") IsNot DBNull.Value, row("Remark").ToString().Trim(), "")
                 ' Validate
                 Dim canUpdate As Boolean = False
                 Dim errorMsg As String = validator.ValidateAllWithDuplicateCheck(typeValue, yearValue, monthValue,
@@ -499,7 +499,7 @@ Public Class UploadHandler : Implements IHttpHandler
                         updateData.Add("Amount", amountDec.ToString("0.00"))
                         updateData.Add("UploadBy", uploadBy)
                         updateData.Add("Batch", newBatch)
-                        updateData.Add("Remark", remarkValue)
+                        updateData.Add("Remark", If(String.IsNullOrEmpty(remarkValue), DBNull.Value, remarkValue))
                         updateData.Add("UpdateDT", createDT)
 
                         updateList.Add(updateData)
@@ -519,7 +519,7 @@ Public Class UploadHandler : Implements IHttpHandler
                         newRow("Version") = versionValue
                         newRow("UploadBy") = uploadBy
                         newRow("Batch") = newBatch
-                        newRow("Remark") = remarkValue
+                        newRow("Remark") = If(String.IsNullOrEmpty(remarkValue), DBNull.Value, remarkValue)
                         newRow("CreateDT") = createDT
                         insertTable.Rows.Add(newRow)
                         savedCount += 1
@@ -738,7 +738,7 @@ Public Class UploadHandler : Implements IHttpHandler
                         newRow("Version") = versionValue
                         newRow("UploadBy") = uploadBy
                         newRow("Batch") = newBatch
-                        newRow("Remark") = If(String.IsNullOrEmpty(remarkValue), DBNull.Value, remarkValue) ' (เพิ่ม Remark)
+                        newRow("Remark") = If(String.IsNullOrEmpty(remarkValue), DBNull.Value, remarkValue)
                         newRow("CreateDT") = createDT
                         insertTable.Rows.Add(newRow)
                         savedCount += 1
@@ -771,7 +771,7 @@ Public Class UploadHandler : Implements IHttpHandler
                     ' UPDATE แต่ละแถว
                     For Each updateData As Dictionary(Of String, Object) In updateList
                         ' ... (Query และ Parameters เหมือนเดิม) ...
-                        Dim updateQuery As String = "UPDATE [dbo].[Template_Upload_Draft_OTB] SET [Amount] = @Amount, [UploadBy] = @UploadBy, [Batch] = @Batch, [UpdateDT] = @UpdateDT WHERE [Type] = @Type AND [Year] = @Year AND [Month] = @Month AND [Category] = @Category AND [Company] = @Company AND [Segment] = @Segment AND [Brand] = @Brand AND [Vendor] = @Vendor AND (OTBStatus IS NULL OR OTBStatus = 'Draft')"
+                        Dim updateQuery As String = "UPDATE [dbo].[Template_Upload_Draft_OTB] SET [Amount] = @Amount, [UploadBy] = @UploadBy, [Batch] = @Batch, [UpdateDT] = @UpdateDT, [Remark] = @Remark WHERE [Type] = @Type AND [Year] = @Year AND [Month] = @Month AND [Category] = @Category AND [Company] = @Company AND [Segment] = @Segment AND [Brand] = @Brand AND [Vendor] = @Vendor AND (OTBStatus IS NULL OR OTBStatus = 'Draft')"
                         Using cmd As New SqlCommand(updateQuery, conn, transaction)
                             cmd.Parameters.AddWithValue("@Type", updateData("Type"))
                             cmd.Parameters.AddWithValue("@Year", updateData("Year"))

@@ -71,7 +71,7 @@ Public Class ValidateHandler
     Private Sub ValidateSwitchingData(context As HttpContext)
         Dim errors As New Dictionary(Of String, String)
         Dim isValid As Boolean = True
-
+        Dim budgetCalculator As New OTBBudgetCalculator()
         ' From Section
         Dim yearFrom As String = If(String.IsNullOrWhiteSpace(context.Request.Form("yearFrom")), "", context.Request.Form("yearFrom").Trim())
         Dim monthFrom As String = If(String.IsNullOrWhiteSpace(context.Request.Form("monthFrom")), "", context.Request.Form("monthFrom").Trim())
@@ -204,7 +204,7 @@ Public Class ValidateHandler
             If isValid AndAlso amountValue > 0 Then
                 Try
                     ' คำนวณ Current Approved Budget จาก From Section
-                    Dim currentApprovedBudget As Decimal = OTBBudgetCalculator.CalculateCurrentApprovedBudget(
+                    Dim currentApprovedBudget As Decimal = budgetCalculator.CalculateCurrentApprovedBudget(
                     yearFrom, monthFrom, categoryFrom, companyFrom, segmentFrom, brandFrom, vendorFrom)
 
                     ' ตรวจสอบว่างบเพียงพอหรือไม่
@@ -256,7 +256,7 @@ Public Class ValidateHandler
         .message = If(isValid, "Validation passed", "Validation failed"),
         .errors = errors,
         .availableBudget = If(isValid AndAlso Not String.IsNullOrEmpty(yearFrom),
-            OTBBudgetCalculator.CalculateCurrentApprovedBudget(
+            budgetCalculator.CalculateCurrentApprovedBudget(
                 yearFrom, monthFrom, categoryFrom, companyFrom, segmentFrom, brandFrom, vendorFrom), 0)
     }
 
@@ -337,7 +337,7 @@ Public Class ValidateHandler
     Private Sub ValidateExtraData(context As HttpContext)
         Dim errors As New Dictionary(Of String, String)
         Dim isValid As Boolean = True
-
+        Dim budgetCalculator As New OTBBudgetCalculator()
         ' Extra Section
         Dim year As String = If(String.IsNullOrWhiteSpace(context.Request.Form("year")), "", context.Request.Form("year").Trim())
         Dim month As String = If(String.IsNullOrWhiteSpace(context.Request.Form("month")), "", context.Request.Form("month").Trim())
@@ -426,7 +426,7 @@ Public Class ValidateHandler
         .message = If(isValid, "Validation passed", "Validation failed"),
         .errors = errors,
         .currentBudget = If(isValid,
-            OTBBudgetCalculator.CalculateCurrentApprovedBudget(
+            budgetCalculator.CalculateCurrentApprovedBudget(
                 year, month, category, company, segment, brand, vendor), 0)
     }
 
