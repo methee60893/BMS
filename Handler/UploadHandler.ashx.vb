@@ -162,7 +162,6 @@ Public Class UploadHandler : Implements IHttpHandler
         sb.Append("<th class='text-center' style='width:90px;'>Vendor</th>")
         sb.Append("<th style='width:150px;'>Vendor name</th>")
         sb.Append("<th class='text-end' style='width:130px;'>T0-BE Amount (TH)</th>")
-        'sb.Append("<th class='text-end' style='width:150px;'>Current total approved budget</th>")
         sb.Append("<th style='width:100px;'>Remark</th>")
         sb.Append("<th class='text-danger' style='min-width:250px;'>Error</th>")
         sb.Append("</tr></thead>")
@@ -342,11 +341,6 @@ Public Class UploadHandler : Implements IHttpHandler
                 sb.AppendFormat("<td class='text-end'>{0}</td>", HttpUtility.HtmlEncode(amountValue))
             End Try
 
-
-
-            ' Current Budget (ยังไม่มีข้อมูล)
-            'sb.AppendFormat("<td class='text-end'>{0}</td>", HttpUtility.HtmlEncode(0.00))
-
             ' Remark
             sb.AppendFormat("<td>{0}</td>", HttpUtility.HtmlEncode(remarkValue))
 
@@ -368,19 +362,6 @@ Public Class UploadHandler : Implements IHttpHandler
                    dt.Rows.Count, validCount, errorCount, updateableCount)
         sb.Append("</div>")
         sb.Append("<div class='col-md-4 text-end'>")
-
-        'If validCount > 0 Then
-        '    sb.Append("<button id='submitBtn' onclick='submitData()' class='btn btn-success btn-lg'>")
-        '    sb.Append("<i class='bi bi-check-circle'></i> Submit")
-        '    sb.Append("</button>")
-        'Else
-        '    sb.Append("<button class='btn btn-secondary btn-lg' disabled>")
-        '    sb.Append("<i class='bi bi-x-circle'></i> No Valid Data to Submit")
-        '    sb.Append("</button>")
-        'End If
-
-        'sb.Append("</div>")
-        'sb.Append("</div>")
 
         ' JavaScript สำหรับจัดการ Checkbox
         sb.Append("<script>")
@@ -831,7 +812,7 @@ Public Class UploadHandler : Implements IHttpHandler
     End Function
     ''' <summary>
     ''' คำนวณ Version โดยดูจาก History ของ Key นี้
-    ''' (MODIFIED) - Checks both OTB_Transaction (Approved) and Template_Upload_Draft_OTB (Drafts).
+    ''' (MODIFIED) - Checks only OTB_Transaction (Approved) table.
     ''' (MODIFIED) - Enforces R15 limit.
     ''' </summary>
     Private Function CalculateVersionFromHistory(type As String, year As String, month As String,
@@ -843,8 +824,8 @@ Public Class UploadHandler : Implements IHttpHandler
                 Return "A1"
             End If
 
-            ' --- [BMS Gem MODIFICATION START] ---
-            ' Requirement 2 & 3: Check both tables and limit to R15.
+            ' --- [MODIFIED LOGIC START] ---
+            ' Logic ใหม่จะค้นหา Version ล่าสุดจากตาราง 'OTB_Transaction' (Approved) เท่านั้น
 
             Dim latestVersionNum As Integer = -1 ' A1 = 0, R1 = 1, R2 = 2
 
@@ -864,8 +845,7 @@ Public Class UploadHandler : Implements IHttpHandler
             Using conn As New SqlConnection(connectionString)
                 conn.Open()
 
-                ' 1. Queryหา Version ล่าสุดจาก OTB_Transaction (Approved History)
-                ' (ใช้ ApprovedDate หรือ CreateDate ที่ใหม่ที่สุด)
+                ' 1. Queryหา Version ล่าสุดจาก OTB_Transaction (Approved History) เท่านั้น
                 Dim queryApproved As String = "
                     SELECT TOP 1 [Version]
                     FROM [dbo].[OTB_Transaction]
@@ -893,45 +873,20 @@ Public Class UploadHandler : Implements IHttpHandler
                     End If
                 End Using
 
-                ' 2. Query หา Version ล่าสุดจาก Template_Upload_Draft_OTB (Drafts)
-                Dim queryDraft As String = "
-                    SELECT TOP 1 [Version]
-                    FROM [dbo].[Template_Upload_Draft_OTB]
-                    WHERE [Year] = @Year
-                      AND [Month] = @Month
-                      AND [Category] = @Category
-                      AND [Company] = @Company
-                      AND [Segment] = @Segment
-                      AND [Brand] = @Brand
-                      AND [Vendor] = @Vendor
-                    ORDER BY ISNULL([UpdateDT], [CreateDT]) DESC, [Batch] DESC"
+                ' (ส่วนที่ 2 ที่เคย Query จาก 'Template_Upload_Draft_OTB' ถูกลบออกแล้ว)
 
-                Using cmd As New SqlCommand(queryDraft, conn)
-                    cmd.Parameters.AddWithValue("@Year", year)
-                    cmd.Parameters.AddWithValue("@Month", month)
-                    cmd.Parameters.AddWithValue("@Category", category)
-                    cmd.Parameters.AddWithValue("@Company", company)
-                    cmd.Parameters.AddWithValue("@Segment", segment)
-                    cmd.Parameters.AddWithValue("@Brand", brand)
-                    cmd.Parameters.AddWithValue("@Vendor", vendor)
-
-                    Dim lastDraftVersion As Object = cmd.ExecuteScalar()
-                    If lastDraftVersion IsNot Nothing AndAlso Not IsDBNull(lastDraftVersion) Then
-                        Dim draftVersionNum As Integer = getVersionNum(lastDraftVersion.ToString())
-                        If draftVersionNum > latestVersionNum Then
-                            latestVersionNum = draftVersionNum ' Draft version is newer
-                        End If
-                    End If
-                End Using
             End Using
 
             ' 3. Calculate next version
             Dim nextVersionNum As Integer
             If latestVersionNum = -1 Then
-                ' Requirement 1: Allow R1 even if no A1 exists
+                ' ถ้าไม่เจอ Approved 'A1' มาก่อนเลย
+                ' Logic เดิม (Requirement 1) อนุญาตให้ R1 มาก่อนได้
                 nextVersionNum = 1 ' No history, this is R1
             Else
-                nextVersionNum = latestVersionNum + 1 ' (A1 (0) -> R1 (1)) or (R1 (1) -> R2 (2))
+                ' ถ้าเจอ A1 (0) -> R1 (1)
+                ' ถ้าเจอ R1 (1) -> R2 (2)
+                nextVersionNum = latestVersionNum + 1
             End If
 
             ' 4. Enforce R15 limit (Requirement 2 & 3)
@@ -941,8 +896,7 @@ Public Class UploadHandler : Implements IHttpHandler
             End If
 
             Return $"R{nextVersionNum}"
-
-            ' --- [BMS Gem MODIFICATION END] ---
+            ' --- [MODIFIED LOGIC END] ---
 
         Catch ex As Exception
             ' ถ้า error ให้โยน Exception เพื่อหยุดการ Save

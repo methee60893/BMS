@@ -1204,35 +1204,41 @@
                 dataType: 'json', // <-- Ensure jQuery parses the response as JSON
                 success: function (response) {
                     showLoading(false); // Hide loading
+                    // Handler จะส่ง success:true หรือ success:false กลับมาเสมอ
+                    if (response.success === true) {
+                        // *** กรณีสำเร็จทั้งหมด ***
+                        if (response.action === 'preview') {
+                            // แสดง Modal สรุปผล (กรณีสำเร็จ)
+                            buildApprovalResultTable(response.detailedResults, true);
+                            $('#approvalResultSummary').text(response.message);
+                            $('#approvalResultSummary').removeClass('alert-info alert-success alert-danger').addClass('alert-success');
+                            approvalResultModal.show();
 
-                    if (response.action === 'preview') {
-                        // *** NEW: Handle preview action for BOTH success and failure ***
-                        
-                        // Build and show the result table in the modal
-                        buildApprovalResultTable(response.detailedResults, response.success);
-                        
-                        // Set summary message
-                        $('#approvalResultSummary').text(response.message);
-                        $('#approvalResultSummary').removeClass('alert-info alert-success alert-danger').addClass(response.success ? 'alert-success' : 'alert-danger');
-
-                        approvalResultModal.show(); // Show the new modal
-
-                        if (response.success) {
-                            // If it was a full success, reload the main grid after modal closes
+                            // เมื่อปิด Modal ให้โหลดข้อมูลใหม่
                             $('#approvalResultModal').one('hidden.bs.modal', function () {
                                 search(); // Reload main grid
                             });
+                        } else {
+                            // Fallback (เผื่อ Logic เก่า)
+                            alert(response.message);
+                            search();
                         }
-                        // If it was a failure (success: false), we DO NOT reload the grid.
 
-                    } else if (response.success === true) {
-                        // Fallback for old success logic (just in case)
-                        alert(response.message);
-                        tableViewBody.innerHTML = "";
-                        search(); // โหลดข้อมูลตารางใหม่
                     } else {
-                        // Fallback for general error
-                        alert('Error approving items: ' + (response.message || 'Unknown error.'));
+                        // *** กรณี Error (success: false) ***
+
+                        if (response.action === 'preview' && response.detailedResults) {
+                            // *** กรณี SAP Error บางส่วน (Partial) ***
+                            buildApprovalResultTable(response.detailedResults, false);
+                            $('#approvalResultSummary').text(response.message);
+                            $('#approvalResultSummary').removeClass('alert-info alert-success alert-danger').addClass('alert-danger');
+                            approvalResultModal.show();
+
+                        } else {
+                            // *** กรณี Error ทั่วไป (เช่น SAP Error ที่เรา Throw มา) ***
+                            // แสดง alert ด้วยข้อความ Error ที่ชัดเจนจาก Server
+                            alert('Error: ' + (response.message || 'An unknown error occurred.'));
+                        }
                     }
                 },
                 error: function (xhr, status, error) {

@@ -796,9 +796,21 @@
             segmentDropdown.addEventListener('change', changeVendor);
             typeDropdown.addEventListener('change', changeType);
             btnClearFilter.addEventListener('click', function () {
-                mainForm.reset();
+
+                // Reset ค่าใน Dropdown ทุกตัวด้วยตนเอง
+                typeDropdown.value = "";
+                versionDropdown.value = "";
+                categoryDropdown.value = "";
+                yearDropdown.value = "";
+                monthDropdown.value = "";
+                segmentDropdown.value = "";
+                companyDropdown.value = "";
+                brandDropdown.value = "";
+                vendorDropdown.value = "";
+
                 InitMSData();
-                tableViewBody.innerHTML = "";
+
+                tableViewBody.innerHTML = "<tr><td colspan='24' class='text-center text-muted'>Filters cleared. Click View to search.</td></tr>";
             });
             btnView.addEventListener('click', search);
 

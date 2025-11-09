@@ -298,6 +298,7 @@ Public Class OTBValidate
 
     ''' <summary>
     ''' Validate ทุกอย่างรวม Duplicate และ Type checking
+    ''' (MODIFIED: Added check against dtApprovedOTB as a non-blocking warning for 'Revise' type)
     ''' </summary>
     Public Function ValidateAllWithDuplicateCheck(type As String, year As String, month As String,
                                                category As String, company As String, segment As String,
@@ -322,7 +323,33 @@ Public Class OTBValidate
             errors.Append(ValidateVendor(vendor))
             errors.Append(ValidateAmount(amountDec))
 
-            ' เงื่อนไขที่ 1: เช็คซ้ำใน Draft OTB
+            ' --- [START NEW LOGIC (Requirement: Warn on Approved Duplicate)] ---
+            ' ถ้า Type = Revise, ให้ตรวจสอบว่า Key นี้เคย Approved ไปแล้วหรือยัง (ใน OTB_Transaction)
+            ' นี่คือการแจ้งเตือน (Warning) เท่านั้น ไม่ใช่ Error
+            If type.Equals("Revise", StringComparison.OrdinalIgnoreCase) AndAlso dtApprovedOTB IsNot Nothing Then
+                Try
+                    Dim approvedFilter As String = $"[Year] = '{year.Replace("'", "''")}' AND " &
+                                                  $"[Month] = '{month.Replace("'", "''")}' AND " &
+                                                  $"[Category] = '{category.Replace("'", "''")}' AND " &
+                                                  $"[Company] = '{company.Replace("'", "''")}' AND " &
+                                                  $"[Segment] = '{segment.Replace("'", "''")}' AND " &
+                                                  $"[Brand] = '{brand.Replace("'", "''")}' AND " &
+                                                  $"[Vendor] = '{vendor.Replace("'", "''")}'"
+
+                    Dim approvedRows() As DataRow = dtApprovedOTB.Select(approvedFilter)
+
+                    If approvedRows.Length > 0 Then
+                        ' Key นี้มีในตาราง Approved แล้ว (เช่น A1 หรือ R1)
+                        ' เพิ่ม Warning ว่าจะทำการ Revise ทับ (Override)
+                        errors.Append("Duplicate_Approved (Will Revise) ")
+                    End If
+                Catch ex As Exception
+                    ' ถ้าการกรองข้อมูลล้มเหลว (เช่น data type ผิด) ให้ข้ามไป
+                End Try
+            End If
+            ' --- [END NEW LOGIC] ---
+
+            ' เงื่อนไขที่ 1: เช็คซ้ำใน Draft OTB (Logic เดิม)
             Dim duplicateResult As String = ValidateDuplicateInDraftOTB(type, year, month, category, company, segment, brand, vendor)
 
             If duplicateResult = "CAN_UPDATE" Then
@@ -330,7 +357,7 @@ Public Class OTBValidate
                 canUpdate = True
                 errors.Append("Duplicated_Draft OTB (Will Update) ")
             ElseIf duplicateResult = "DUPLICATED_APPROVED" Then
-                ' ซ้ำและมี Approved - ไม่ควร Update
+                ' ซ้ำและมี Approved (ในตาราง Draft) - ไม่ควร Update
                 canUpdate = False
                 errors.Append("Duplicated_Approved OTB (Cannot Update) ")
             End If
@@ -427,8 +454,8 @@ Public Class OTBValidate
     End Function
 
     ''' <summary>
-    ''' (NEW) Finds the latest version (e.g., A1, R1, R2) for a specific OTB key 
-    ''' by checking both Draft and Approved tables loaded in memory.
+    ''' (MODIFIED) Finds the latest version (e.g., A1, R1, R2) for a specific OTB key 
+    ''' by checking only the Approved table (OTB_Transaction) loaded in memory.
     ''' </summary>
     ''' <returns>The latest version string (e.g., "R2") or Nothing if not found.</returns>
     Private Function GetLatestVersionFromDB(year As String, month As String, category As String,
@@ -459,23 +486,9 @@ Public Class OTBValidate
                                 Return -1 ' Unknown format
                             End Function
 
-        ' Check Draft table (Template_Upload_Draft_OTB)
-        If dtDraftOTB IsNot Nothing AndAlso dtDraftOTB.Columns.Contains("Version") Then
-            Try
-                For Each row As DataRow In dtDraftOTB.Select(filter)
-                    Dim currentVersionStr As String = row("Version").ToString()
-                    Dim currentVersionNum As Integer = getVersionNum(currentVersionStr)
-                    If currentVersionNum > latestVersionNum Then
-                        latestVersionNum = currentVersionNum
-                        latestVersion = currentVersionStr
-                    End If
-                Next
-            Catch ex As Exception
-                ' Handle potential filter errors if data is bad
-            End Try
-        End If
+        ' (ส่วนที่ 1: Check Draft table (Template_Upload_Draft_OTB) - ถูกลบออก)
 
-        ' Check Approved table (OTB_Transaction)
+        ' (ส่วนที่ 2: Check Approved table (OTB_Transaction) - คงไว้)
         If dtApprovedOTB IsNot Nothing AndAlso dtApprovedOTB.Columns.Contains("Version") Then
             Try
                 For Each row As DataRow In dtApprovedOTB.Select(filter)
