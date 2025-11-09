@@ -1158,6 +1158,19 @@
             // *** ADDED: Init Error Modal
             errorModal = new bootstrap.Modal(document.getElementById('errorValidationModal'));
 
+            // *** ADD NEW EVENT LISTENERS FOR CURRENCY MASKING ***
+            if (txtAmontSwitch) {
+                txtAmontSwitch.addEventListener('keydown', restrictToNumeric);
+                txtAmontSwitch.addEventListener('focus', cleanCurrencyOnFocus);
+                txtAmontSwitch.addEventListener('blur', formatCurrencyOnBlur);
+            }
+            if (txtAmontEx) {
+                txtAmontEx.addEventListener('keydown', restrictToNumeric);
+                txtAmontEx.addEventListener('focus', cleanCurrencyOnFocus);
+                txtAmontEx.addEventListener('blur', formatCurrencyOnBlur);
+            }
+            // *** END NEW LISTENERS ***
+
             // Init Master Data
             InitMSData();
 
@@ -1840,6 +1853,64 @@
                 }
             });
         };
+
+        // (NEW FUNCTION 1) Formats the number when user clicks away
+        function formatCurrencyOnBlur(event) {
+            const input = event.target;
+            let value = parseFloat(input.value.replace(/,/g, '')); // Remove existing commas
+            if (!isNaN(value)) {
+                // Format to x,xxx.xx
+                input.value = value.toLocaleString('en-US', {
+                    minimumFractionDigits: 2,
+                    maximumFractionDigits: 2
+                });
+            } else {
+                // Default to 0.00 if input is invalid
+                input.value = '0.00';
+            }
+        }
+
+        // (NEW FUNCTION 2) Clears formatting when user clicks in
+        function cleanCurrencyOnFocus(event) {
+            const input = event.target;
+            let value = input.value.replace(/,/g, ''); // Remove commas
+
+            // If the value is '0.00', clear it so user can type easily
+            if (parseFloat(value) === 0) {
+                input.value = '';
+            } else {
+                // Otherwise, just show the raw number
+                input.value = value;
+            }
+            // Select the text for easy replacement
+            setTimeout(() => input.select(), 0);
+        }
+
+        // (NEW FUNCTION 3) Prevents invalid characters (bound to 'keydown')
+        function restrictToNumeric(event) {
+            const input = event.target;
+            const key = event.key;
+
+            // Allow control keys (Backspace, Tab, Enter, Arrows, Home, End, Delete)
+            if (['Backspace', 'Tab', 'Enter', 'ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Home', 'End', 'Delete'].includes(key)) {
+                return;
+            }
+
+            // Allow Ctrl+A (Select All)
+            if (key === 'a' && event.ctrlKey) {
+                return;
+            }
+
+            // Allow one decimal point
+            if (key === '.' && !input.value.includes('.')) {
+                return;
+            }
+
+            // Allow only digits
+            if (!/\d/.test(key)) {
+                event.preventDefault(); // Block the key press
+            }
+        }
 
         // Document Ready
         document.addEventListener('DOMContentLoaded', initial);

@@ -964,7 +964,8 @@
                     Segment: cb.data('segment'),
                     Brand: cb.data('brand'),
                     Vendor: cb.data('vendor'),
-                    Amount: cb.data('amount')
+                    Amount: cb.data('amount'),
+                    Remark: cb.data('remark')
                     // เราไม่จำเป็นต้องส่ง 'canUpdate' เพราะ Server จะ Validate ซ้ำอีกครั้ง
                 };
                 selectedRows.push(rowData);

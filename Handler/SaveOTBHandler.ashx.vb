@@ -62,23 +62,23 @@ Public Class SaveOTBHandler
 
             ' 2. ตรวจสอบเงื่อนไขเพื่อกำหนด SwitchCode (D, G, I)
             Dim fromCode As String = "D" ' Default: Switch (D)
-            Dim toCode As String = "D"
+            Dim toCode As String = "C"
 
             Dim dateFrom As New Date(yearFrom, monthFrom, 1)
             Dim dateTo As New Date(yearTo, monthTo, 1)
 
             If dateFrom > dateTo Then
                 fromCode = "G" ' Carry Out
-                toCode = "G" ' Carry In
+                toCode = "F" ' Carry In
             ElseIf dateFrom < dateTo Then
                 If categoryFrom = categoryTo AndAlso brandFrom = brandTo AndAlso vendorFrom = vendorTo Then
                     fromCode = "I" ' Balance Out
-                    toCode = "I" ' Balance In
+                    toCode = "H" ' Balance In
                 End If
             End If
 
             Dim sapRequest As New OtbSwitchRequest()
-            ' sapRequest.TestMode = "X" ' (ถ้าต้องการ Test)
+            sapRequest.TestMode = "" ' (ถ้าต้องการ Test)
             Dim switchItem As New OtbSwitchItem With {
                 .DocYearFrom = yearFrom.ToString(),
                 .PeriodFrom = monthFrom.ToString(),
@@ -142,16 +142,16 @@ Public Class SaveOTBHandler
                 INSERT INTO [dbo].[OTB_Switching_Transaction] (
                     [Year], [Month], [Company], [Category], [Segment], [Brand], [Vendor], 
                     [From], [BudgetAmount], [Release],
-                    [SwitchYear], [SwitchCompany], [SwitchCategory], [SwitchSegment], 
+                    [SwitchYear], [SwitchMonth], [SwitchCompany], [SwitchCategory], [SwitchSegment], 
                     [To], [SwitchBrand], [SwitchVendor],
                     [OTBStatus], [Batch], [Remark], 
                     [CreateBy], [CreateDT]
                 ) VALUES (
                     @Year, @Month, @Company, @Category, @Segment, @Brand, @Vendor,
                     @From, @BudgetAmount, 0,
-                    @SwitchYear, @SwitchCompany, @SwitchCategory, @SwitchSegment,
+                    @SwitchYear, @SwitchMonth, @SwitchCompany, @SwitchCategory, @SwitchSegment,
                     @To, @SwitchBrand, @SwitchVendor,
-                    'Draft', NULL, @Remark,
+                    'Approved', NULL, @Remark,
                     @CreateBy, GETDATE()
                 )
             "
@@ -175,6 +175,7 @@ Public Class SaveOTBHandler
 
                             ' To Parameters
                             cmd.Parameters.AddWithValue("@SwitchYear", yearTo)
+                            cmd.Parameters.AddWithValue("@SwitchMonth", monthTo)
                             cmd.Parameters.AddWithValue("@SwitchCompany", companyTo)
                             cmd.Parameters.AddWithValue("@SwitchCategory", categoryTo)
                             cmd.Parameters.AddWithValue("@SwitchSegment", segmentTo)
@@ -303,7 +304,7 @@ Public Class SaveOTBHandler
                     'E', @BudgetAmount, 0,
                     NULL, NULL, NULL, NULL,
                     NULL, NULL, NULL,
-                    'Draft', NULL, @Remark,
+                    'Approved', NULL, @Remark,
                     @CreateBy, GETDATE()
                 )
             "

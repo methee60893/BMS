@@ -258,20 +258,20 @@ Public Class UploadHandler : Implements IHttpHandler
             If isValid OrElse canUpdate Then
                 ' Valid หรือ CanUpdate = checkbox enabled
                 Dim checkboxClass As String = If(canUpdate, "update-checkbox", "row-checkbox")
-                sb.AppendFormat("<td class='text-center'><input type='checkbox' name='selectedRows' class='form-check-input {0}' value='{1}' checked data-type='{2}' data-year='{3}' data-month='{4}' data-category='{5}' data-company='{6}' data-segment='{7}' data-brand='{8}' data-vendor='{9}' data-amount='{10}' data-can-update='{11}'></td>",
-                          checkboxClass,
-                          i,
-                          HttpUtility.HtmlAttributeEncode(typeValue),
-                          HttpUtility.HtmlAttributeEncode(yearValue),
-                          HttpUtility.HtmlAttributeEncode(monthValue),
-                          HttpUtility.HtmlAttributeEncode(categoryValue),
-                          HttpUtility.HtmlAttributeEncode(companyValue),
-                          HttpUtility.HtmlAttributeEncode(segmentValue),
-                          HttpUtility.HtmlAttributeEncode(brandValue),
-                          HttpUtility.HtmlAttributeEncode(vendorValue),
-                          HttpUtility.HtmlAttributeEncode(amountValue),
-                          HttpUtility.HtmlAttributeEncode(remarkValue),
-                          canUpdate.ToString().ToLower())
+                sb.AppendFormat("<td class='text-center'><input type='checkbox' name='selectedRows' class='form-check-input {0}' value='{1}' checked data-type='{2}' data-year='{3}' data-month='{4}' data-category='{5}' data-company='{6}' data-segment='{7}' data-brand='{8}' data-vendor='{9}' data-amount='{10}' data-remark='{11}' data-can-update='{12}'></td>",
+                      checkboxClass,
+                      i,
+                      HttpUtility.HtmlAttributeEncode(typeValue),
+                      HttpUtility.HtmlAttributeEncode(yearValue),
+                      HttpUtility.HtmlAttributeEncode(monthValue),
+                      HttpUtility.HtmlAttributeEncode(categoryValue),
+                      HttpUtility.HtmlAttributeEncode(companyValue),
+                      HttpUtility.HtmlAttributeEncode(segmentValue),
+                      HttpUtility.HtmlAttributeEncode(brandValue),
+                      HttpUtility.HtmlAttributeEncode(vendorValue),
+                      HttpUtility.HtmlAttributeEncode(amountValue),
+                      HttpUtility.HtmlAttributeEncode(remarkValue),
+                      canUpdate.ToString().ToLower())
             Else
                 ' Invalid = checkbox disabled
                 sb.Append("<td class='text-center'><input type='checkbox' class='form-check-input' disabled></td>")

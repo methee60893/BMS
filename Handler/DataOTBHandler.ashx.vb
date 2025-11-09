@@ -861,20 +861,45 @@ Public Class DataOTBHandler
             Dim runNoToDataRowMap As New Dictionary(Of Integer, DataRow)
 
             For Each row As DataRow In draftData.Rows
-                Dim amountStr As String = If(row("Amount") IsNot DBNull.Value, Convert.ToDecimal(row("Amount")).ToString("F2"), "0.00")
                 Dim currentRunNo As Integer = Convert.ToInt32(row("RunNo"))
+                Dim OTBType As String = If(row("OTBType") IsNot DBNull.Value, row("OTBType").ToString(), "Original")
+                Dim OTBVersion As String = If(row("Version") IsNot DBNull.Value, row("Version").ToString(), "A1")
+                Dim OTBYear As String = If(row("OTBYear") IsNot DBNull.Value, row("OTBYear").ToString(), "")
+                Dim OTBMonth As String = If(row("OTBMonth") IsNot DBNull.Value, row("OTBMonth").ToString(), "")
+                Dim OTBCategory As String = If(row("OTBCategory") IsNot DBNull.Value, row("OTBCategory").ToString(), "")
+                Dim OTBCompany As String = If(row("OTBCompany") IsNot DBNull.Value, row("OTBCompany").ToString(), "")
+                Dim OTBSegment As String = If(row("OTBSegment") IsNot DBNull.Value, row("OTBSegment").ToString(), "")
+                Dim OTBBrand As String = If(row("OTBBrand") IsNot DBNull.Value, row("OTBBrand").ToString(), "")
+                Dim OTBVendor As String = If(row("OTBVendor") IsNot DBNull.Value, row("OTBVendor").ToString(), "")
+                Dim toBeAmount As Decimal = 0
+                Decimal.TryParse(If(row("Amount") IsNot DBNull.Value, row("Amount").ToString(), ""), toBeAmount)
 
-                ' Create the unique key for SAP (matching the fields in the JSON response)
+                Dim amountToSendToSap As Decimal
+                Dim amountStr As String = ""
+                If OTBVersion.StartsWith("R", StringComparison.OrdinalIgnoreCase) OrElse OTBType.Equals("Revise", StringComparison.OrdinalIgnoreCase) Then
+                    ' Version "Rn" (Revise): ให้ส่งยอด Diff
+                    Dim currentBudget As Decimal = budgetCalculator.CalculateCurrentApprovedBudget(
+                        OTBYear, OTBMonth, OTBCategory, OTBCompany, OTBSegment, OTBBrand, OTBVendor
+                    )
+                    ' ยอด Diff = ยอดใหม่ (To-Be) - ยอดที่ Approved ปัจจุบัน
+                    amountToSendToSap = toBeAmount - currentBudget
+                Else
+                    ' Version "A1" (Original): ให้ส่งยอดเต็ม
+                    amountToSendToSap = toBeAmount
+                End If
+
+                amountStr = amountToSendToSap.ToString("F2")
+
                 Dim sapKey As String = String.Join("|",
-                    If(row("Version") IsNot DBNull.Value, row("Version").ToString(), "R1"),
-                    If(row("OTBCompany") IsNot DBNull.Value, row("OTBCompany").ToString(), ""),
-                    If(row("OTBCategory") IsNot DBNull.Value, row("OTBCategory").ToString(), ""),
-                    If(row("OTBVendor") IsNot DBNull.Value, row("OTBVendor").ToString(), ""),
-                    If(row("OTBSegment") IsNot DBNull.Value, row("OTBSegment").ToString(), ""),
-                    If(row("OTBBrand") IsNot DBNull.Value, row("OTBBrand").ToString(), ""),
-                    amountStr,
-                    If(row("OTBYear") IsNot DBNull.Value, row("OTBYear").ToString(), ""),
-                    If(row("OTBMonth") IsNot DBNull.Value, row("OTBMonth").ToString(), "")
+                    OTBVersion,
+                    OTBCompany,
+                    OTBCategory,
+                    OTBVendor,
+                    OTBSegment,
+                    OTBBrand,
+                    amountStr, ' <-- [สำคัญ] ใช้ยอดที่คำนวณใหม่
+                    OTBYear,
+                    OTBMonth
                 )
 
                 ' Add to maps
@@ -886,15 +911,15 @@ Public Class DataOTBHandler
                 End If
 
                 plansToUpload.Add(New OtbPlanUploadItem With {
-                    .Version = If(row("Version") IsNot DBNull.Value, row("Version").ToString(), "R1"),
-                    .CompCode = If(row("OTBCompany") IsNot DBNull.Value, row("OTBCompany").ToString(), ""),
-                    .Category = If(row("OTBCategory") IsNot DBNull.Value, row("OTBCategory").ToString(), ""),
-                    .VendorCode = If(row("OTBVendor") IsNot DBNull.Value, row("OTBVendor").ToString(), ""),
-                    .SegmentCode = If(row("OTBSegment") IsNot DBNull.Value, row("OTBSegment").ToString(), ""),
-                    .BrandCode = If(row("OTBBrand") IsNot DBNull.Value, row("OTBBrand").ToString(), ""),
-                    .Amount = amountStr,
-                    .Year = If(row("OTBYear") IsNot DBNull.Value, row("OTBYear").ToString(), ""),
-                    .Month = If(row("OTBMonth") IsNot DBNull.Value, row("OTBMonth").ToString(), ""),
+                    .Version = OTBVersion,
+                    .CompCode = OTBCompany,
+                    .Category = OTBCategory,
+                    .VendorCode = OTBVendor,
+                    .SegmentCode = OTBSegment,
+                    .BrandCode = OTBBrand,
+                    .Amount = amountStr, ' <--- [สำคัญ] ใช้ยอดที่คำนวณใหม่
+                    .Year = OTBYear,
+                    .Month = OTBMonth,
                     .Remark = If(row("Remark") IsNot DBNull.Value, row("Remark").ToString(), "")
                 })
             Next

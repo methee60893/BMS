@@ -653,7 +653,10 @@
                             <%-- <a href="#" class="detail-link ms-3">Click history</a> --%>
                         </div>
                     </div>
-
+                    <div class="detail-row">
+                        <div class="detail-label">Revised Diff</div>
+                        <div class="detail-value" id="detail_RevisedDiff">0.00 THB</div>
+                    </div>
                     <div class="detail-row">
                         <div class="detail-label">Extra</div>
                         <div class="detail-value" id="detail_Budget_Extra">
@@ -944,6 +947,7 @@
             if (data) {
                 // Populate all fields from the 'detail' (Result Set 1)
                 document.getElementById('detail_BudgetApproved_Original').textContent = formatTHB(data.BudgetApproved_Original);
+                document.getElementById('detail_RevisedDiff').textContent = formatTHB(data.RevisedDiff); // <-- ADDED
                 document.getElementById('detail_Budget_Extra').textContent = formatTHB(data.Budget_Extra);
                 document.getElementById('detail_Budget_SwitchIn').textContent = formatTHB(data.Budget_SwitchIn);
                 document.getElementById('detail_Budget_BalanceIn').textContent = formatTHB(data.Budget_BalanceIn);
@@ -952,11 +956,16 @@
                 document.getElementById('detail_Budget_BalanceOut').textContent = formatTHB(data.Budget_BalanceOut);
                 document.getElementById('detail_Budget_CarryOut').textContent = formatTHB(data.Budget_CarryOut);
                 document.getElementById('detail_TotalBudgetApproved').textContent = formatTHB(data.TotalBudgetApproved);
+
+                // --- Logic from image: TotalPO_Usage = TotalDraftPO + TotalActualPO ---
+                // (SP ส่งมา 3 ค่า เราจะใช้ TotalPO_Usage)
                 document.getElementById('detail_TotalPO_Usage').textContent = formatTHB(data.TotalPO_Usage);
+
                 document.getElementById('detail_Remaining').textContent = formatTHB(data.Remaining);
             } else {
                 // Clear all values to 0.00 THB if no data
                 document.getElementById('detail_BudgetApproved_Original').textContent = "0.00 THB";
+                document.getElementById('detail_RevisedDiff').textContent = "0.00 THB"; // <-- ADDED
                 document.getElementById('detail_Budget_Extra').textContent = "0.00 THB";
                 document.getElementById('detail_Budget_SwitchIn').textContent = "0.00 THB";
                 document.getElementById('detail_Budget_BalanceIn').textContent = "0.00 THB";

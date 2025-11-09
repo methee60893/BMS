@@ -1149,8 +1149,8 @@
 
         let currencyCal = function () {
             let result = 0.00;
-            let amtCCY = parseFloat(txtAmtCCY.value) || 0;
-            let exRate = parseFloat(txtExRate.value) || 0;
+            let amtCCY = parseFloat(txtAmtCCY.value.replace(",", "")) || 0;
+            let exRate = parseFloat(txtExRate.value.replace(",", "")) || 0;
 
             // Auto-set ExRate to 1 if CCY is THB
             if (ccyDropdown.value === 'THB') {
@@ -1165,7 +1165,10 @@
                 }
             }
 
-            txtAmtTHB.value = (amtCCY * exRate).toFixed(2);
+            txtAmtTHB.value = (amtCCY * exRate).toLocaleString('en-US', {
+                minimumFractionDigits: 2,
+                maximumFractionDigits: 2
+            });
         }
 
         let initial = function () {
@@ -1174,7 +1177,18 @@
                 firstMenuLink.classList.add('expanded');
             }
 
+            // *** ADD NEW EVENT LISTENERS FOR CURRENCY MASKING ***
+            if (txtAmtTHB) {
+                txtAmtTHB.addEventListener('keydown', restrictToNumeric);
+                txtAmtTHB.addEventListener('focus', cleanCurrencyOnFocus);
+                txtAmtTHB.addEventListener('blur', formatCurrencyOnBlur);
 
+            }
+            if (txtAmtCCY) {
+                txtAmtCCY.addEventListener('keydown', restrictToNumeric);
+                txtAmtCCY.addEventListener('focus', cleanCurrencyOnFocus);
+                txtAmtCCY.addEventListener('blur', formatCurrencyOnBlur);
+            }
             //InitData master
             InitMSData();
 
@@ -1663,6 +1677,63 @@
             }
         });
 
+        // (NEW FUNCTION 1) Formats the number when user clicks away
+        function formatCurrencyOnBlur(event) {
+            const input = event.target;
+            let value = parseFloat(input.value.replace(/,/g, '')); // Remove existing commas
+            if (!isNaN(value)) {
+                // Format to x,xxx.xx
+                input.value = value.toLocaleString('en-US', {
+                    minimumFractionDigits: 2,
+                    maximumFractionDigits: 2
+                });
+            } else {
+                // Default to 0.00 if input is invalid
+                input.value = '0.00';
+            }
+        }
+
+        // (NEW FUNCTION 2) Clears formatting when user clicks in
+        function cleanCurrencyOnFocus(event) {
+            const input = event.target;
+            let value = input.value.replace(/,/g, ''); // Remove commas
+
+            // If the value is '0.00', clear it so user can type easily
+            if (parseFloat(value) === 0) {
+                input.value = '';
+            } else {
+                // Otherwise, just show the raw number
+                input.value = value;
+            }
+            // Select the text for easy replacement
+            setTimeout(() => input.select(), 0);
+        }
+
+        // (NEW FUNCTION 3) Prevents invalid characters (bound to 'keydown')
+        function restrictToNumeric(event) {
+            const input = event.target;
+            const key = event.key;
+
+            // Allow control keys (Backspace, Tab, Enter, Arrows, Home, End, Delete)
+            if (['Backspace', 'Tab', 'Enter', 'ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Home', 'End', 'Delete'].includes(key)) {
+                return;
+            }
+
+            // Allow Ctrl+A (Select All)
+            if (key === 'a' && event.ctrlKey) {
+                return;
+            }
+
+            // Allow one decimal point
+            if (key === '.' && !input.value.includes('.')) {
+                return;
+            }
+
+            // Allow only digits
+            if (!/\d/.test(key)) {
+                event.preventDefault(); // Block the key press
+            }
+        }
 
 
         // Initialize

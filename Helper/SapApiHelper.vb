@@ -30,7 +30,7 @@ Public Module SapApiHelper
         Try
             Dim content As New StringContent(jsonContent, Encoding.UTF8, "application/json")
             Using response As HttpResponseMessage = Await client.PostAsync(endpointUrl, content)
-                response.EnsureSuccessStatusCode() ' ถ้า 500 Error จะโยน Exception ตรงนี้
+                'response.EnsureSuccessStatusCode() ' ถ้า 500 Error จะโยน Exception ตรงนี้
                 Return Await response.Content.ReadAsStringAsync()
             End Using
         Catch ex As Exception
