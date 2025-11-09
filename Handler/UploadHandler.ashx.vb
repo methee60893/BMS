@@ -430,6 +430,7 @@ Public Class UploadHandler : Implements IHttpHandler
         insertTable.Columns.Add("Vendor", GetType(String))
         insertTable.Columns.Add("Amount", GetType(String))
         insertTable.Columns.Add("Version", GetType(String))
+        insertTable.Columns.Add("Remark", GetType(String))
         insertTable.Columns.Add("UploadBy", GetType(String))
         insertTable.Columns.Add("Batch", GetType(String))
         insertTable.Columns.Add("CreateDT", GetType(DateTime))
@@ -453,7 +454,7 @@ Public Class UploadHandler : Implements IHttpHandler
                 Dim brandValue As String = If(row("Brand") IsNot DBNull.Value, row("Brand").ToString().Trim(), "")
                 Dim vendorValue As String = If(row("Vendor") IsNot DBNull.Value, row("Vendor").ToString().Trim(), "")
                 Dim amountValue As String = If(row("Amount") IsNot DBNull.Value, row("Amount").ToString().Trim(), "")
-
+                Dim remarkValue As String = If(row("Remark") AndAlso row("Remark") IsNot DBNull.Value, row("Remark").ToString().Trim(), "")
                 ' Validate
                 Dim canUpdate As Boolean = False
                 Dim errorMsg As String = validator.ValidateAllWithDuplicateCheck(typeValue, yearValue, monthValue,
@@ -498,6 +499,7 @@ Public Class UploadHandler : Implements IHttpHandler
                         updateData.Add("Amount", amountDec.ToString("0.00"))
                         updateData.Add("UploadBy", uploadBy)
                         updateData.Add("Batch", newBatch)
+                        updateData.Add("Remark", remarkValue)
                         updateData.Add("UpdateDT", createDT)
 
                         updateList.Add(updateData)
@@ -517,6 +519,7 @@ Public Class UploadHandler : Implements IHttpHandler
                         newRow("Version") = versionValue
                         newRow("UploadBy") = uploadBy
                         newRow("Batch") = newBatch
+                        newRow("Remark") = remarkValue
                         newRow("CreateDT") = createDT
                         insertTable.Rows.Add(newRow)
                         savedCount += 1
