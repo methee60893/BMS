@@ -674,9 +674,7 @@
                                 <div class="form-group">
                                     <label>CCY</label>
                                     <select id="DDCCY" class="form-select">
-                                        <option selected>USD</option>
-                                        <option>THB</option>
-                                        <option>EUR</option>
+                                        
                                     </select>
                                 </div>
                                 <div class="form-group">
@@ -1187,6 +1185,7 @@
             uploadPreviewModal = new bootstrap.Modal(document.getElementById('previewModal'));
 
             segmentDropdown.addEventListener('change', changeVendor);
+            vendorDropdown.addEventListener('change', chengeCCY);
             txtAmtCCY.addEventListener('change', currencyCal);
             txtExRate.addEventListener('change', currencyCal);
             ccyDropdown.addEventListener('change', currencyCal);
@@ -1206,6 +1205,7 @@
             InitMSYear(yearDropdown);
             InitMonth(monthDropdown);
             InitCompany(companyDropdown);
+            InitCCY(ccyDropdown);
         }
 
         let InitSegment = function (segmentDropdown) {
@@ -1313,6 +1313,21 @@
             });
         }
 
+        let InitCCY = function (ccyDropdown) {
+            $.ajax({
+                url: 'Handler/MasterDataHandler.ashx?action=CCYMSList',
+                type: 'POST',
+                processData: false,
+                contentType: false,
+                success: function (response) {
+                    ccyDropdown.innerHTML = response;
+                },
+                error: function (xhr, status, error) {
+                    console.log('Error getlist data: ' + error);
+                }
+            });
+        }
+
         let changeVendor = function () {
             var segmentCode = segmentDropdown.value;
             if (!segmentCode) {
@@ -1330,6 +1345,30 @@
                 contentType: false,
                 success: function (response) {
                     vendorDropdown.innerHTML = response;
+                },
+                error: function (xhr, status, error) {
+                    console.log('Error getlist data: ' + error);
+                }
+            });
+        }
+
+        let chengeCCY = function () {
+           var vendorCode = vendorDropdown.value;
+            if (!vendorCode) {
+                // ถ้าไม่มีค่า ให้โหลด vendor ทั้งหมด
+                InitVendor(vendorDropdown);
+                return;
+            }
+            var formData = new FormData();
+            formData.append('vendorCode', vendorCode);
+            $.ajax({
+                url: 'Handler/MasterDataHandler.ashx?action=CCYMSListChg',
+                type: 'POST',
+                data: formData,
+                processData: false,
+                contentType: false,
+                success: function (response) {
+                    ccyDropdown.innerHTML = response;
                 },
                 error: function (xhr, status, error) {
                     console.log('Error getlist data: ' + error);

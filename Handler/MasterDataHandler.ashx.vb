@@ -58,6 +58,8 @@ Public Class MasterDataHandler
                 context.Response.Write(GetMSBrandList())
             ElseIf context.Request("action") = "VendorMSList" Then
                 context.Response.Write(GetMSVendorList())
+            ElseIf context.Request("action") = "CCYMSList" Then
+                context.Response.Write(GetMSCCYListwithfilter(""))
             ElseIf context.Request("action") = "VersionMSList" Then
                 Dim typeCode As String = If(String.IsNullOrWhiteSpace(context.Request.Form("OTBtype")),
                                        "",
@@ -68,6 +70,11 @@ Public Class MasterDataHandler
                                        "",
                                        context.Request.Form("segmentCode").Trim())
                 context.Response.Write(GetMSVendorListwithfilter(segmentCode))
+            ElseIf context.Request("action") = "CCYMSListChg" Then
+                Dim vendorCode As String = If(String.IsNullOrWhiteSpace(context.Request.Form("vendorCode")),
+                                       "",
+                                       context.Request.Form("vendorCode").Trim())
+                context.Response.Write(GetMSCCYListwithfilter(vendorCode))
             End If
 
         Catch ex As Exception
@@ -360,6 +367,25 @@ Public Class MasterDataHandler
         Return GenerateHtmlVendorDropdown(dt)
     End Function
 
+    Private Function GetMSCCYListwithfilter(vendorCode As String) As String
+        Dim dt As New DataTable()
+        Using conn As New SqlConnection(connectionString)
+            conn.Open()
+            Dim query As String = "SELECT  DISTINCT [CCY]
+                                     FROM [BMS].[dbo].[MS_Vendor]
+                                     WHERE (@vendorCode IS NULL OR @vendorCode = '' OR [VendorCode] = @vendorCode)
+                                    ORDER BY [dbo].[MS_Vendor].[CCY] ASC
+                                    "
+            Using cmd As New SqlCommand(query, conn)
+                cmd.Parameters.AddWithValue("@vendorCode", vendorCode)
+                Using reader As SqlDataReader = cmd.ExecuteReader()
+                    dt.Load(reader)
+                End Using
+            End Using
+        End Using
+        Return GenerateHtmlCCYDropdown(dt)
+    End Function
+
     Private Function GenerateHtmlVersionDropdown(dt As DataTable) As String
 
         Dim sb As New StringBuilder()
@@ -488,6 +514,25 @@ Public Class MasterDataHandler
                            HttpUtility.HtmlEncode(vendorCode),
                            HttpUtility.HtmlEncode(vendorCode),
                            HttpUtility.HtmlEncode(vendorName))
+            Next
+        End If
+
+        Return sb.ToString()
+    End Function
+
+    Private Function GenerateHtmlCCYDropdown(dt As DataTable) As String
+
+        Dim sb As New StringBuilder()
+        If dt.Rows.Count.Equals(0) Then
+            sb.Append("<option value=''>-- กรุณาเลือก Vendor ก่อน --</option>")
+        Else
+            sb.Append("<option value=''>-- กรุณาเลือก CCY --</option>")
+            For i As Integer = 0 To dt.Rows.Count - 1
+                Dim CCY As String = If(dt.Rows(i)("CCY") IsNot DBNull.Value, dt.Rows(i)("CCY").ToString(), "")
+
+                sb.AppendFormat("<option value='{0}'>{1}</option>",
+                           HttpUtility.HtmlEncode(CCY),
+                           HttpUtility.HtmlEncode(CCY))
             Next
         End If
 
