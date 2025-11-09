@@ -154,8 +154,6 @@ Public Class ApprovedOTBManager
         Optional brand As String = Nothing,
         Optional vendor As String = Nothing) As DataTable
 
-        Dim dateFrom As DateTime? = Nothing
-        Dim dateTo As DateTime? = Nothing
         Dim dt As New DataTable()
 
         Try
@@ -174,10 +172,6 @@ Public Class ApprovedOTBManager
                     cmd.Parameters.AddWithValue("@Segment", If(String.IsNullOrEmpty(segment), DBNull.Value, segment))
                     cmd.Parameters.AddWithValue("@Brand", If(String.IsNullOrEmpty(brand), DBNull.Value, brand))
                     cmd.Parameters.AddWithValue("@Vendor", If(String.IsNullOrEmpty(vendor), DBNull.Value, vendor))
-                    cmd.Parameters.AddWithValue("@DateFrom", If(dateFrom.HasValue, dateFrom.Value, DBNull.Value))
-                    cmd.Parameters.AddWithValue("@DateTo", If(dateTo.HasValue, dateTo.Value, DBNull.Value))
-
-
                     Using adapter As New SqlDataAdapter(cmd)
                         adapter.Fill(dt)
                     End Using

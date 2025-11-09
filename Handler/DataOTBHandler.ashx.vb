@@ -605,12 +605,6 @@ Public Class DataOTBHandler
                 sb.AppendFormat("<td class='date-cell'>{0}</td>",
                        If(row("CreateDT") IsNot DBNull.Value, Convert.ToDateTime(row("CreateDT")).ToString("dd/MM/yyyy HH:mm"), ""))
 
-                ' Year & Month (Source) - เพิ่มการตรวจสอบ DBNull
-                sb.AppendFormat("<td class='text-center'>{0}</td>",
-                       If(row("Year") IsNot DBNull.Value, row("Year").ToString(), ""))
-                sb.AppendFormat("<td class='text-center'>{0}</td>",
-                       HttpUtility.HtmlEncode(If(row("MonthName") IsNot DBNull.Value, row("MonthName").ToString(), "")))
-
                 ' Type (Source)
                 Dim typeValue As String = If(row("Type") IsNot DBNull.Value, row("Type").ToString(), "")
                 Dim typeClass As String = ""
@@ -627,18 +621,23 @@ Public Class DataOTBHandler
                         typeClass = "type-default"
                 End Select
                 sb.AppendFormat("<td class='text-center {0}'>{1}</td>", typeClass, HttpUtility.HtmlEncode(typeValue))
-
-                ' Company (Source)
+                ' Year & Month (Source) - เพิ่มการตรวจสอบ DBNull
                 sb.AppendFormat("<td class='text-center'>{0}</td>",
-                       HttpUtility.HtmlEncode(If(row("Company") IsNot DBNull.Value, row("Company").ToString(), "")))
-                sb.AppendFormat("<td>{0}</td>",
-                       HttpUtility.HtmlEncode(If(row("CompanyName") IsNot DBNull.Value, row("CompanyName").ToString(), "")))
-
+                       If(row("Year") IsNot DBNull.Value, row("Year").ToString(), ""))
+                sb.AppendFormat("<td class='text-center'>{0}</td>",
+                       HttpUtility.HtmlEncode(If(row("MonthName") IsNot DBNull.Value, row("MonthName").ToString(), "")))
                 ' Category (Source)
                 sb.AppendFormat("<td class='text-center'>{0}</td>",
                        HttpUtility.HtmlEncode(If(row("Category") IsNot DBNull.Value, row("Category").ToString(), "")))
                 sb.AppendFormat("<td>{0}</td>",
                        HttpUtility.HtmlEncode(If(row("CategoryName") IsNot DBNull.Value, row("CategoryName").ToString(), "")))
+                ' Company (Source)
+                'sb.AppendFormat("<td class='text-center'>{0}</td>",
+                '       HttpUtility.HtmlEncode(If(row("Company") IsNot DBNull.Value, row("Company").ToString(), "")))
+                sb.AppendFormat("<td>{0}</td>",
+                       HttpUtility.HtmlEncode(If(row("CompanyName") IsNot DBNull.Value, row("CompanyName").ToString(), "")))
+
+
 
                 ' Segment (Source)
                 sb.AppendFormat("<td class='text-center'>{0}</td>",
@@ -658,55 +657,60 @@ Public Class DataOTBHandler
                 sb.AppendFormat("<td>{0}</td>",
                        HttpUtility.HtmlEncode(If(row("VendorName") IsNot DBNull.Value, row("VendorName").ToString(), "")))
 
-                ' Budget Amount
-                Dim budgetAmount As Decimal = If(row("BudgetAmount") IsNot DBNull.Value, Convert.ToDecimal(row("BudgetAmount")), 0)
-                sb.AppendFormat("<td class='amount-cell'>{0}</td>", budgetAmount.ToString("N2"))
 
-                ' Release
-                Dim releaseAmount As Decimal = If(row("Release") IsNot DBNull.Value, Convert.ToDecimal(row("Release")), 0)
-                sb.AppendFormat("<td class='amount-cell'>{0}</td>", releaseAmount.ToString("N2"))
+
+                ' Type (Source)
+                Dim switchtypeValue As String = If(row("SwitchType") IsNot DBNull.Value, row("SwitchType").ToString(), "")
+                Dim switchtypeClass As String = ""
+                Select Case typeValue
+                    Case "Switch In"
+                        switchtypeClass = "type-switch-in"
+                    Case "Carry In"
+                        switchtypeClass = "type-carry-in"
+                    Case "Balance In"
+                        switchtypeClass = "type-balance-in"
+                    Case Else
+                        switchtypeClass = "type-default"
+                End Select
+                sb.AppendFormat("<td class='text-center {0}'>{1}</td>", switchtypeClass, HttpUtility.HtmlEncode(switchtypeValue))
 
                 ' Switch Year & Month (Target) - เพิ่มการตรวจสอบ DBNull
                 sb.AppendFormat("<td class='text-center'>{0}</td>",
                        If(row("SwitchYear") IsNot DBNull.Value, row("SwitchYear").ToString(), ""))
                 sb.AppendFormat("<td class='text-center'>{0}</td>",
                        HttpUtility.HtmlEncode(If(row("SwitchMonthName") IsNot DBNull.Value, row("SwitchMonthName").ToString(), "")))
-
+                ' Switch Category (Target)
+                sb.AppendFormat("<td class='text-center'>{0}</td>",
+                       HttpUtility.HtmlEncode(If(row("SwitchCategory") IsNot DBNull.Value, row("SwitchCategory").ToString(), "")))
+                sb.AppendFormat("<td>{0}</td>",
+                       HttpUtility.HtmlEncode(If(row("SwitchCategoryName") IsNot DBNull.Value, row("SwitchCategoryName").ToString(), "")))
                 ' Switch Company (Target)
                 sb.AppendFormat("<td class='text-center'>{0}</td>",
                        HttpUtility.HtmlEncode(If(row("SwitchCompany") IsNot DBNull.Value, row("SwitchCompany").ToString(), "")))
 
-                ' Switch Category (Target)
-                sb.AppendFormat("<td class='text-center'>{0}</td>",
-                       HttpUtility.HtmlEncode(If(row("SwitchCategory") IsNot DBNull.Value, row("SwitchCategory").ToString(), "")))
 
                 ' Switch Segment (Target)
                 sb.AppendFormat("<td class='text-center'>{0}</td>",
                        HttpUtility.HtmlEncode(If(row("SwitchSegment") IsNot DBNull.Value, row("SwitchSegment").ToString(), "")))
+                sb.AppendFormat("<td>{0}</td>",
+                       HttpUtility.HtmlEncode(If(row("SwitchSegmentName") IsNot DBNull.Value, row("SwitchSegmentName").ToString(), "")))
 
                 ' Switch Brand (Target)
                 sb.AppendFormat("<td class='text-center'>{0}</td>",
                        HttpUtility.HtmlEncode(If(row("SwitchBrand") IsNot DBNull.Value, row("SwitchBrand").ToString(), "")))
+                sb.AppendFormat("<td class='text-center'>{0}</td>",
+                       HttpUtility.HtmlEncode(If(row("SwitchBrandName") IsNot DBNull.Value, row("SwitchBrandName").ToString(), "")))
 
                 ' Switch Vendor (Target)
                 sb.AppendFormat("<td class='text-center'>{0}</td>",
                        HttpUtility.HtmlEncode(If(row("SwitchVendor") IsNot DBNull.Value, row("SwitchVendor").ToString(), "")))
-
-                ' Batch
                 sb.AppendFormat("<td class='text-center'>{0}</td>",
-                       HttpUtility.HtmlEncode(If(row("Batch") IsNot DBNull.Value, row("Batch").ToString(), "")))
+                       HttpUtility.HtmlEncode(If(row("SwitchVendorName") IsNot DBNull.Value, row("SwitchVendorName").ToString(), "")))
 
-                ' Remark
-                sb.AppendFormat("<td class='small'>{0}</td>",
-                       HttpUtility.HtmlEncode(If(row("Remark") IsNot DBNull.Value, row("Remark").ToString(), "")))
-
-                ' Status
-                sb.AppendFormat("<td class='text-center status-approved'>{0}</td>",
-                       HttpUtility.HtmlEncode(If(row("OTBStatus") IsNot DBNull.Value, row("OTBStatus").ToString(), "")))
-
-                ' Approved Date
-                sb.AppendFormat("<td class='date-cell'>{0}</td>",
-                       If(row("ApproveDT") IsNot DBNull.Value, Convert.ToDateTime(row("ApproveDT")).ToString("dd/MM/yyyy HH:mm"), ""))
+                ' Budget Amount
+                Dim budgetAmount As Decimal = If(row("BudgetAmount") IsNot DBNull.Value, Convert.ToDecimal(row("BudgetAmount")), 0)
+                sb.AppendFormat("<td class='amount-cell'>{0}</td>", budgetAmount.ToString("N2"))
+                ' Batch
 
                 ' SAP Date
                 sb.AppendFormat("<td class='date-cell'>{0}</td>",
@@ -805,8 +809,9 @@ Public Class DataOTBHandler
     End Function
 
     ' ===================================================================
-    ' ===== START: REPLACEMENT LOGIC FOR ApproveDraftOTB ================
+    ' ===== START: REPLACEMENT LOGIC FOR ApproveDraftOTB (With MERGE) ===
     ' ===================================================================
+
     Private Sub ApproveDraftOTB(context As HttpContext)
         context.Response.ContentType = "application/json"
         Dim approvedBy As String = If(String.IsNullOrWhiteSpace(context.Request.Form("approvedBy")), "System", context.Request.Form("approvedBy").Trim())
@@ -814,13 +819,13 @@ Public Class DataOTBHandler
         Dim responseJson As New Dictionary(Of String, Object)
 
         Try
-            ' 1. Get selected IDs
+            ' 1. Get selected IDs (Same as original code)
             Dim idsString As String = If(String.IsNullOrWhiteSpace(context.Request.Form("runNos")), "[]", context.Request.Form("runNos").Trim())
             If String.IsNullOrEmpty(idsString) OrElse idsString = "[]" Then
                 Throw New Exception("No records selected for approval.")
             End If
 
-            ' 2. Convert IDs to List(Of Integer)
+            ' 2. Convert IDs to List(Of Integer) (Same as original code)
             Dim runNos As New List(Of Integer)
             Try
                 Dim jsonArray As List(Of String) = JsonConvert.DeserializeObject(Of List(Of String))(idsString)
@@ -852,7 +857,7 @@ Public Class DataOTBHandler
             ' 4. Build list to send to SAP API and create Key-to-RunNo map
             Dim plansToUpload As New List(Of OtbPlanUploadItem)()
             Dim sapKeyToRunNoMap As New Dictionary(Of String, Integer)
-            Dim runNoToDataRowMap As New Dictionary(Of Integer, DataRow) ' NEW: Map RunNo to its DataRow for faster lookup
+            Dim runNoToDataRowMap As New Dictionary(Of Integer, DataRow)
 
             For Each row As DataRow In draftData.Rows
                 Dim amountStr As String = If(row("Amount") IsNot DBNull.Value, Convert.ToDecimal(row("Amount")).ToString("F2"), "0.00")
@@ -1000,7 +1005,7 @@ Public Class DataOTBHandler
                                 If sapKeyToRunNoMap.ContainsKey(sapKey) Then
                                     Dim runNoToUpdate As Integer = sapKeyToRunNoMap(sapKey)
 
-                                    ' This is the record we need to update
+                                    ' 1. (Existing Code) Update Template_Upload_Draft_OTB
                                     Dim updateQuery As String = "
                                         UPDATE [dbo].[Template_Upload_Draft_OTB]
                                         SET 
@@ -1014,14 +1019,124 @@ Public Class DataOTBHandler
                                             AND (OTBStatus IS NULL OR OTBStatus = 'Draft')
                                     "
 
-                                    Using cmd As New SqlCommand(updateQuery, conn, transaction)
-                                        cmd.Parameters.AddWithValue("@OTBStatus", "Approved")
-                                        cmd.Parameters.AddWithValue("@ApprovedBy", approvedBy)
-                                        cmd.Parameters.AddWithValue("@SAPStatus", successResult.MessageType)
-                                        cmd.Parameters.AddWithValue("@SAPErrorMessage", If(String.IsNullOrEmpty(successResult.Message), DBNull.Value, successResult.Message))
-                                        cmd.Parameters.AddWithValue("@RunNo", runNoToUpdate)
-                                        updateCount += cmd.ExecuteNonQuery()
+                                    Using cmdUpdate As New SqlCommand(updateQuery, conn, transaction)
+                                        cmdUpdate.Parameters.AddWithValue("@OTBStatus", "Approved")
+                                        cmdUpdate.Parameters.AddWithValue("@ApprovedBy", approvedBy)
+                                        cmdUpdate.Parameters.AddWithValue("@SAPStatus", successResult.MessageType)
+                                        cmdUpdate.Parameters.AddWithValue("@SAPErrorMessage", If(String.IsNullOrEmpty(successResult.Message), DBNull.Value, successResult.Message))
+                                        cmdUpdate.Parameters.AddWithValue("@RunNo", runNoToUpdate)
+                                        updateCount += cmdUpdate.ExecuteNonQuery()
                                     End Using
+
+                                    ' 2. *** MODIFIED LOGIC: UPSERT into OTB_Transaction using MERGE ***
+                                    If runNoToDataRowMap.ContainsKey(runNoToUpdate) Then
+                                        Dim approvedRow As DataRow = runNoToDataRowMap(runNoToUpdate)
+
+                                        ' Calculate RevisedDiff
+                                        Dim calc_Year As String = approvedRow("OTBYear").ToString()
+                                        Dim calc_Month As String = approvedRow("OTBMonth").ToString()
+                                        Dim calc_Category As String = approvedRow("OTBCategory").ToString()
+                                        Dim calc_Company As String = approvedRow("OTBCompany").ToString()
+                                        Dim calc_Segment As String = approvedRow("OTBSegment").ToString()
+                                        Dim calc_Brand As String = approvedRow("OTBBrand").ToString()
+                                        Dim calc_Vendor As String = approvedRow("OTBVendor").ToString()
+                                        Dim calc_Amount As Decimal = Convert.ToDecimal(approvedRow("Amount"))
+                                        Dim calc_Type As String = approvedRow("OTBType").ToString()
+                                        Dim calc_Version As String = approvedRow("Version").ToString()
+
+                                        Dim revisedDiffValue As Decimal = 0
+                                        If calc_Type.Equals("Revise", StringComparison.OrdinalIgnoreCase) Then
+                                            Dim currentBudget As Decimal = OTBBudgetCalculator.CalculateCurrentApprovedBudget(
+                                                calc_Year, calc_Month, calc_Category, calc_Company, calc_Segment, calc_Brand, calc_Vendor)
+                                            revisedDiffValue = calc_Amount - currentBudget
+                                        End If
+
+                                        ' (Schema based on data_BMS.png)
+                                        Dim mergeQuery As String = "
+                                            MERGE INTO [dbo].[OTB_Transaction] AS T
+                                            USING (
+                                                SELECT 
+                                                    @Type AS [Type], @Year AS [Year], @Month AS [Month], 
+                                                    @Category AS [Category], @Company AS [Company], @Segment AS [Segment], 
+                                                    @Brand AS [Brand], @Vendor AS [Vendor], @Version AS [Version]
+                                            ) AS S
+                                            ON (
+                                                T.[Type] = S.[Type] AND
+                                                T.[Year] = S.[Year] AND
+                                                T.[Month] = S.[Month] AND
+                                                T.[Category] = S.[Category] AND
+                                                T.[Company] = S.[Company] AND
+                                                T.[Segment] = S.[Segment] AND
+                                                T.[Brand] = S.[Brand] AND
+                                                T.[Vendor] = S.[Vendor] AND
+                                                T.[Version] = S.[Version]
+                                            )
+                                            WHEN MATCHED THEN
+                                                UPDATE SET
+                                                    T.[Amount] = @Amount,
+                                                    T.[RevisedDiff] = @RevisedDiff,
+                                                    T.[Remark] = @Remark,
+                                                    T.[ApprovedDate] = GETDATE(),
+                                                    T.[SAPDate] = GETDATE(),
+                                                    T.[ActionBy] = @ActionBy,
+                                                    T.[DraftID] = @DraftID,
+                                                    T.[SAPStatus] = @SAPStatus,
+                                                    T.[SAPErrorMessage] = @SAPErrorMessage,
+                                                    T.[CategoryName] = @CategoryName,
+                                                    T.[SegmentName] = @SegmentName,
+                                                    T.[BrandName] = @BrandName,
+                                                    T.[VendorName] = @VendorName,
+                                                    T.[OTBStatus] = 'Approved'
+                                            WHEN NOT MATCHED BY TARGET THEN
+                                                INSERT (
+                                                    [CreateDate], [Type], [Year], [Month], [Category], [CategoryName],
+                                                    [Company], [Segment], [SegmentName], [Brand], [BrandName],
+                                                    [Vendor], [VendorName], [Amount], [RevisedDiff], [Remark],
+                                                    [OTBStatus], [ApprovedDate], [SAPDate], [ActionBy], [DraftID],
+                                                    [SAPStatus], [SAPErrorMessage], [Version]
+                                                )
+                                                VALUES (
+                                                    GETDATE(), @Type, @Year, @Month, @Category, @CategoryName,
+                                                    @Company, @Segment, @SegmentName, @Brand, @BrandName,
+                                                    @Vendor, @VendorName, @Amount, @RevisedDiff, @Remark,
+                                                    'Approved', GETDATE(), GETDATE(), @ActionBy, @DraftID,
+                                                    @SAPStatus, @SAPErrorMessage, @Version
+                                                );
+                                        "
+
+                                        Using cmdMerge As New SqlCommand(mergeQuery, conn, transaction)
+                                            ' Key Parameters (for ON clause)
+                                            cmdMerge.Parameters.AddWithValue("@Type", approvedRow("OTBType"))
+                                            cmdMerge.Parameters.AddWithValue("@Year", approvedRow("OTBYear"))
+                                            cmdMerge.Parameters.AddWithValue("@Month", approvedRow("OTBMonth"))
+                                            cmdMerge.Parameters.AddWithValue("@Category", approvedRow("OTBCategory"))
+                                            cmdMerge.Parameters.AddWithValue("@Company", approvedRow("OTBCompany"))
+                                            cmdMerge.Parameters.AddWithValue("@Segment", approvedRow("OTBSegment"))
+                                            cmdMerge.Parameters.AddWithValue("@Brand", approvedRow("OTBBrand"))
+                                            cmdMerge.Parameters.AddWithValue("@Vendor", approvedRow("OTBVendor"))
+                                            cmdMerge.Parameters.AddWithValue("@Version", approvedRow("Version"))
+
+                                            ' Data Parameters (for INSERT/UPDATE)
+                                            cmdMerge.Parameters.AddWithValue("@Amount", calc_Amount)
+                                            cmdMerge.Parameters.AddWithValue("@RevisedDiff", revisedDiffValue)
+                                            cmdMerge.Parameters.AddWithValue("@Remark", approvedRow("Remark"))
+                                            cmdMerge.Parameters.AddWithValue("@ActionBy", approvedBy)
+                                            cmdMerge.Parameters.AddWithValue("@DraftID", runNoToUpdate)
+                                            cmdMerge.Parameters.AddWithValue("@SAPStatus", successResult.MessageType)
+                                            cmdMerge.Parameters.AddWithValue("@SAPErrorMessage", If(String.IsNullOrEmpty(successResult.Message), DBNull.Value, successResult.Message))
+
+
+                                            ' Parameters for UPDATE/INSERT (Names)
+                                            cmdMerge.Parameters.AddWithValue("@CategoryName", approvedRow("CateName"))
+                                            cmdMerge.Parameters.AddWithValue("@SegmentName", approvedRow("SegmentName"))
+                                            cmdMerge.Parameters.AddWithValue("@BrandName", approvedRow("BrandName"))
+                                            cmdMerge.Parameters.AddWithValue("@VendorName", approvedRow("Vendor"))
+
+                                            cmdMerge.ExecuteNonQuery()
+                                        End Using
+                                    Else
+                                        Throw New Exception($"Critical Error: Could not find original DataRow for RunNo '{runNoToUpdate}'.")
+                                    End If
                                 Else
                                     Throw New Exception($"Critical Error: Could not map SAP success key '{sapKey}' back to a RunNo.")
                                 End If

@@ -544,6 +544,7 @@
                     <div class="col-md-3">
                         <label class="form-label">Type</label>
                         <select id="DDSwitchType" class="form-select">
+                            <option value="">--กรุณาเลือก Type --</option>
                             <option value="D">Switch In-out</option>
                             <option value="G">Carry In-out</option>
                             <option value="I">Balance In-Out</option>
