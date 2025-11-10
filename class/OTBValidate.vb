@@ -170,9 +170,24 @@ Public Class OTBValidate
     End Function
 
     Public Function ValidateAmount(ByVal amount As Decimal) As String
-        Return If(amount <= 0, "Value amount should be greater than 0 ", "")
+        If amount <= 0 Then
+            Return "Value_amount_should_be_greater_than_0" ' (ลบช่องว่าง)
+        End If
+        Return ""
     End Function
+    Public Function ValidateAmountString(ByVal amountStr As String) As String
+        If String.IsNullOrEmpty(amountStr) Then
+            Return ""
+        End If
 
+        If amountStr.Contains(".") Then
+            Dim decimals As Integer = amountStr.Length - amountStr.IndexOf(".") - 1
+            If decimals > 2 Then
+                Return "Decimal_places_exceeded (Will round to 2)" ' (อันนี้มีช่องว่างได้ เพราะเราจะไม่ Split มัน)
+            End If
+        End If
+        Return ""
+    End Function
     ' ===== New Validation Functions =====
 
     ''' <summary>
@@ -297,8 +312,81 @@ Public Class OTBValidate
     End Function
 
     ''' <summary>
-    ''' Validate ทุกอย่างรวม Duplicate และ Type checking
-    ''' (MODIFIED: Added check against dtApprovedOTB as a non-blocking warning for 'Revise' type)
+    ''' (NEW LOGIC - Replaces GetLatestVersionFromDB)
+    ''' Calculates the next version (A1, R1...R15) for a key based *only* on dtApprovedOTB (OTB_Transaction).
+    ''' Throws exception if next version > R15.
+    ''' </summary>
+    ''' <returns>The next version string (e.g., "A1", "R2")</returns>
+    Private Function GetNextVersionString(year As String, month As String, category As String,
+                                        company As String, segment As String, brand As String,
+                                        vendor As String) As String
+
+        Dim latestVersionNum As Integer = -1 ' A1 = 0, R1 = 1, R2 = 2
+
+        ' Helper function to parse version string
+        Dim getVersionNum = Function(v As String)
+                                If String.IsNullOrEmpty(v) Then Return -1
+                                If v.Equals("A1", StringComparison.OrdinalIgnoreCase) Then Return 0
+                                If v.StartsWith("R", StringComparison.OrdinalIgnoreCase) Then
+                                    Dim numPart As Integer
+                                    If Integer.TryParse(v.Substring(1), numPart) Then
+                                        Return numPart ' R1=1, R2=2
+                                    End If
+                                End If
+                                Return -1 ' Unknown format
+                            End Function
+
+        ' Check Approved table (OTB_Transaction) ONLY
+        If dtApprovedOTB IsNot Nothing AndAlso dtApprovedOTB.Columns.Contains("Version") Then
+            Try
+                Dim filter As String = $"[Year] = '{year.Replace("'", "''")}' AND " &
+                                      $"[Month] = '{month.Replace("'", "''")}' AND " &
+                                      $"[Category] = '{category.Replace("'", "''")}' AND " &
+                                      $"[Company] = '{company.Replace("'", "''")}' AND " &
+                                      $"[Segment] = '{segment.Replace("'", "''")}' AND " &
+                                      $"[Brand] = '{brand.Replace("'", "''")}' AND " &
+                                      $"[Vendor] = '{vendor.Replace("'", "''")}'"
+
+                For Each row As DataRow In dtApprovedOTB.Select(filter)
+                    Dim currentVersionStr As String = row("Version").ToString()
+                    Dim currentVersionNum As Integer = getVersionNum(currentVersionStr)
+                    If currentVersionNum > latestVersionNum Then
+                        latestVersionNum = currentVersionNum
+                    End If
+                Next
+            Catch ex As Exception
+                ' Handle potential filter errors
+            End Try
+        End If
+
+        ' Calculate next version
+        Dim nextVersionNum As Integer
+        If latestVersionNum = -1 Then
+            ' Rule 1: Not found in Approved table, so this is the first upload (A1)
+            nextVersionNum = 0 ' A1
+        Else
+            ' Found in Approved table, so this is a Revise (R1, R2, ...)
+            nextVersionNum = latestVersionNum + 1 ' (A1(0) -> R1(1)) or (R1(1) -> R2(2))
+        End If
+
+        ' Enforce R15 limit
+        If nextVersionNum > 15 Then
+            Throw New Exception($"Revise_limit_exceeded_(R15_is_max)")
+        End If
+
+        If nextVersionNum = 0 Then
+            Return "A1"
+        Else
+            Return $"R{nextVersionNum}"
+        End If
+    End Function
+
+    ''' <summary>
+    ''' (NEW LOGIC) Validate_All.
+    ''' 1. Ignores file 'Type' field.
+    ''' 2. Calculates Version based *only* on OTB_Transaction (A1, R1..R15).
+    ''' 3. Adds non-blocking WARNING if key already in OTB_Transaction (Rule 2).
+    ''' 4. Allows overwriting Drafts (Rule 3).
     ''' </summary>
     Public Function ValidateAllWithDuplicateCheck(type As String, year As String, month As String,
                                                category As String, company As String, segment As String,
@@ -312,146 +400,59 @@ Public Class OTBValidate
             Dim monthShort As Short = If(String.IsNullOrEmpty(month), 0, Convert.ToInt16(month))
             Dim amountDec As Decimal = If(String.IsNullOrEmpty(amount), 0, Convert.ToDecimal(amount))
 
-            ' Basic validations
-            errors.Append(ValidateType(type))
-            errors.Append(ValidateYear(yearInt))
-            errors.Append(ValidateMonth(monthShort))
-            errors.Append(ValidateCategory(category))
-            errors.Append(ValidateCompany(company))
-            errors.Append(ValidateSegment(segment))
-            errors.Append(ValidateBrand(brand))
-            errors.Append(ValidateVendor(vendor))
-            errors.Append(ValidateAmount(amountDec))
+            ' Basic validations (Type validation is removed)
+            ' errors.Append(ValidateType(type)) ' <-- REMOVED (Rule 1)
+            If Not String.IsNullOrEmpty(ValidateType(type)) Then errors.Append(ValidateType(type).Replace(" ", "_") & "|")
+            If Not String.IsNullOrEmpty(ValidateYear(yearInt)) Then errors.Append(ValidateYear(yearInt).Replace(" ", "_") & "|")
+            If Not String.IsNullOrEmpty(ValidateMonth(monthShort)) Then errors.Append(ValidateMonth(monthShort).Replace(" ", "_") & "|")
+            If Not String.IsNullOrEmpty(ValidateCategory(category)) Then errors.Append(ValidateCategory(category).Replace(" ", "_") & "|")
+            If Not String.IsNullOrEmpty(ValidateCompany(company)) Then errors.Append(ValidateCompany(company).Replace(" ", "_") & "|")
+            If Not String.IsNullOrEmpty(ValidateSegment(segment)) Then errors.Append(ValidateSegment(segment).Replace(" ", "_") & "|")
+            If Not String.IsNullOrEmpty(ValidateBrand(brand)) Then errors.Append(ValidateBrand(brand).Replace(" ", "_") & "|")
+            If Not String.IsNullOrEmpty(ValidateVendor(vendor)) Then errors.Append(ValidateVendor(vendor).Replace(" ", "_") & "|")
+            ' (ValidateAmount ใช้ amountDec ที่แปลงแล้ว)
+            If Not String.IsNullOrEmpty(ValidateAmount(amountDec)) Then errors.Append(ValidateAmount(amountDec).Replace(" ", "_") & "|")
 
-            ' --- [START NEW LOGIC (Requirement: Warn on Approved Duplicate)] ---
-            ' ถ้า Type = Revise, ให้ตรวจสอบว่า Key นี้เคย Approved ไปแล้วหรือยัง (ใน OTB_Transaction)
-            ' นี่คือการแจ้งเตือน (Warning) เท่านั้น ไม่ใช่ Error
-            If type.Equals("Revise", StringComparison.OrdinalIgnoreCase) AndAlso dtApprovedOTB IsNot Nothing Then
+            ' (ValidateAmountString ใช้ amount string ดิบ)
+            If Not String.IsNullOrEmpty(ValidateAmountString(amount)) Then errors.Append(ValidateAmountString(amount) & "|")
+            ' --- Rule 1: Calculate Version based on OTB_Transaction ---
+            Try
+                Dim nextVersion As String = GetNextVersionString(year, month, category, company, segment, brand, vendor)
+            Catch r15Ex As Exception
+                errors.Append(r15Ex.Message & "|")
+            End Try
+
+            ' Rule 2: Check Approved (Warning)
+            If dtApprovedOTB IsNot Nothing Then
                 Try
-                    Dim approvedFilter As String = $"[Year] = '{year.Replace("'", "''")}' AND " &
-                                                  $"[Month] = '{month.Replace("'", "''")}' AND " &
-                                                  $"[Category] = '{category.Replace("'", "''")}' AND " &
-                                                  $"[Company] = '{company.Replace("'", "''")}' AND " &
-                                                  $"[Segment] = '{segment.Replace("'", "''")}' AND " &
-                                                  $"[Brand] = '{brand.Replace("'", "''")}' AND " &
-                                                  $"[Vendor] = '{vendor.Replace("'", "''")}'"
-
+                    Dim approvedFilter As String = $"[Year] = '{year.Replace("'", "''")}' AND [Month] = '{month.Replace("'", "''")}' AND [Category] = '{category.Replace("'", "''")}' AND [Company] = '{company.Replace("'", "''")}' AND [Segment] = '{segment.Replace("'", "''")}' AND [Brand] = '{brand.Replace("'", "''")}' AND [Vendor] = '{vendor.Replace("'", "''")}'"
                     Dim approvedRows() As DataRow = dtApprovedOTB.Select(approvedFilter)
-
                     If approvedRows.Length > 0 Then
-                        ' Key นี้มีในตาราง Approved แล้ว (เช่น A1 หรือ R1)
-                        ' เพิ่ม Warning ว่าจะทำการ Revise ทับ (Override)
-                        errors.Append("Duplicate_Approved (Will Revise) ")
+                        errors.Append("Duplicate_Approved_Warn (Will Revise)|")
                     End If
                 Catch ex As Exception
-                    ' ถ้าการกรองข้อมูลล้มเหลว (เช่น data type ผิด) ให้ข้ามไป
                 End Try
             End If
-            ' --- [END NEW LOGIC] ---
 
-            ' เงื่อนไขที่ 1: เช็คซ้ำใน Draft OTB (Logic เดิม)
+            ' Rule 3: Check Draft (Update/Error)
             Dim duplicateResult As String = ValidateDuplicateInDraftOTB(type, year, month, category, company, segment, brand, vendor)
 
             If duplicateResult = "CAN_UPDATE" Then
-                ' ซ้ำแต่เป็น Draft - สามารถ Update ได้
                 canUpdate = True
-                errors.Append("Duplicated_Draft OTB (Will Update) ")
+                errors.Append("Duplicated_Draft OTB (Will Update)|")
             ElseIf duplicateResult = "DUPLICATED_APPROVED" Then
-                ' ซ้ำและมี Approved (ในตาราง Draft) - ไม่ควร Update
                 canUpdate = False
-                errors.Append("Duplicated_Approved OTB (Cannot Update) ")
-            End If
-
-            ' --- [BMS Gem MODIFICATION START] ---
-            ' Requirement 2, 3, 4: Check R15 limit at Preview
-            If type.Equals("Revise", StringComparison.OrdinalIgnoreCase) Then
-                ' Find the latest version (A1, R1, R2...) from EITHER Draft or Approved tables
-                Dim latestVersion As String = GetLatestVersionFromDB(year, month, category, company, segment, brand, vendor)
-
-                Dim nextVersionNum As Integer = 1 ' Default to R1 if no history
-
-                If latestVersion IsNot Nothing Then
-                    If latestVersion.Equals("A1", StringComparison.OrdinalIgnoreCase) Then
-                        nextVersionNum = 1 ' Next is R1
-                    ElseIf latestVersion.StartsWith("R", StringComparison.OrdinalIgnoreCase) Then
-                        Dim numPart As Integer
-                        If Integer.TryParse(latestVersion.Substring(1), numPart) Then
-                            nextVersionNum = numPart + 1 ' Next is R(N+1)
-                        End If
-                    End If
-                End If
-
-                ' Check the limit (Req 2 & 3)
-                If nextVersionNum > 15 Then
-                    ' The *next* version would be R16, which is not allowed
-                    errors.Append($"Revise_limit_exceeded_(R15_is_max) ") ' (Req 4: Notify at preview)
-                End If
-            End If
-            ' --- [BMS Gem MODIFICATION END] ---
-
-            ' เงื่อนไขที่ 3-4: เช็ค Type กับ Draft/Approved data
-            Dim typeError As String = ValidateTypeWithData(type, year, month, category, company, segment, brand, vendor)
-            If Not String.IsNullOrEmpty(typeError) Then
-                If typeError.Contains("No Original found") Then
-                    errors.Append(typeError)
-                End If
+                errors.Append("Duplicated_Approved OTB (Cannot Update)|")
             End If
 
         Catch ex As Exception
-            errors.Append("Data format error ")
+            errors.Append("Data_format_error|")
         End Try
 
         Return errors.ToString()
     End Function
 
-
-    ''' <summary>
-    ''' เงื่อนไขที่ 3-4: ตรวจสอบว่า Type ถูกต้องหรือไม่ โดยดูทั้ง Draft และ Approved
-    ''' - Type = Original: อนุญาตเสมอ (แม้จะมี Approved แล้วก็ได้ เพราะอาจต้องการ Force Update)
-    ''' - Type = Revise: ต้องมี Original ใน Draft เท่านั้น (ไม่ต้องมี Approved)
-    ''' </summary>
-    Public Function ValidateTypeWithData(type As String, year As String, month As String,
-                                         category As String, company As String, segment As String,
-                                         brand As String, vendor As String) As String
-        Try
-            ' สร้าง filter สำหรับค้นหา Key เดียวกัน (ไม่รวม Type)
-            Dim filter As String = $"[Year] = '{year.Replace("'", "''")}' AND " &
-                                  $"[Month] = '{month.Replace("'", "''")}' AND " &
-                                  $"[Category] = '{category.Replace("'", "''")}' AND " &
-                                  $"[Company] = '{company.Replace("'", "''")}' AND " &
-                                  $"[Segment] = '{segment.Replace("'", "''")}' AND " &
-                                  $"[Brand] = '{brand.Replace("'", "''")}' AND " &
-                                  $"[Vendor] = '{vendor.Replace("'", "''")}'"
-
-            ' ตรวจสอบใน Draft (ต้องหา Original เท่านั้น)
-            Dim hasDraftOriginal As Boolean = False
-            If dtDraftOTB IsNot Nothing AndAlso dtDraftOTB.Rows.Count > 0 Then
-                Dim filterWithOriginal As String = filter & " AND [Type] = 'Original'"
-                Dim draftRows() As DataRow = dtDraftOTB.Select(filterWithOriginal)
-                hasDraftOriginal = draftRows.Length > 0
-            End If
-
-            ' Logic การตรวจสอบ
-            If type.Equals("Original", StringComparison.OrdinalIgnoreCase) Then
-                ' ถ้า Type = Original → อนุญาตเสมอ
-                Return ""
-
-            ElseIf type.Equals("Revise", StringComparison.OrdinalIgnoreCase) Then
-                ' ถ้า Type = Revise → ต้องมี Original ใน Draft
-                If Not hasDraftOriginal Then
-                    ' ไม่มี Draft Original → ผิด (ต้องมี Original ก่อน)
-                    Return "Type is wrong (No Original found in Draft. Please upload Original first) "
-                End If
-                ' มี Draft Original → OK
-                Return ""
-            End If
-
-        Catch ex As Exception
-            Return ""
-        End Try
-
-        Return ""
-    End Function
+    ' (ลบฟังก์ชัน ValidateTypeWithData และ GetLatestVersionFromDB ของเก่าทิ้งไปได้เลย)
 
     ''' <summary>
     ''' (MODIFIED) Finds the latest version (e.g., A1, R1, R2) for a specific OTB key 

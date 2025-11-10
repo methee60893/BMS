@@ -135,17 +135,9 @@ Public Class UploadHandler : Implements IHttpHandler
         End Try
 
         Dim sb As New StringBuilder()
-        ' CSS Style
-        sb.Append("<style>")
-        sb.Append(".table-responsive { border: 1px solid #dee2e6; }")
-        sb.Append(".sticky-header { position: sticky; top: 0; z-index: 10; }")
-        sb.Append(".text-truncate-custom { max-width: 150px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }")
-        sb.Append("</style>")
-
+        ' ... (โค้ด CSS Style และ Table Header เหมือนเดิม) ...
         sb.Append("<div class='table-responsive' style='max-height:600px; overflow:auto;'>")
         sb.Append("<table id='previewTable' class='table table-bordered table-striped table-sm table-hover'>")
-
-        ' Header
         sb.Append("<thead class='table-primary sticky-header'><tr>")
         sb.Append("<th class='text-center' style='width:60px;'>Select</th>")
         sb.Append("<th class='text-center' style='width:50px;'>No.</th>")
@@ -165,7 +157,6 @@ Public Class UploadHandler : Implements IHttpHandler
         sb.Append("<th style='width:100px;'>Remark</th>")
         sb.Append("<th class='text-danger' style='min-width:250px;'>Error</th>")
         sb.Append("</tr></thead>")
-
         sb.Append("<tbody>")
 
         Dim validCount As Integer = 0
@@ -202,7 +193,10 @@ Public Class UploadHandler : Implements IHttpHandler
 
                 ' แยก error messages
                 If Not String.IsNullOrWhiteSpace(allErrors) Then
-                    Dim errors() As String = allErrors.Split(New Char() {" "c}, StringSplitOptions.RemoveEmptyEntries)
+                    ' --- [BMS Gem MODIFICATION 6 START] ---
+                    ' (เปลี่ยนตัวคั่นจาก " "c เป็น "|"c)
+                    Dim errors() As String = allErrors.Split(New Char() {"|"c}, StringSplitOptions.RemoveEmptyEntries)
+                    ' --- [BMS Gem MODIFICATION 6 END] ---
                     For Each errMsg As String In errors
                         Dim trimmed As String = errMsg.Trim()
                         If Not String.IsNullOrEmpty(trimmed) Then
@@ -219,17 +213,26 @@ Public Class UploadHandler : Implements IHttpHandler
                     duplicateInExcelChecker.Add(uniqueKey, i)
                 End If
 
+                ' --- [BMS Gem MODIFICATION 4 START] ---
+                ' (นี่คือจุดที่แก้ไขครั้งล่าสุด)
                 ' ตรวจสอบว่า valid หรือไม่
-                ' ถ้ามี error ที่ร้ายแรง (ไม่ใช่ Duplicate) = invalid
+                ' ถ้ามี error ที่ร้ายแรง (ไม่ใช่ Warning) = invalid
                 Dim seriousErrors As Integer = 0
                 For Each err As String In errorMessages
-                    If Not err.Contains("Duplicated_Draft OTB") AndAlso
-                   Not err.Contains("(Will Update)") Then
-                        seriousErrors += 1
+                    Dim isWarning As Boolean = False
+                    If err.Contains("Duplicated_Draft OTB") Then isWarning = True ' (Rule 3)
+                    If err.Contains("(Will Update)") Then isWarning = True
+                    If err.Contains("Duplicate_Approved_Warn") Then isWarning = True ' (Rule 2)
+                    If err.Contains("(Will Revise)") Then isWarning = True
+                    If err.Contains("Decimal_places_exceeded") Then isWarning = True ' (CSV Warning)
+
+                    If Not isWarning Then
+                        seriousErrors += 1 ' นี่คือ Error ร้ายแรงจริง
                     End If
                 Next
 
-                isValid = seriousErrors = 0
+                isValid = (seriousErrors = 0)
+                ' --- [BMS Gem MODIFICATION 4 END] ---
 
             Catch ex As Exception
                 errorMessages.Add("Data format error")
@@ -247,15 +250,15 @@ Public Class UploadHandler : Implements IHttpHandler
             ' สร้างแถว
             Dim rowClass As String = ""
             If Not isValid Then
-                rowClass = "table-danger"
-            ElseIf canUpdate Then
-                rowClass = "table-warning" ' สีเหลืองสำหรับ Update
+                rowClass = "table-danger" ' (สีแดง: Error ร้ายแรง)
+            ElseIf canUpdate OrElse errorMessages.Count > 0 Then
+                rowClass = "table-warning" ' (สีเหลือง: มี Warning แต่ Save ได้)
             End If
             sb.AppendFormat("<tr class='{0}' data-row-index='{1}'>", rowClass, i)
 
             ' Checkbox Column
-            If isValid OrElse canUpdate Then
-                ' Valid หรือ CanUpdate = checkbox enabled
+            If isValid Then
+                ' (isValid = ไม่มี Error ร้ายแรง) -> Checkbox Enabled
                 Dim checkboxClass As String = If(canUpdate, "update-checkbox", "row-checkbox")
                 sb.AppendFormat("<td class='text-center'><input type='checkbox' name='selectedRows' class='form-check-input {0}' value='{1}' checked data-type='{2}' data-year='{3}' data-month='{4}' data-category='{5}' data-company='{6}' data-segment='{7}' data-brand='{8}' data-vendor='{9}' data-amount='{10}' data-remark='{11}' data-can-update='{12}'></td>",
                       checkboxClass,
@@ -276,19 +279,11 @@ Public Class UploadHandler : Implements IHttpHandler
                 sb.Append("<td class='text-center'><input type='checkbox' class='form-check-input' disabled></td>")
             End If
 
-            ' No. Column
+            ' ... (โค้ดสร้าง Cell ที่เหลือทั้งหมด เหมือนเดิม) ...
             sb.AppendFormat("<td class='text-center'>{0}</td>", i + 1)
-
-            ' Type Column (Original = ดำ, Revise = แดง)
             Dim typeClass As String = If(typeValue.Equals("Original", StringComparison.OrdinalIgnoreCase), "", "text-danger fw-bold")
             sb.AppendFormat("<td class='text-center {0}'>{1}</td>", typeClass, HttpUtility.HtmlEncode(typeValue))
-
-
-            ' Year Column
             sb.AppendFormat("<td class='text-center'>{0}</td>", HttpUtility.HtmlEncode(yearValue))
-
-
-            ' Month Column
             Dim monthDisplay As String = monthValue
             Select Case monthValue
                 Case "1" : monthDisplay = "Jan"
@@ -305,52 +300,27 @@ Public Class UploadHandler : Implements IHttpHandler
                 Case "12" : monthDisplay = "Dec"
             End Select
             sb.AppendFormat("<td class='text-center'>{0}</td>", HttpUtility.HtmlEncode(monthDisplay))
-
-            ' Category Code
             sb.AppendFormat("<td class='text-center'>{0}</td>", HttpUtility.HtmlEncode(categoryValue))
-
-            ' Category Name (ดึงจาก Master - TODO: implement)
             sb.Append("<td class='text-center'>-</td>")
-
-            ' Company
             sb.AppendFormat("<td class='text-center'>{0}</td>", HttpUtility.HtmlEncode(companyValue))
-
-            ' Segment Code
             sb.AppendFormat("<td class='text-center'>{0}</td>", HttpUtility.HtmlEncode(segmentValue))
-
-            ' Segment Name (TODO: ดึงจาก Master)
             sb.Append("<td>-</td>")
-
-            ' Brand Code
             sb.AppendFormat("<td class='text-center'>{0}</td>", HttpUtility.HtmlEncode(brandValue))
-
-            ' Brand Name (TODO: ดึงจาก Master)
             sb.Append("<td>-</td>")
-
-            ' Vendor Code
             sb.AppendFormat("<td class='text-center'>{0}</td>", HttpUtility.HtmlEncode(vendorValue))
-
-            ' Vendor Name (TODO: ดึงจาก Master)
             sb.Append("<td>-</td>")
-
-            ' Amount
             Try
                 Dim amountDec As Decimal = Convert.ToDecimal(amountValue)
                 sb.AppendFormat("<td class='text-end'>{0}</td>", amountDec.ToString("N2"))
             Catch
                 sb.AppendFormat("<td class='text-end'>{0}</td>", HttpUtility.HtmlEncode(amountValue))
             End Try
-
-            ' Remark
             sb.AppendFormat("<td>{0}</td>", HttpUtility.HtmlEncode(remarkValue))
-
-            ' Error Column
             If errorMessages.Count > 0 Then
                 sb.AppendFormat("<td class='text-danger small'>{0}</td>", HttpUtility.HtmlEncode(String.Join(" ** ", errorMessages)))
             Else
                 sb.Append("<td></td>")
             End If
-
             sb.Append("</tr>")
         Next
 
@@ -358,19 +328,16 @@ Public Class UploadHandler : Implements IHttpHandler
 
         ' Summary และปุ่ม Submit
         sb.Append("<div class='p-3 bg-light border-top'>")
-        sb.AppendFormat("<div class='alert alert-info mb-0'>Total: <strong>{0}</strong> rows | Valid: <strong class='text-success'>{1}</strong> | Error: <strong class='text-danger'>{2}</strong> | <strong class='text-warning'>Will Update: {3}</strong></div>",
+        sb.AppendFormat("<div class='alert alert-info mb-0'>Total: <strong>{0}</strong> rows |
+ Valid: <strong class='text-success'>{1}</strong> | Error: <strong class='text-danger'>{2}</strong> | <strong class='text-warning'>Will Update: {3}</strong></div>",
                    dt.Rows.Count, validCount, errorCount, updateableCount)
         sb.Append("</div>")
-        sb.Append("<div class='col-md-4 text-end'>")
-
-        ' JavaScript สำหรับจัดการ Checkbox
+        ' ... (โค้ด JavaScript ที่เหลือเหมือนเดิม) ...
         sb.Append("<script>")
         sb.Append("$(document).ready(function() {")
-        sb.Append("  // Select All checkbox functionality")
         sb.Append("  $('#selectAllCheckbox').on('change', function() {")
         sb.Append("    $('.row-checkbox:not(:disabled)').prop('checked', this.checked);")
         sb.Append("  });")
-        sb.Append("  // Update select all when individual checkbox changes")
         sb.Append("  $('.row-checkbox').on('change', function() {")
         sb.Append("    var total = $('.row-checkbox:not(:disabled)').length;")
         sb.Append("    var checked = $('.row-checkbox:checked').length;")
@@ -381,7 +348,6 @@ Public Class UploadHandler : Implements IHttpHandler
 
         Return sb.ToString()
     End Function
-
     Private Sub SaveToDatabase(dt As DataTable, uploadBy As String, context As HttpContext)
         ' === 1. ตรวจสอบคอลัมน์ที่จำเป็น ===
         Dim requiredColumns As String() = {"Type", "Year", "Month", "Category", "Company", "Segment", "Brand", "Vendor", "Amount"}
@@ -445,15 +411,30 @@ Public Class UploadHandler : Implements IHttpHandler
                 ' ตรวจสอบ serious errors
                 Dim hasSeriousError As Boolean = False
                 If Not String.IsNullOrEmpty(errorMsg) Then
-                    If errorMsg.Contains("No Original found") OrElse
-                   errorMsg.Contains("Data format error") OrElse
-                   errorMsg.Contains("is required") OrElse
-                   errorMsg.Contains("Not found") Then
-                        If Not errorMsg.Contains("(Will Update)") Then
-                            hasSeriousError = True
+                    ' --- [BMS Gem MODIFICATION 6 START] ---
+                    ' (ใช้ Logic เดียวกับ GenerateHtmlTable)
+                    ' (เปลี่ยนตัวคั่นจาก " "c เป็น "|"c)
+                    Dim errors() As String = errorMsg.Split(New Char() {"|"c}, StringSplitOptions.RemoveEmptyEntries)
+
+                    For Each err As String In errors
+                        Dim isWarning As Boolean = False
+                        If err.Contains("Duplicated_Draft OTB") Then isWarning = True ' (Rule 3)
+                        If err.Contains("(Will Update)") Then isWarning = True
+                        If err.Contains("Duplicate_Approved_Warn") Then isWarning = True ' (Rule 2)
+                        If err.Contains("(Will Revise)") Then isWarning = True
+                        If err.Contains("Decimal_places_exceeded") Then isWarning = True ' (CSV Warning)
+
+                        If Not isWarning Then
+                            hasSeriousError = True ' นี่คือ Error ร้ายแรงจริง
+                            Exit For ' (เจอ Error ร้ายแรง 1 อันก็พอแล้ว)
                         End If
-                    End If
+                    Next
+                    ' --- [BMS Gem MODIFICATION 6 END] ---
                 End If
+                Dim versionValue As String = CalculateVersionFromHistory(typeValue, yearValue, monthValue,
+                                                                       categoryValue, companyValue, segmentValue,
+                                                                       brandValue, vendorValue)
+
 
                 ' บันทึกเฉพาะแถวที่ valid หรือ canUpdate
                 If Not hasSeriousError Then
@@ -461,10 +442,6 @@ Public Class UploadHandler : Implements IHttpHandler
                     Dim monthShort As Short = Convert.ToInt16(monthValue)
                     Dim amountDec As Decimal = Convert.ToDecimal(amountValue)
 
-                    ' คำนวณ Version
-                    Dim versionValue As String = CalculateVersionFromHistory(typeValue, yearValue, monthValue,
-                                                                         categoryValue, companyValue, segmentValue,
-                                                                         brandValue, vendorValue)
 
                     If canUpdate Then
                         ' === UPDATE Case ===
@@ -481,6 +458,7 @@ Public Class UploadHandler : Implements IHttpHandler
                         updateData.Add("UploadBy", uploadBy)
                         updateData.Add("Batch", newBatch)
                         updateData.Add("Remark", If(String.IsNullOrEmpty(remarkValue), DBNull.Value, remarkValue))
+                        updateData.Add("Version", versionValue)
                         updateData.Add("UpdateDT", createDT)
 
                         updateList.Add(updateData)
@@ -538,7 +516,8 @@ Public Class UploadHandler : Implements IHttpHandler
                                                  SET [Amount] = @Amount,
                                                      [UploadBy] = @UploadBy,
                                                      [Batch] = @Batch,
-                                                     [UpdateDT] = @UpdateDT
+                                                     [UpdateDT] = @UpdateDT,
+                                                     [Version] = @Version
                                                  WHERE [Type] = @Type
                                                    AND [Year] = @Year
                                                    AND [Month] = @Month
@@ -562,6 +541,7 @@ Public Class UploadHandler : Implements IHttpHandler
                             cmd.Parameters.AddWithValue("@UploadBy", updateData("UploadBy"))
                             cmd.Parameters.AddWithValue("@Batch", updateData("Batch"))
                             cmd.Parameters.AddWithValue("@UpdateDT", updateData("UpdateDT"))
+                            cmd.Parameters.AddWithValue("@Version", updateData("Version"))
 
                             cmd.ExecuteNonQuery()
                         End Using
@@ -660,31 +640,46 @@ Public Class UploadHandler : Implements IHttpHandler
                 Dim vendorValue As String = row.Vendor
                 Dim amountValue As String = row.Amount
                 Dim remarkValue As String = row.Remark
-                ' Validate (เหมือนเดิม)
+
+
+                ' 1. Validate (Logic นี้ถูกแก้ไขใน OTBValidate.vb แล้ว)
                 Dim canUpdate As Boolean = False
                 Dim errorMsg As String = validator.ValidateAllWithDuplicateCheck(typeValue, yearValue, monthValue,
-                                                                            categoryValue, companyValue, segmentValue,
-                                                                            brandValue, vendorValue, amountValue, canUpdate)
+                                                                                 categoryValue, companyValue, segmentValue,
+                                                                                 brandValue, vendorValue, amountValue, canUpdate)
 
-                ' ตรวจสอบ serious errors (เหมือนเดิม)
+                ' 2. ตรวจสอบ serious errors (ไม่สนใจ Warning)
                 Dim hasSeriousError As Boolean = False
                 If Not String.IsNullOrEmpty(errorMsg) Then
-                    If errorMsg.Contains("No Original found") OrElse
-                   errorMsg.Contains("Data format error") OrElse
-                   errorMsg.Contains("is required") OrElse
-                   errorMsg.Contains("Not found") Then
-                        If Not errorMsg.Contains("(Will Update)") Then
-                            hasSeriousError = True
+                    ' --- [BMS Gem MODIFICATION 6 START] ---
+                    ' (ใช้ Logic เดียวกับ GenerateHtmlTable)
+                    ' (เปลี่ยนตัวคั่นจาก " "c เป็น "|"c)
+                    Dim errors() As String = errorMsg.Split(New Char() {"|"c}, StringSplitOptions.RemoveEmptyEntries)
+
+                    For Each err As String In errors
+                        Dim isWarning As Boolean = False
+                        If err.Contains("Duplicated_Draft OTB") Then isWarning = True ' (Rule 3)
+                        If err.Contains("(Will Update)") Then isWarning = True
+                        If err.Contains("Duplicate_Approved_Warn") Then isWarning = True ' (Rule 2)
+                        If err.Contains("(Will Revise)") Then isWarning = True
+                        If err.Contains("Decimal_places_exceeded") Then isWarning = True ' (CSV Warning)
+
+                        If Not isWarning Then
+                            hasSeriousError = True ' นี่คือ Error ร้ายแรงจริง
+                            Exit For ' (เจอ Error ร้ายแรง 1 อันก็พอแล้ว)
                         End If
-                    End If
+                    Next
+                    ' --- [BMS Gem MODIFICATION 6 END] ---
                 End If
+
+                Dim versionValue As String = CalculateVersionFromHistory(typeValue, yearValue, monthValue,
+                                                                           categoryValue, companyValue, segmentValue,
+                                                                           brandValue, vendorValue)
+
 
                 ' บันทึกเฉพาะแถวที่ valid หรือ canUpdate (เหมือนเดิม) 
                 If Not hasSeriousError Then
                     Dim amountDec As Decimal = Convert.ToDecimal(amountValue)
-                    Dim versionValue As String = CalculateVersionFromHistory(typeValue, yearValue, monthValue,
-                                                                         categoryValue, companyValue, segmentValue,
-                                                                         brandValue, vendorValue)
 
                     If canUpdate Then
                         ' === UPDATE Case ===
@@ -702,6 +697,7 @@ Public Class UploadHandler : Implements IHttpHandler
                         updateData.Add("Batch", newBatch)
                         updateData.Add("UpdateDT", createDT)
                         updateData.Add("Remark", If(String.IsNullOrEmpty(remarkValue), DBNull.Value, remarkValue))
+                        updateData.Add("Version", versionValue)
                         updateList.Add(updateData)
                         updatedCount += 1
                     Else
@@ -767,6 +763,7 @@ Public Class UploadHandler : Implements IHttpHandler
                             cmd.Parameters.AddWithValue("@Batch", updateData("Batch"))
                             cmd.Parameters.AddWithValue("@UpdateDT", updateData("UpdateDT"))
                             cmd.Parameters.AddWithValue("@Remark", updateData("Remark")) ' (เพิ่ม Parameter)
+                            cmd.Parameters.AddWithValue("@Version", updateData("Version")) ' <--- (BMS Gem) เพิ่ม Parameter
                             cmd.ExecuteNonQuery()
                         End Using
                     Next
@@ -811,21 +808,21 @@ Public Class UploadHandler : Implements IHttpHandler
         Return (currentMax + 1).ToString()
     End Function
     ''' <summary>
-    ''' คำนวณ Version โดยดูจาก History ของ Key นี้
-    ''' (MODIFIED) - Checks only OTB_Transaction (Approved) table.
-    ''' (MODIFIED) - Enforces R15 limit.
+    ''' (NEW LOGIC) Calculates the next version (A1, R1...R15) for a key.
+    ''' Logic: Checks ONLY OTB_Transaction table by querying the DB.
+    ''' - If key not in OTB_Transaction -> returns "A1".
+    ''' - If key in OTB_Transaction (max is A1) -> returns "R1".
+    ''' - If key in OTB_Transaction (max is R(n)) -> returns "R(n+1)".
+    ''' - Throws exception if next version > R15.
     ''' </summary>
+    ''' <returns>The next version string (e.g., "A1", "R2")</returns>
     Private Function CalculateVersionFromHistory(type As String, year As String, month As String,
                                                  category As String, company As String, segment As String,
                                                  brand As String, vendor As String) As String
         Try
-            ' ถ้าเป็น Original → Version = A1 เสมอ
-            If type.Equals("Original", StringComparison.OrdinalIgnoreCase) Then
-                Return "A1"
-            End If
-
-            ' --- [MODIFIED LOGIC START] ---
-            ' Logic ใหม่จะค้นหา Version ล่าสุดจากตาราง 'OTB_Transaction' (Approved) เท่านั้น
+            ' --- [BMS Gem MODIFICATION LOGIC START] ---
+            ' This function NO LONGER uses the 'type' parameter.
+            ' It calculates the version based *only* on OTB_Transaction.
 
             Dim latestVersionNum As Integer = -1 ' A1 = 0, R1 = 1, R2 = 2
 
@@ -847,7 +844,7 @@ Public Class UploadHandler : Implements IHttpHandler
 
                 ' 1. Queryหา Version ล่าสุดจาก OTB_Transaction (Approved History) เท่านั้น
                 Dim queryApproved As String = "
-                    SELECT TOP 1 [Version]
+                    SELECT [Version]
                     FROM [dbo].[OTB_Transaction]
                     WHERE [Year] = @Year
                       AND [Month] = @Month
@@ -856,7 +853,7 @@ Public Class UploadHandler : Implements IHttpHandler
                       AND [Segment] = @Segment
                       AND [Brand] = @Brand
                       AND [Vendor] = @Vendor
-                    ORDER BY ISNULL([ApprovedDate], [CreateDate]) DESC, [ID] DESC"
+                    ORDER BY ISNULL([ApprovedDate], [CreateDate]) DESC, [ID] DESC" ' อ้างอิงจากโค้ดเดิมในไฟล์เดียวกัน
 
                 Using cmd As New SqlCommand(queryApproved, conn)
                     cmd.Parameters.AddWithValue("@Year", year)
@@ -867,36 +864,35 @@ Public Class UploadHandler : Implements IHttpHandler
                     cmd.Parameters.AddWithValue("@Brand", brand)
                     cmd.Parameters.AddWithValue("@Vendor", vendor)
 
+                    ' เราแค่ต้องการค่าสูงสุดค่าเดียว
                     Dim lastApprovedVersion As Object = cmd.ExecuteScalar()
                     If lastApprovedVersion IsNot Nothing AndAlso Not IsDBNull(lastApprovedVersion) Then
                         latestVersionNum = getVersionNum(lastApprovedVersion.ToString())
                     End If
                 End Using
-
-                ' (ส่วนที่ 2 ที่เคย Query จาก 'Template_Upload_Draft_OTB' ถูกลบออกแล้ว)
-
             End Using
 
             ' 3. Calculate next version
             Dim nextVersionNum As Integer
             If latestVersionNum = -1 Then
-                ' ถ้าไม่เจอ Approved 'A1' มาก่อนเลย
-                ' Logic เดิม (Requirement 1) อนุญาตให้ R1 มาก่อนได้
-                nextVersionNum = 1 ' No history, this is R1
+                ' Rule 1: Not found in Approved, this is the first (A1)
+                nextVersionNum = 0 ' A1
             Else
-                ' ถ้าเจอ A1 (0) -> R1 (1)
-                ' ถ้าเจอ R1 (1) -> R2 (2)
+                ' Found in Approved, this is a Revise (R1, R2...)
                 nextVersionNum = latestVersionNum + 1
             End If
 
-            ' 4. Enforce R15 limit (Requirement 2 & 3)
+            ' 4. Enforce R15 limit
             If nextVersionNum > 15 Then
-                ' This should have been caught by preview, but we enforce it here too.
                 Throw New Exception($"Cannot save. The next version (R{nextVersionNum}) would exceed the R15 limit.")
             End If
 
-            Return $"R{nextVersionNum}"
-            ' --- [MODIFIED LOGIC END] ---
+            If nextVersionNum = 0 Then
+                Return "A1"
+            Else
+                Return $"R{nextVersionNum}"
+            End If
+            ' --- [BMS Gem MODIFICATION LOGIC END] ---
 
         Catch ex As Exception
             ' ถ้า error ให้โยน Exception เพื่อหยุดการ Save
