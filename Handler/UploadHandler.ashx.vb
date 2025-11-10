@@ -8,6 +8,7 @@ Imports System.Text
 Imports System.Web
 Imports System.Web.Script.Serialization
 Imports ExcelDataReader
+Imports System.Linq
 
 Public Class UploadHandler : Implements IHttpHandler
 
@@ -134,13 +135,37 @@ Public Class UploadHandler : Implements IHttpHandler
                  </div>"
         End Try
 
+        Dim multiYearErrorMsg As String = ""
+        Try
+            ' ตรวจสอบว่ามีคอลัมน์ "Year" หรือไม่
+            If Not dt.Columns.Contains("Year") Then
+                multiYearErrorMsg = "SERIOUS_ERROR: ไม่พบคอลัมน์ 'Year' ในไฟล์ Excel"
+            Else
+                ' ดึงค่า Year ที่ไม่ซ้ำกันทั้งหมด (ไม่รวมค่าว่าง)
+                Dim distinctYears = dt.AsEnumerable().
+                                    Select(Function(r) r.Field(Of String)("Year")?.Trim()).
+                                    Where(Function(y) Not String.IsNullOrEmpty(y)).
+                                    Distinct().
+                                    ToList()
+
+                ' ถ้าพบ Year มากกว่า 1 ค่า ให้สร้างข้อความ Error
+                If distinctYears.Count > 1 Then
+                    multiYearErrorMsg = $"SERIOUS_ERROR: พบปีงบประมาณหลายค่า ({String.Join(", ", distinctYears)})"
+                ElseIf distinctYears.Count = 0 Then
+                    multiYearErrorMsg = "SERIOUS_ERROR: ไม่พบข้อมูล 'Year' ที่ถูกต้องในไฟล์ Excel"
+                End If
+            End If
+        Catch ex As Exception
+            multiYearErrorMsg = $"SERIOUS_ERROR: ไม่สามารถตรวจสอบข้อมูล Year ได้ ({ex.Message})"
+        End Try
+
         Dim sb As New StringBuilder()
         ' ... (โค้ด CSS Style และ Table Header เหมือนเดิม) ...
         sb.Append("<div class='table-responsive' style='max-height:600px; overflow:auto;'>")
         sb.Append("<table id='previewTable' class='table table-bordered table-striped table-sm table-hover'>")
         sb.Append("<thead class='table-primary sticky-header'><tr>")
         sb.Append("<th class='text-center' style='width:60px;'>Select</th>")
-        sb.Append("<th class='text-center' style='width:50px;'>No.</th>")
+        sb.Append("<th class='text-center' style='width:50px;'>Row No.</th>")
         sb.Append("<th style='width:80px;'>Type</th>")
         sb.Append("<th class='text-center' style='width:70px;'>Year</th>")
         sb.Append("<th class='text-center' style='width:70px;'>Month</th>")
@@ -213,8 +238,10 @@ Public Class UploadHandler : Implements IHttpHandler
                     duplicateInExcelChecker.Add(uniqueKey, i)
                 End If
 
-                ' --- [BMS Gem MODIFICATION 4 START] ---
-                ' (นี่คือจุดที่แก้ไขครั้งล่าสุด)
+                If Not String.IsNullOrEmpty(multiYearErrorMsg) Then
+                    errorMessages.Add(multiYearErrorMsg)
+                End If
+
                 ' ตรวจสอบว่า valid หรือไม่
                 ' ถ้ามี error ที่ร้ายแรง (ไม่ใช่ Warning) = invalid
                 Dim seriousErrors As Integer = 0
@@ -232,7 +259,7 @@ Public Class UploadHandler : Implements IHttpHandler
                 Next
 
                 isValid = (seriousErrors = 0)
-                ' --- [BMS Gem MODIFICATION 4 END] ---
+
 
             Catch ex As Exception
                 errorMessages.Add("Data format error")
@@ -280,7 +307,7 @@ Public Class UploadHandler : Implements IHttpHandler
             End If
 
             ' ... (โค้ดสร้าง Cell ที่เหลือทั้งหมด เหมือนเดิม) ...
-            sb.AppendFormat("<td class='text-center'>{0}</td>", i + 1)
+            sb.AppendFormat("<td class='text-center'>{0}</td>", i + 2)
             Dim typeClass As String = If(typeValue.Equals("Original", StringComparison.OrdinalIgnoreCase), "", "text-danger fw-bold")
             sb.AppendFormat("<td class='text-center {0}'>{1}</td>", typeClass, HttpUtility.HtmlEncode(typeValue))
             sb.AppendFormat("<td class='text-center'>{0}</td>", HttpUtility.HtmlEncode(yearValue))

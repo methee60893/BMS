@@ -7,6 +7,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>BMS - Master Vendor</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/select2-bootstrap-5-theme@1.3.0/dist/select2-bootstrap-5-theme.min.css" />
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
     <style>
         :root {
@@ -531,11 +533,11 @@
                     <div class="row g-3 mb-4">
                         <div class="col-md-3">
                             <label class="form-label">Vendor Code</label>
-                            <asp:TextBox ID="txtSearchCode" runat="server" CssClass="form-control" placeholder="Enter vendor code"></asp:TextBox>
+                            <asp:TextBox ID="txtSearchCode" runat="server" CssClass="form-control" placeholder="Enter vendor code" autocomplete="off"></asp:TextBox>
                         </div>
                         <div class="col-md-4">
                             <label class="form-label">Vendor Name</label>
-                            <asp:TextBox ID="txtSearchName" runat="server" CssClass="form-control" placeholder="Enter vendor name"></asp:TextBox>
+                            <asp:TextBox ID="txtSearchName" runat="server" CssClass="form-control" placeholder="Enter vendor name" autocomplete="off"></asp:TextBox>
                         </div>
                         <div class="col-md-3">
                             <label class="form-label">Segment</label>
@@ -565,35 +567,35 @@
                     <div class="row g-3">
                         <div class="col-md-4">
                             <label class="form-label">Vendor Code <span class="required">*</span></label>
-                            <asp:TextBox ID="txtCreateCode" runat="server" CssClass="form-control" placeholder="Enter vendor code" MaxLength="50"></asp:TextBox>
+                            <asp:TextBox ID="txtCreateCode" runat="server" CssClass="form-control" placeholder="Enter vendor code" MaxLength="50" autocomplete="off"></asp:TextBox>
                         </div>
                         <div class="col-md-8">
                             <label class="form-label">Vendor Name <span class="required">*</span></label>
-                            <asp:TextBox ID="txtCreateName" runat="server" CssClass="form-control" placeholder="Enter vendor name" MaxLength="255"></asp:TextBox>
+                            <asp:TextBox ID="txtCreateName" runat="server" CssClass="form-control" placeholder="Enter vendor name" MaxLength="255" autocomplete="off"></asp:TextBox>
                         </div>
                         <div class="col-md-3">
                             <label class="form-label">CCY</label>
-                            <asp:TextBox ID="txtCreateCCY" runat="server" CssClass="form-control" placeholder="e.g., THB, USD" MaxLength="10"></asp:TextBox>
+                            <asp:TextBox ID="txtCreateCCY" runat="server" CssClass="form-control" placeholder="e.g., THB, USD" MaxLength="10" autocomplete="off"></asp:TextBox>
                         </div>
                         <div class="col-md-3">
                             <label class="form-label">Payment Term Code</label>
-                            <asp:TextBox ID="txtCreatePaymentTermCode" runat="server" CssClass="form-control" placeholder="Enter code" MaxLength="50"></asp:TextBox>
+                            <asp:TextBox ID="txtCreatePaymentTermCode" runat="server" CssClass="form-control" placeholder="Enter code" MaxLength="50" autocomplete="off"></asp:TextBox>
                         </div>
                         <div class="col-md-6">
                             <label class="form-label">Payment Term</label>
-                            <asp:TextBox ID="txtCreatePaymentTerm" runat="server" CssClass="form-control" placeholder="Enter payment term" MaxLength="255"></asp:TextBox>
+                            <asp:TextBox ID="txtCreatePaymentTerm" runat="server" CssClass="form-control" placeholder="Enter payment term" MaxLength="255" autocomplete="off"></asp:TextBox>
                         </div>
                         <div class="col-md-3">
                             <label class="form-label">Segment Code</label>
-                            <asp:TextBox ID="txtCreateSegmentCode" runat="server" CssClass="form-control" placeholder="Enter code" MaxLength="50"></asp:TextBox>
+                            <asp:TextBox ID="txtCreateSegmentCode" runat="server" CssClass="form-control" placeholder="Enter code" MaxLength="50" autocomplete="off"></asp:TextBox>
                         </div>
                         <div class="col-md-6">
                             <label class="form-label">Segment</label>
-                            <asp:TextBox ID="txtCreateSegment" runat="server" CssClass="form-control" placeholder="Enter segment" MaxLength="255"></asp:TextBox>
+                            <asp:TextBox ID="txtCreateSegment" runat="server" CssClass="form-control" placeholder="Enter segment" MaxLength="255" autocomplete="off"></asp:TextBox>
                         </div>
                         <div class="col-md-3">
                             <label class="form-label">Incoterm</label>
-                            <asp:TextBox ID="txtCreateIncoterm" runat="server" CssClass="form-control" placeholder="e.g., FOB, CIF" MaxLength="50"></asp:TextBox>
+                            <asp:TextBox ID="txtCreateIncoterm" runat="server" CssClass="form-control" placeholder="e.g., FOB, CIF" MaxLength="50" autocomplete="off"></asp:TextBox>
                         </div>
                         <div class="col-12">
                             <div class="text-end">
@@ -653,8 +655,9 @@
                 </div>
             </div>
         </div>
-
-        <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
         <script type="text/javascript">
             // Wait for DOM to be ready
             (function () {

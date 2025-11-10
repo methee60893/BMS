@@ -113,8 +113,8 @@ Partial Public Class master_vendor
         End If
 
         ' Check if Vendor Code already exists
-        If CheckVendorCodeExists(code) Then
-            ClientScript.RegisterStartupScript(Me.GetType(), "alert", "alert('Vendor Code already exists!');", True)
+        If CheckVendorCodeAndSectionExists(code, segmentCode) Then
+            ClientScript.RegisterStartupScript(Me.GetType(), "alert", "alert('Vendor Code With SegmentCode [" + segmentCode + "] already exists!');", True)
             Return
         End If
 
@@ -157,6 +157,21 @@ Partial Public Class master_vendor
         Using conn As New SqlConnection(connectionString)
             Using cmd As New SqlCommand(query, conn)
                 cmd.Parameters.AddWithValue("@code", vendorCode)
+                conn.Open()
+                Dim count As Integer = Convert.ToInt32(cmd.ExecuteScalar())
+                Return count > 0
+            End Using
+        End Using
+    End Function
+
+    Private Function CheckVendorCodeAndSectionExists(vendorCode As String, segmentCode As String) As Boolean
+        Dim connectionString As String = ConfigurationManager.ConnectionStrings("BMSConnectionString").ConnectionString
+        Dim query As String = "SELECT COUNT(*) FROM MS_Vendor WHERE [VendorCode] = @code AND [SegmentCode] = @segmentCode"
+
+        Using conn As New SqlConnection(connectionString)
+            Using cmd As New SqlCommand(query, conn)
+                cmd.Parameters.AddWithValue("@code", vendorCode)
+                cmd.Parameters.AddWithValue("@segmentCode", segmentCode)
                 conn.Open()
                 Dim count As Integer = Convert.ToInt32(cmd.ExecuteScalar())
                 Return count > 0

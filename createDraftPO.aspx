@@ -7,6 +7,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>BMS - Create Draft PO</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/select2-bootstrap-5-theme@1.3.0/dist/select2-bootstrap-5-theme.min.css" />
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
     <style>
         :root {
@@ -661,11 +663,11 @@
                             <div class="form-row-display form-row-item">
                                 <div class="form-group">
                                     <label>Draft PO no.</label>
-                                    <input id="txtPONO" type="text" class="form-control" placeholder="Enter PO number">
+                                    <input id="txtPONO" type="text" class="form-control" placeholder="Enter PO number" autocomplete="off">
                                 </div>
                                 <div class="form-group">
                                     <label>Amount (CCY)</label>
-                                    <input id="txtAmtCCY" type="text" class="form-control" pattern="^\d+(\.\d{1,2})?$" title="Enter a valid amount (e.g., 123 or 123.45)" placeholder="0.00">
+                                    <input id="txtAmtCCY" type="text" class="form-control" pattern="^\d+(\.\d{1,2})?$" title="Enter a valid amount (e.g., 123 or 123.45)" placeholder="0.00" autocomplete="off">
                                 </div>
                             </div>
 
@@ -687,11 +689,11 @@
                             <div class="form-row-display form-row-item">
                                 <div class="form-group">
                                     <label>Exchange rate</label>
-                                    <input id="txtExRate" type="text" class="form-control" placeholder="0.00" pattern="^\d+(\.\d{1,2})?$" title="Enter a valid amount (e.g., 123 or 123.45)">
+                                    <input id="txtExRate" type="text" class="form-control" placeholder="0.00" pattern="^\d+(\.\d{1,2})?$" title="Enter a valid amount (e.g., 123 or 123.45)" autocomplete="off">
                                 </div>
                                 <div class="form-group">
                                     <label>Remark</label>
-                                    <input id="txtRemark" type="text" class="form-control" placeholder="Enter remark">
+                                    <input id="txtRemark" type="text" class="form-control" placeholder="Enter remark" autocomplete="off">
                                 </div>
                             </div>
 
@@ -816,11 +818,11 @@
                                 <div class="form-row-display form-row-item">
                                     <div class="form-group">
                                         <label>Draft PO no.</label>
-                                        <input id="tsPONO" type="text" class="form-control" placeholder="Enter PO number">
+                                        <input id="tsPONO" type="text" class="form-control" placeholder="Enter PO number" autocomplete="off">
                                     </div>
                                     <div class="form-group">
                                         <label>Amount (CCY)</label>
-                                        <input id="tsAmtCCY" type="text" class="form-control" placeholder="0.00">
+                                        <input id="tsAmtCCY" type="text" class="form-control" placeholder="0.00" autocomplete="off">
                                     </div>
                                 </div>
 
@@ -828,7 +830,7 @@
                                 <div class="form-row-display form-row-item">
                                     <div class="form-group">
                                         <label>CCY</label>
-                                        <input id="tsCCY" type="text" class="form-control" placeholder="Enter PO number">
+                                        <input id="tsCCY" type="text" class="form-control" placeholder="Enter PO number" autocomplete="off">
                                     </div>
                                     <div class="form-group">
                                         <label>Amount (THB)</label>
@@ -840,11 +842,11 @@
                                 <div class="form-row-display form-row-item">
                                     <div class="form-group">
                                         <label>Exchange rate</label>
-                                        <input id="tsExRate" type="text" class="form-control" placeholder="0.00" pattern="^\d+(\.\d{1,2})?$" title="Enter a valid amount (e.g., 123 or 123.45)">
+                                        <input id="tsExRate" type="text" class="form-control" placeholder="0.00" pattern="^\d+(\.\d{1,2})?$" title="Enter a valid amount (e.g., 123 or 123.45)" autocomplete="off">
                                     </div>
                                     <div class="form-group">
                                         <label>Remark</label>
-                                        <input id="tsRemark" type="text" class="form-control" placeholder="Enter remark">
+                                        <input id="tsRemark" type="text" class="form-control" placeholder="Enter remark" autocomplete="off">
                                     </div>
                                 </div>
                             </div>
@@ -921,10 +923,9 @@
             </div>
         </div>
     </div>
-
-
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
     <script>
 
         // ADDED: Modal instances

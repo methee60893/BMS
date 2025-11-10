@@ -182,8 +182,8 @@ Public Class OTBValidate
 
         If amountStr.Contains(".") Then
             Dim decimals As Integer = amountStr.Length - amountStr.IndexOf(".") - 1
-            If decimals > 2 Then
-                Return "Decimal_places_exceeded (Will round to 2)" ' (อันนี้มีช่องว่างได้ เพราะเราจะไม่ Split มัน)
+            If decimals > 0 Then
+                Return "Decimal_places_exceeded" ' (อันนี้มีช่องว่างได้ เพราะเราจะไม่ Split มัน)
             End If
         End If
         Return ""

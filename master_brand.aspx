@@ -531,11 +531,11 @@
                     <div class="row g-3 mb-4">
                         <div class="col-md-3">
                             <label class="form-label">Brand Code</label>
-                            <asp:TextBox ID="txtSearchCode" runat="server" CssClass="form-control" placeholder="Enter brand code"></asp:TextBox>
+                            <asp:TextBox ID="txtSearchCode" runat="server" CssClass="form-control" placeholder="Enter brand code" autocomplete="off"></asp:TextBox>
                         </div>
                         <div class="col-md-7">
                             <label class="form-label">Brand Name</label>
-                            <asp:TextBox ID="txtSearchName" runat="server" CssClass="form-control" placeholder="Enter brand name"></asp:TextBox>
+                            <asp:TextBox ID="txtSearchName" runat="server" CssClass="form-control" placeholder="Enter brand name" autocomplete="off"></asp:TextBox>
                         </div>
                         <div class="col-md-2">
                         </div>
@@ -559,11 +559,11 @@
                     <div class="row g-3">
                         <div class="col-md-3">
                             <label class="form-label">Brand Code <span class="required">*</span></label>
-                            <asp:TextBox ID="txtCreateCode" runat="server" CssClass="form-control" placeholder="Enter brand code" MaxLength="50"></asp:TextBox>
+                            <asp:TextBox ID="txtCreateCode" runat="server" CssClass="form-control" placeholder="Enter brand code" MaxLength="50" autocomplete="off"></asp:TextBox>
                         </div>
                         <div class="col-md-9">
                             <label class="form-label">Brand Name <span class="required">*</span></label>
-                            <asp:TextBox ID="txtCreateName" runat="server" CssClass="form-control" placeholder="Enter brand name" MaxLength="255"></asp:TextBox>
+                            <asp:TextBox ID="txtCreateName" runat="server" CssClass="form-control" placeholder="Enter brand name" MaxLength="255" autocomplete="off"></asp:TextBox>
                         </div>
                         <div class="col-12">
                             <div class="text-end">

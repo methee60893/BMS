@@ -9,6 +9,7 @@ Imports System.Runtime.InteropServices
 Imports System.Text
 Imports System.Web
 Imports ExcelDataReader
+Imports Newtonsoft.Json
 
 Public Class MasterDataHandler
     Implements IHttpHandler
@@ -75,6 +76,10 @@ Public Class MasterDataHandler
                                        "",
                                        context.Request.Form("vendorCode").Trim())
                 context.Response.Write(GetMSCCYListwithfilter(vendorCode))
+            ElseIf context.Request("action") = "getvendormslist_json" Then
+                HandleVendorSearch(context)
+            ElseIf context.Request("action") = "getvendorbysegment_json" Then
+                HandleVendorSearchBySegment(context)
             End If
 
         Catch ex As Exception
@@ -83,6 +88,103 @@ Public Class MasterDataHandler
         End Try
     End Sub
 
+    Private Sub HandleVendorSearch(context As HttpContext)
+        Dim searchTerm As String = If(context.Request("search"), "").Trim()
+        Dim dt As DataTable = GetVendorDataAsJSON(searchTerm)
+        ReturnSelect2Json(context, dt)
+    End Sub
+
+    Private Sub HandleVendorSearchBySegment(context As HttpContext)
+        Dim searchTerm As String = If(context.Request("search"), "").Trim()
+        Dim segmentCode As String = If(context.Request("segmentCode"), "").Trim()
+        Dim dt As DataTable = GetVendorDataBySegmentAsJSON(searchTerm, segmentCode)
+        ReturnSelect2Json(context, dt)
+    End Sub
+
+    ' (เพิ่ม) Helper ดึงข้อมูล Vendor (รองรับการค้นหาและ Paging)
+    Private Function GetVendorDataAsJSON(searchTerm As String, Optional segmentCode As String = "") As DataTable
+        Dim dt As New DataTable()
+        ' (ปรับ Query ให้รองรับการค้นหา (LIKE) และ Paging (OFFSET/FETCH) เพื่อประสิทธิภาพ)
+        Dim query As String = "
+            SELECT [VendorCode], [Vendor] AS VendorName 
+            FROM [MS_Vendor] 
+            WHERE 1=1"
+
+        If Not String.IsNullOrEmpty(segmentCode) Then
+            query &= " AND [SegmentCode] = @SegmentCode"
+        End If
+
+        If Not String.IsNullOrEmpty(searchTerm) Then
+            query &= " AND ([VendorCode] LIKE @Search OR [Vendor] LIKE @Search)"
+        End If
+
+        query &= " ORDER BY [VendorCode] OFFSET 0 ROWS FETCH NEXT 50 ROWS ONLY" ' (Paging: ดึงทีละ 50)
+
+        Using conn As New SqlConnection(connectionString)
+            Using cmd As New SqlCommand(query, conn)
+                If Not String.IsNullOrEmpty(segmentCode) Then
+                    cmd.Parameters.AddWithValue("@SegmentCode", segmentCode)
+                End If
+                If Not String.IsNullOrEmpty(searchTerm) Then
+                    cmd.Parameters.AddWithValue("@Search", "%" & searchTerm & "%")
+                End If
+                conn.Open()
+                Using reader As SqlDataReader = cmd.ExecuteReader()
+                    dt.Load(reader)
+                End Using
+            End Using
+        End Using
+        Return dt
+    End Function
+
+    Private Function GetVendorDataBySegmentAsJSON(searchTerm As String, Optional segmentCode As String = "") As DataTable
+        Dim dt As New DataTable()
+        ' (ปรับ Query ให้รองรับการค้นหา (LIKE) และ Paging (OFFSET/FETCH) เพื่อประสิทธิภาพ)
+        Dim query As String = "
+            SELECT [SegmentCode], [SegmentName]
+            FROM [MS_Segment] 
+            WHERE 1=1"
+
+        If Not String.IsNullOrEmpty(segmentCode) Then
+            query &= " AND [SegmentCode] = @SegmentCode"
+        End If
+
+        If Not String.IsNullOrEmpty(searchTerm) Then
+            query &= " AND ([SegmentCode] LIKE @Search OR [SegmentName] LIKE @Search)"
+        End If
+
+        query &= " ORDER BY [SegmentCode] OFFSET 0 ROWS FETCH NEXT 50 ROWS ONLY" ' (Paging: ดึงทีละ 50)
+
+        Using conn As New SqlConnection(connectionString)
+            Using cmd As New SqlCommand(query, conn)
+                If Not String.IsNullOrEmpty(segmentCode) Then
+                    cmd.Parameters.AddWithValue("@SegmentCode", segmentCode)
+                End If
+                If Not String.IsNullOrEmpty(searchTerm) Then
+                    cmd.Parameters.AddWithValue("@Search", "%" & searchTerm & "%")
+                End If
+                conn.Open()
+                Using reader As SqlDataReader = cmd.ExecuteReader()
+                    dt.Load(reader)
+                End Using
+            End Using
+        End Using
+        Return dt
+    End Function
+
+    ' (เพิ่ม) Helper แปลง DataTable เป็น JSON ที่ Select2 ต้องการ
+    Private Sub ReturnSelect2Json(context As HttpContext, dt As DataTable)
+        Dim results = New List(Of Object)()
+        For Each row As DataRow In dt.Rows
+            results.Add(New With {
+                .id = row("VendorCode").ToString(),
+                .text = row("VendorCode").ToString() & " - " & row("VendorName").ToString()
+            })
+        Next
+
+        context.Response.ContentType = "application/json"
+        context.Response.Write(JsonConvert.SerializeObject(New With {.results = results}))
+    End Sub
 
     Private Function GetSegmentList() As String
         Dim dt As New DataTable()
@@ -208,7 +310,7 @@ Public Class MasterDataHandler
         Dim dt As New DataTable()
         Using conn As New SqlConnection(connectionString)
             conn.Open()
-            Dim query As String = "SELECT DISTINCT [dbo].[MS_Vendor].[Vendor], [dbo].[MS_Vendor].[VendorCode] FROM [BMS].[dbo].[Template_Upload_Draft_OTB]
+            Dim query As String = "SELECT DISTINCT [dbo].[MS_Vendor].[VendorCode], [dbo].[MS_Vendor].[Vendor] FROM [BMS].[dbo].[Template_Upload_Draft_OTB]
                                     INNER JOIN [dbo].[MS_Vendor] ON  [BMS].[dbo].[Template_Upload_Draft_OTB].[Vendor] = [dbo].[MS_Vendor].[VendorCode]
                                     ORDER BY [dbo].[MS_Vendor].[VendorCode] ASC
                                     "
@@ -225,7 +327,7 @@ Public Class MasterDataHandler
         Dim dt As New DataTable()
         Using conn As New SqlConnection(connectionString)
             conn.Open()
-            Dim query As String = "SELECT DISTINCT [dbo].[MS_Vendor].[Vendor], [dbo].[MS_Vendor].[VendorCode] FROM [BMS].[dbo].[Template_Upload_Draft_OTB]
+            Dim query As String = "SELECT DISTINCT  [dbo].[MS_Vendor].[VendorCode], [dbo].[MS_Vendor].[Vendor] FROM [BMS].[dbo].[Template_Upload_Draft_OTB]
                                     INNER JOIN [dbo].[MS_Vendor] ON  [BMS].[dbo].[Template_Upload_Draft_OTB].[Vendor] = [dbo].[MS_Vendor].[VendorCode]
                                     WHERE [BMS].[dbo].[Template_Upload_Draft_OTB].[SegmentCode] = @segmentCode
                                     ORDER BY [dbo].[MS_Vendor].[VendorCode] ASC
@@ -337,7 +439,7 @@ Public Class MasterDataHandler
         Dim dt As New DataTable()
         Using conn As New SqlConnection(connectionString)
             conn.Open()
-            Dim query As String = "SELECT  [dbo].[MS_Vendor].[Vendor], [dbo].[MS_Vendor].[VendorCode] FROM [MS_Vendor]
+            Dim query As String = "SELECT DISTINCT [dbo].[MS_Vendor].[Vendor], [dbo].[MS_Vendor].[VendorCode] FROM [MS_Vendor]
                                     ORDER BY [dbo].[MS_Vendor].[VendorCode] ASC
                                     "
             Using cmd As New SqlCommand(query, conn)
