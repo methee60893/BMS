@@ -282,6 +282,53 @@ Public Class POUploadHandler
 
         sb.Append("<tbody>")
 
+
+        Dim excelGroupSums As New Dictionary(Of POMatchKey, Decimal)
+        Dim budgetErrors As New Dictionary(Of POMatchKey, String)
+        Dim helper As New POValidate() ' (ใช้สำหรับ ParseDecimal, หรือสร้าง Helper function)
+
+        Try
+            ' 1. รวบรวมยอดรวมที่ต้องการใช้จาก Excel
+            For Each row As DataRow In dt.Rows
+                Dim amountTHBValue As String = If(row("Amount (THB)") IsNot DBNull.Value, row("Amount (THB)").ToString().Trim(), "0")
+                Dim amountTHB As Decimal = 0
+                Decimal.TryParse(amountTHBValue, amountTHB)
+
+                Dim key As New POMatchKey With {
+                    .Year = If(row("Year") IsNot DBNull.Value, row("Year").ToString().Trim(), ""),
+                    .Month = If(row("Month") IsNot DBNull.Value, row("Month").ToString().Trim(), ""),
+                    .Company = If(row("Company") IsNot DBNull.Value, row("Company").ToString().Trim(), ""),
+                    .Category = If(row("Category") IsNot DBNull.Value, row("Category").ToString().Trim(), ""),
+                    .Segment = If(row("Segment") IsNot DBNull.Value, row("Segment").ToString().Trim(), ""),
+                    .Brand = If(row("Brand") IsNot DBNull.Value, row("Brand").ToString().Trim(), ""),
+                    .Vendor = If(row("Vendor") IsNot DBNull.Value, row("Vendor").ToString().Trim(), "")
+                }
+
+                If excelGroupSums.ContainsKey(key) Then
+                    excelGroupSums(key) += amountTHB
+                Else
+                    excelGroupSums.Add(key, amountTHB)
+                End If
+            Next
+
+            ' 2. ตรวจสอบงบประมาณคงเหลือ
+            For Each kvp As KeyValuePair(Of POMatchKey, Decimal) In excelGroupSums
+                Dim requestedAmount As Decimal = kvp.Value
+                If requestedAmount <= 0 Then Continue For ' (ถ้ายอดรวมเป็น 0 หรือติดลบ ก็ข้ามไป)
+
+                Dim remainingBudget As Decimal = validator.GetRemainingBudget(kvp.Key)
+
+                If requestedAmount > remainingBudget Then
+                    ' (นี่คือ Error Message ที่ผู้ใช้ต้องการ)
+                    Dim errorMsg As String = $"budget ไม่พอ ต้องทำ switch budget ก่อน ถึงจะ submit รายการได้ (ยอดในไฟล์: {requestedAmount:N2}, งบคงเหลือ: {remainingBudget:N2})"
+                    budgetErrors.Add(kvp.Key, errorMsg)
+                End If
+            Next
+        Catch ex As Exception
+            ' (จัดการ Error ระหว่าง Grouping)
+            sb.Append($"<tr><td colspan='18' class='text-danger'>Error during pre-validation: {ex.Message}</td></tr>")
+        End Try
+
         Dim validCount As Integer = 0
         Dim errorCount As Integer = 0
         Dim updateableCount As Integer = 0
@@ -320,6 +367,24 @@ Public Class POUploadHandler
             Else
                 duplicateInExcelChecker.Add(PONOValue, i)
             End If
+
+
+            ' ตรวจสอบว่า Key นี้มี Error Budget หรือไม่
+            Dim currentKey As New POMatchKey With {
+                .Year = yearValue,
+                .Month = monthValue,
+                .Company = companyValue,
+                .Category = categoryValue,
+                .Segment = segmentValue,
+                .Brand = brandValue,
+                .Vendor = vendorValue
+            }
+            If budgetErrors.ContainsKey(currentKey) Then
+                errorMessages.Add(budgetErrors(currentKey))
+                isValid = False
+            End If
+
+
 
             If isValid Then validCount += 1 Else errorCount += 1
 
@@ -483,18 +548,58 @@ Public Class POUploadHandler
     Private Sub SaveFromPreview(jsonData As String, uploadBy As String, context As HttpContext)
         ' === 0. แปลง JSON ===
         If String.IsNullOrEmpty(jsonData) Then Throw New Exception("No data selected.")
-
         Dim serializer As New JavaScriptSerializer()
         Dim selectedRows As List(Of POPreviewRow) = serializer.Deserialize(Of List(Of POPreviewRow))(jsonData)
-
         If selectedRows.Count = 0 Then
             context.Response.Write("No rows were selected to save.")
             Return
         End If
 
         ' === 1. (Validator - ถ้ามี) ===
-        Dim createDT As DateTime = DateTime.Now
         Dim Validator As New POValidate()
+
+        ' --- (เพิ่ม Logic ตรวจสอบงบประมาณก่อน Save) ---
+        Dim excelGroupSums As New Dictionary(Of POMatchKey, Decimal)
+        Dim budgetErrors As New Dictionary(Of POMatchKey, String)
+
+        ' 1. รวบรวมยอดรวมที่ต้องการใช้
+        For Each row As POPreviewRow In selectedRows
+            Dim amountTHB As Decimal = 0
+            Decimal.TryParse(row.AmountTHB, amountTHB)
+
+            Dim key As New POMatchKey With {
+                .Year = row.Year, .Month = row.Month, .Company = row.Company,
+                .Category = row.Category, .Segment = row.Segment, .Brand = row.Brand, .Vendor = row.Vendor
+            }
+            If excelGroupSums.ContainsKey(key) Then
+                excelGroupSums(key) += amountTHB
+            Else
+                excelGroupSums.Add(key, amountTHB)
+            End If
+        Next
+
+        ' 2. ตรวจสอบงบประมาณคงเหลือ
+        For Each kvp As KeyValuePair(Of POMatchKey, Decimal) In excelGroupSums
+            Dim requestedAmount As Decimal = kvp.Value
+            If requestedAmount <= 0 Then Continue For
+
+            Dim remainingBudget As Decimal = Validator.GetRemainingBudget(kvp.Key)
+
+            If requestedAmount > remainingBudget Then
+                ' (นี่คือ Error Message ที่ผู้ใช้ต้องการ)
+                Dim errorMsg As String = $"Budget ({kvp.Key.Brand}/{kvp.Key.Month}/{kvp.Key.Year}) ไม่พอ (ยอดในไฟล์: {requestedAmount:N2}, งบคงเหลือ: {remainingBudget:N2})"
+                budgetErrors.Add(kvp.Key, errorMsg)
+            End If
+        Next
+
+        ' 3. ถ้ามี Error ให้ Throw Exception ทันที
+        If budgetErrors.Count > 0 Then
+            ' (สร้างข้อความ Error ที่ชัดเจน)
+            Dim allErrors As String = "budget ไม่พอ ต้องทำ switch budget ก่อน ถึงจะ submit รายการได้" & vbCrLf & String.Join(vbCrLf, budgetErrors.Values)
+            Throw New Exception(allErrors) ' (จะถูก Catch และส่งไปที่ Client)
+        End If
+        ' --- (สิ้นสุด Logic ตรวจสอบงบประมาณ) ---
+
 
         ' === 3. เตรียม DataTables ===
         Dim insertTable As New DataTable()
@@ -555,7 +660,7 @@ Public Class POUploadHandler
                 newRow("Amount_THB") = Convert.ToDecimal(row.AmountTHB)
                 newRow("Remark") = row.Remark
                 newRow("Created_By") = uploadBy
-                newRow("Created_Date") = createDT
+                newRow("Created_Date") = DateTime.Now
                 newRow("PO_Type") = "Draft" ' Default value
                 newRow("Status") = "Draft"   ' Default value
 

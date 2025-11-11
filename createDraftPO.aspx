@@ -128,7 +128,7 @@
             }
 
             .menu-link.active {
-                background: var(--orange-header);
+                background: #FF99CC;
                 color: white;
                 border-left: 4px solid #fff;
             }
@@ -243,7 +243,7 @@
 
         /* Page Header */
         .page-header {
-            background: var(--orange-header);
+            background: #FF99CC;
             color: white;
             padding: 15px 25px;
             border-radius: 8px 8px 0 0;
@@ -489,6 +489,20 @@
         .table-responsive { border: 1px solid #dee2e6; }
         .sticky-header { position: sticky; top: 0; z-index: 10; }
         .text-truncate-custom { max-width: 150px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .form-row-display .form-group .form-control[readonly],
+        .form-row-display .form-group .form-select[disabled] {
+            background-color: #e9ecef;
+        }
+        .validation-message {
+            color: #dc3545;
+            font-size: 0.875em;
+            display: none;
+            width: 100%;
+            margin-left: 115px; /* (100px label + 15px gap) */
+        }
+        .form-control.has-error, .form-select.has-error {
+            border-color: #dc3545;
+        }
     </style>
 </head>
 <body>
@@ -947,50 +961,50 @@
         let txtAmtTHB = document.getElementById("txtAmtTHB");
         let txtExRate = document.getElementById("txtExRate");
         let txtRemark = document.getElementById("txtRemark");
-
-        let btnSubmitData = document.getElementById('btnSubmitData');
         let btnSubmit = document.getElementById('btnSubmit');
+
         let btnUpload = document.getElementById('btnUpload');
         let fileUploadInput = document.getElementById('fileUpload');
+
         let previewTableContainer = document.getElementById('previewTableContainer');
+        let btnSubmitData = document.getElementById('btnSubmitData');
 
 
         function handleUploadPreview() {
             var fileInput = fileUploadInput;
             var file = fileInput.files[0];
             var currentUser = '<%= If(Session("user") IsNot Nothing, HttpUtility.JavaScriptStringEncode(Session("user").ToString()), "unknown") %>';
-                    var uploadBy = currentUser || 'unknown';
+            var uploadBy = currentUser || 'unknown';
 
-                    if (!file) {
-                        showErrorModal({ 'general': 'Please select a file to upload.' }, 'Upload Error');
-                        return;
-                    }
+            if (!file) {
+               showErrorModal({ 'general': 'Please select a file to upload.' }, 'Upload Error');
+               return;
+            }
 
-                    showLoading(true, 'Uploading file...');
+            showLoading(true, 'Uploading file...');
+            var formData = new FormData();
+            formData.append('file', file);
+            formData.append('uploadBy', uploadBy);
 
-                    var formData = new FormData();
-                    formData.append('file', file);
-                    formData.append('uploadBy', uploadBy);
-
-                    $.ajax({
-                        url: 'Handler/POUploadHandler.ashx?action=preview',
-                        type: 'POST',
-                        data: formData,
-                        processData: false,
-                        contentType: false,
-                        success: function (response) {
+            $.ajax({
+                   url: 'Handler/POUploadHandler.ashx?action=preview',
+                   type: 'POST',
+                   data: formData,
+                   processData: false,
+                   contentType: false,
+                   success: function (response) {
                             showLoading(false);
                             previewTableContainer.innerHTML = response;
                             uploadPreviewModal.show();
-                        },
-                        error: function (xhr, status, error) {
+                   },
+                   error: function (xhr, status, error) {
                             showLoading(false);
                             previewTableContainer.innerHTML = '';
                             console.error('Error loading preview:', error);
                             showErrorModal({ 'general': 'Error loading preview: ' + xhr.responseText }, 'Upload Error');
-                        }
-                    });
-                }
+                   }
+            });
+        }
 
         // Toggle Sidebar
         function toggleSidebar() {
@@ -1596,14 +1610,13 @@
             }
         }
 
+        // *** NEW: Upload Submit Handler ***
         function handleUploadSubmit(e) {
             e.preventDefault();
-
             var selectedRowsData = [];
-            // Find checked checkboxes
+
             $('#previewTableContainer input[name="selectedRows"]:checked').each(function () {
                 var cb = $(this);
-                // Get data from data attributes
                 var rowData = {
                     DraftPONo: cb.data('pono'),
                     Year: cb.data('year'),
@@ -1623,17 +1636,14 @@
             });
 
             if (selectedRowsData.length === 0) {
-
-                showErrorSaveModal('Please select at least one valid row to save.', 'warning');
+                alert('Please select at least one valid row to save.');
                 return;
             }
 
-            // ** FIX for Session("user") NullReferenceException **
             var uploadBy = '<%= If(Session("user") IsNot Nothing, HttpUtility.JavaScriptStringEncode(Session("user").ToString()), "unknown") %>';
-
             var formData = new FormData();
             formData.append('uploadBy', uploadBy);
-            formData.append('selectedData', JSON.stringify(selectedRowsData)); // Send data as JSON string
+            formData.append('selectedData', JSON.stringify(selectedRowsData));
 
             showLoading(true, "Saving...", "Submitting selected rows...");
             btnSubmitData.disabled = true;
@@ -1649,14 +1659,18 @@
                     btnSubmitData.disabled = false;
                     uploadPreviewModal.hide();
                     previewTableContainer.innerHTML = '';
-                    fileUploadInput.value = ''; // Clear file input
-                    
-                    showSuccessModal(response, 'success') 
+                    fileUploadInput.value = '';
+
+                    // ตรวจสอบว่ามี error message กลับมาหรือไม่
+                    if (response.toLowerCase().includes("error") || response.includes("alert-danger")) {
+                        showErrorSaveModal(response, 'Save Error');
+                    } else {
+                        showSuccessModal('Success', response);
+                    }
                 },
                 error: function (xhr, status, error) {
                     showLoading(false);
                     btnSubmitData.disabled = false;
-                    // Display error in a more persistent way
                     showErrorSaveModal(`Error saving data: ${xhr.responseText || error}`, 'danger');
                 }
             });

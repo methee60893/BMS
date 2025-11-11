@@ -3,6 +3,7 @@ Imports System.Data
 Imports System.Data.SqlClient
 Imports System.Text
 Imports System.Globalization
+Imports BMS
 
 Public Class POValidate
     Private Shared connectionString As String = ConfigurationManager.ConnectionStrings("BMSConnectionString")?.ConnectionString
@@ -13,11 +14,77 @@ Public Class POValidate
     Private dtVendors As DataTable
     Private dtCompanies As DataTable
 
+    Private calculator As OTBBudgetCalculator
+    Private dtDraftPO As DataTable
 
     ' Constructor - โหลดข้อมูล Master ทั้งหมด
     Public Sub New()
         LoadAllMasterData()
+        calculator = New OTBBudgetCalculator()
+        LoadDraftPOData()
     End Sub
+    Private Sub LoadDraftPOData()
+        Try
+            dtDraftPO = New DataTable()
+            Using conn As New SqlConnection(connectionString)
+                conn.Open()
+                ' ดึงข้อมูล Draft PO ที่ยังไม่ Cancelled เพื่อใช้คำนวณยอดจอง
+                Dim query As String = "SELECT PO_Year, PO_Month, Company_Code, Category_Code, Segment_Code, Brand_Code, Vendor_Code, Amount_THB 
+                                     FROM [BMS].[dbo].[Draft_PO_Transaction]
+                                     WHERE ISNULL(Status, 'Draft') <> 'Cancelled'"
+                Using cmd As New SqlCommand(query, conn)
+                    Using reader As SqlDataReader = cmd.ExecuteReader()
+                        dtDraftPO.Load(reader)
+                    End Using
+                End Using
+            End Using
+        Catch ex As Exception
+            Throw New Exception("Error loading draft PO data: " & ex.Message)
+        End Try
+    End Sub
+
+    Private Function EscapeFilter(s As String) As String
+        If String.IsNullOrEmpty(s) Then Return ""
+        Return s.Replace("'", "''")
+    End Function
+
+    Private Function BuildKeyFilter(key As POMatchKey) As String
+        ' (Key นี้ต้องตรงกับ POMatchKey และ คอลัมน์ใน dtDraftPO)
+        Return $"[PO_Year] = '{EscapeFilter(key.Year)}' AND " &
+               $"[PO_Month] = '{EscapeFilter(key.Month)}' AND " &
+               $"[Company_Code] = '{EscapeFilter(key.Company)}' AND " &
+               $"[Category_Code] = '{EscapeFilter(key.Category)}' AND " &
+               $"[Segment_Code] = '{EscapeFilter(key.Segment)}' AND " &
+               $"[Brand_Code] = '{EscapeFilter(key.Brand)}' AND " &
+               $"[Vendor_Code] = '{EscapeFilter(key.Vendor)}'"
+    End Function
+
+    ' --- (เพิ่ม Method ใหม่) ---
+    ''' <summary>
+    ''' คำนวณงบประมาณคงเหลือ (Approved - Reserved)
+    ''' </summary>
+    Public Function GetRemainingBudget(key As POMatchKey) As Decimal
+        Dim totalApproved As Decimal = 0
+        Dim totalDraft As Decimal = 0
+
+        ' 1. Get Total Approved (จาก OTB_Transaction และ OTB_Switching)
+        ' (เรียกใช้ OTBBudgetCalculator ที่เรา New ไว้ใน Constructor)
+        totalApproved = calculator.CalculateCurrentApprovedBudget(key.Year, key.Month, key.Category, key.Company, key.Segment, key.Brand, key.Vendor)
+
+        ' 2. Get Total Reserved (จาก Draft_PO_Transaction ที่โหลดไว้)
+        Try
+            Dim filter As String = BuildKeyFilter(key)
+            ' ใช้ .Compute เพื่อ Sum ข้อมูล Amount_THB จาก DataTable ใน Memory
+            Dim draftSum As Object = dtDraftPO.Compute("SUM(Amount_THB)", filter)
+            totalDraft = If(draftSum IsNot DBNull.Value, Convert.ToDecimal(draftSum), 0)
+        Catch ex As Exception
+            ' (ถ้าไม่มีข้อมูลใน dtDraftPO, Compute จะ Error แต่เราถือว่าเป็น 0)
+            totalDraft = 0
+        End Try
+
+        ' 3. Return remaining
+        Return totalApproved - totalDraft
+    End Function
 
     ' โหลดข้อมูล Master
     Private Sub LoadAllMasterData()

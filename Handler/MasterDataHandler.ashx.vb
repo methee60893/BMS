@@ -8,6 +8,7 @@ Imports System.IO
 Imports System.Runtime.InteropServices
 Imports System.Text
 Imports System.Web
+Imports System.Web.Script.Serialization
 Imports ExcelDataReader
 Imports Newtonsoft.Json
 
@@ -60,7 +61,7 @@ Public Class MasterDataHandler
             ElseIf context.Request("action") = "VendorMSList" Then
                 context.Response.Write(GetMSVendorList())
             ElseIf context.Request("action") = "CCYMSList" Then
-                context.Response.Write(GetMSCCYListwithfilter(""))
+                context.Response.Write(GetMSCCYListFromMainMaster())
             ElseIf context.Request("action") = "VersionMSList" Then
                 Dim typeCode As String = If(String.IsNullOrWhiteSpace(context.Request.Form("OTBtype")),
                                        "",
@@ -80,6 +81,12 @@ Public Class MasterDataHandler
                 HandleVendorSearch(context)
             ElseIf context.Request("action") = "getvendorbysegment_json" Then
                 HandleVendorSearchBySegment(context)
+            ElseIf context.Request("action") = "getVendorListHtml" Then
+                GetVendorListHtml(context)
+            ElseIf context.Request("action") = "saveVendor" Then
+                SaveVendor(context)
+            ElseIf context.Request("action") = "deleteVendor" Then
+                DeleteVendor(context)
             End If
 
         Catch ex As Exception
@@ -474,12 +481,29 @@ Public Class MasterDataHandler
         Using conn As New SqlConnection(connectionString)
             conn.Open()
             Dim query As String = "SELECT  DISTINCT [CCY]
-                                     FROM [BMS].[dbo].[MS_Vendor]
-                                     WHERE (@vendorCode IS NULL OR @vendorCode = '' OR [VendorCode] = @vendorCode)
-                                    ORDER BY [dbo].[MS_Vendor].[CCY] ASC
+                                   FROM [BMS].[dbo].[MS_Vendor]
+                                   WHERE (@vendorCode IS NULL OR @vendorCode = '' OR [VendorCode] = @vendorCode)
+                                   ORDER BY [dbo].[MS_Vendor].[CCY] ASC
                                     "
             Using cmd As New SqlCommand(query, conn)
                 cmd.Parameters.AddWithValue("@vendorCode", vendorCode)
+                Using reader As SqlDataReader = cmd.ExecuteReader()
+                    dt.Load(reader)
+                End Using
+            End Using
+        End Using
+        Return GenerateHtmlCCYDropdown(dt)
+    End Function
+
+    Private Function GetMSCCYListFromMainMaster() As String
+        Dim dt As New DataTable()
+        Using conn As New SqlConnection(connectionString)
+            conn.Open()
+            Dim query As String = "SELECT [CCY_Code] As 'CCY'
+                                      FROM [BMS].[dbo].[MS_CCY]
+                                      ORDER BY [CCY] ASC
+                                    "
+            Using cmd As New SqlCommand(query, conn)
                 Using reader As SqlDataReader = cmd.ExecuteReader()
                     dt.Load(reader)
                 End Using
@@ -642,7 +666,214 @@ Public Class MasterDataHandler
     End Function
 
 
+    ' 1. ฟังก์ชันสำหรับดึงข้อมูล Vendor (สร้าง HTML ของ <tbody>)
+    Private Sub GetVendorListHtml(context As HttpContext)
+        Dim searchCode As String = context.Request.Form("searchCode")
+        Dim searchName As String = context.Request.Form("searchName")
+        Dim segmentCode As String = context.Request.Form("segmentCode")
 
+        ' (ย้าย Logic มาจาก BindGridView ใน master_vendor.aspx.vb)
+        Dim dt As DataTable = GetVendorData(searchCode, searchName, segmentCode)
+
+        ' (สร้าง HTML <tbody>)
+        Dim sb As New StringBuilder()
+        If dt.Rows.Count = 0 Then
+            sb.Append("<tr><td colspan='9' class='text-center text-muted'>No data found.</td></tr>")
+        Else
+            For Each row As DataRow In dt.Rows
+                sb.Append("<tr>")
+                sb.AppendFormat("<td>{0}</td>", HttpUtility.HtmlEncode(row("VendorCode")))
+                sb.AppendFormat("<td>{0}</td>", HttpUtility.HtmlEncode(row("Vendor")))
+                sb.AppendFormat("<td>{0}</td>", HttpUtility.HtmlEncode(row("CCY")))
+                sb.AppendFormat("<td>{0}</td>", HttpUtility.HtmlEncode(row("PaymentTermCode")))
+                sb.AppendFormat("<td>{0}</td>", HttpUtility.HtmlEncode(row("PaymentTerm")))
+                sb.AppendFormat("<td>{0}</td>", HttpUtility.HtmlEncode(row("SegmentCode")))
+                sb.AppendFormat("<td>{0}</td>", HttpUtility.HtmlEncode(row("Segment")))
+                sb.AppendFormat("<td>{0}</td>", HttpUtility.HtmlEncode(row("Incoterm")))
+
+                ' (สร้างปุ่ม Edit/Delete ใหม่)
+                sb.Append("<td class='text-center'>")
+                sb.AppendFormat("<button type='button' class='btn btn-edit btn-sm me-1 btn-edit-vendor' " &
+                            "data-code='{0}' data-name='{1}' data-ccy='{2}' data-term-code='{3}' " &
+                            "data-term='{4}' data-seg-code='{5}' data-seg='{6}' data-incoterm='{7}'>" &
+                            "<i class='bi bi-pencil'></i> Edit</button>",
+                            HttpUtility.HtmlAttributeEncode(row("VendorCode")),
+                            HttpUtility.HtmlAttributeEncode(row("Vendor")),
+                            HttpUtility.HtmlAttributeEncode(row("CCY")),
+                            HttpUtility.HtmlAttributeEncode(row("PaymentTermCode")),
+                            HttpUtility.HtmlAttributeEncode(row("PaymentTerm")),
+                            HttpUtility.HtmlAttributeEncode(row("SegmentCode")),
+                            HttpUtility.HtmlAttributeEncode(row("Segment")),
+                            HttpUtility.HtmlAttributeEncode(row("Incoterm")))
+
+                sb.AppendFormat("<button type='button' class='btn btn-delete btn-sm btn-delete-vendor' " &
+                            "data-code='{0}' data-name='{1}><i class='bi bi-trash'></i> Delete</button>",
+                            HttpUtility.HtmlAttributeEncode(row("VendorCode")),
+                            HttpUtility.HtmlAttributeEncode(row("Vendor")))
+                sb.Append("</td>")
+
+                sb.Append("</tr>")
+            Next
+        End If
+
+        context.Response.ContentType = "text/html"
+        context.Response.Write(sb.ToString())
+    End Sub
+
+    ' 2. ฟังก์ชันสำหรับ Save (Create/Update)
+    Private Sub SaveVendor(context As HttpContext)
+        context.Response.ContentType = "application/json"
+        Dim serializer As New JavaScriptSerializer()
+        Dim response As New Dictionary(Of String, Object)
+
+        Try
+            ' (ดึงข้อมูลจาก AJAX)
+            Dim editMode As String = context.Request.Form("editMode")
+            Dim code As String = context.Request.Form("code")
+            ' *** FIX: รับ OriginalCode สำหรับ Edit Mode ***
+            Dim originalCode As String = If(editMode = "edit", context.Request.Form("originalCode"), code)
+
+            Dim name As String = context.Request.Form("name")
+            Dim ccy As String = context.Request.Form("ccy")
+            Dim paymentTermCode As String = context.Request.Form("paymentTermCode")
+            Dim paymentTerm As String = context.Request.Form("paymentTerm")
+            Dim segmentCode As String = context.Request.Form("segmentCode")
+            Dim segment As String = context.Request.Form("segment")
+            Dim incoterm As String = context.Request.Form("incoterm")
+
+            ' (ย้าย Logic มาจาก btnCreate_Click และ gvVendor_RowUpdating)
+            Using conn As New SqlConnection(connectionString)
+                conn.Open()
+                Dim query As String = ""
+
+                If editMode = "create" Then
+                    ' (Logic จาก btnCreate_Click)
+                    If CheckVendorCodeAndSectionExists(code, segmentCode) Then
+                        Throw New Exception($"Vendor Code '{code}' With SegmentCode '{segmentCode}' already exists!")
+                    End If
+
+                    query = "INSERT INTO MS_Vendor ([VendorCode], [Vendor], [CCY], [PaymentTermCode], [PaymentTerm], [SegmentCode], [Segment], [Incoterm]) " &
+                        "VALUES (@code, @name, @ccy, @paymentTermCode, @paymentTerm, @segmentCode, @segment, @incoterm)"
+                Else
+                    ' (Logic จาก gvVendor_RowUpdating)
+                    ' *** FIX: ใช้ originalCode ใน WHERE clause ***
+                    query = "UPDATE MS_Vendor SET [VendorCode] = @code, [Vendor] = @name, [CCY] = @ccy, [PaymentTermCode] = @paymentTermCode, " &
+                        "[PaymentTerm] = @paymentTerm, [SegmentCode] = @segmentCode, [Segment] = @segment, [Incoterm] = @incoterm " &
+                        "WHERE [VendorCode] = @originalCode"
+                End If
+
+                Using cmd As New SqlCommand(query, conn)
+                    cmd.Parameters.AddWithValue("@code", code)
+                    If editMode = "edit" Then
+                        cmd.Parameters.AddWithValue("@originalCode", originalCode)
+                    End If
+                    cmd.Parameters.AddWithValue("@name", name)
+                    cmd.Parameters.AddWithValue("@ccy", If(String.IsNullOrEmpty(ccy), DBNull.Value, ccy))
+                    cmd.Parameters.AddWithValue("@paymentTermCode", If(String.IsNullOrEmpty(paymentTermCode), DBNull.Value, paymentTermCode))
+                    cmd.Parameters.AddWithValue("@paymentTerm", If(String.IsNullOrEmpty(paymentTerm), DBNull.Value, paymentTerm))
+                    cmd.Parameters.AddWithValue("@segmentCode", If(String.IsNullOrEmpty(segmentCode), DBNull.Value, segmentCode))
+                    cmd.Parameters.AddWithValue("@segment", If(String.IsNullOrEmpty(segment), DBNull.Value, segment))
+                    cmd.Parameters.AddWithValue("@incoterm", If(String.IsNullOrEmpty(incoterm), DBNull.Value, incoterm))
+
+                    cmd.ExecuteNonQuery()
+                End Using
+            End Using
+
+            response("success") = True
+            response("message") = "Vendor saved successfully!"
+
+        Catch ex As Exception
+            response("success") = False
+            response("message") = ex.Message
+        End Try
+
+        context.Response.Write(serializer.Serialize(response))
+    End Sub
+
+    ' 3. ฟังก์ชันสำหรับ Delete
+    Private Sub DeleteVendor(context As HttpContext)
+        context.Response.ContentType = "application/json"
+        Dim serializer As New JavaScriptSerializer()
+        Dim response As New Dictionary(Of String, Object)
+
+        Try
+            Dim vendorCode As String = context.Request.Form("vendorCode")
+
+            ' (ย้าย Logic มาจาก gvVendor_RowDeleting)
+            Using conn As New SqlConnection(connectionString)
+                conn.Open()
+                Dim query As String = "DELETE FROM MS_Vendor WHERE [VendorCode] = @code"
+                Using cmd As New SqlCommand(query, conn)
+                    cmd.Parameters.AddWithValue("@code", vendorCode)
+                    cmd.ExecuteNonQuery()
+                End Using
+            End Using
+
+            response("success") = True
+            response("message") = "Vendor deleted successfully!"
+
+        Catch ex As SqlException When ex.Number = 547 ' Foreign key constraint
+            response("success") = False
+            response("message") = "Cannot delete this vendor. It may be referenced by other records."
+        Catch ex As Exception
+            response("success") = False
+            response("message") = ex.Message
+        End Try
+
+        context.Response.Write(serializer.Serialize(response))
+    End Sub
+
+    ' 4. (Helper) ฟังก์ชันสำหรับดึงข้อมูล (จาก BindGridView)
+    Private Function GetVendorData(searchCode As String, searchName As String, segmentCode As String) As DataTable
+        Dim dt As New DataTable()
+        ' (Logic เดียวกับ BindGridView เดิม)
+        Dim connectionString As String = ConfigurationManager.ConnectionStrings("BMSConnectionString").ConnectionString
+        Dim query As String = "SELECT [VendorCode], [Vendor], [CCY], [PaymentTermCode], [PaymentTerm], [SegmentCode], [Segment], [Incoterm] FROM [MS_Vendor] WHERE 1=1"
+
+        If Not String.IsNullOrEmpty(searchCode) Then
+            query &= " AND [VendorCode] LIKE @Code"
+        End If
+        If Not String.IsNullOrEmpty(searchName) Then
+            query &= " AND [Vendor] LIKE @Name"
+        End If
+        If Not String.IsNullOrEmpty(segmentCode) Then
+            query &= " AND [SegmentCode] = @SegmentCode"
+        End If
+        query &= " ORDER BY [VendorCode]"
+
+        Using conn As New SqlConnection(connectionString)
+            Using cmd As New SqlCommand(query, conn)
+                If Not String.IsNullOrEmpty(searchCode) Then
+                    cmd.Parameters.AddWithValue("@Code", "%" & searchCode & "%")
+                End If
+                If Not String.IsNullOrEmpty(searchName) Then
+                    cmd.Parameters.AddWithValue("@Name", "%" & searchName & "%")
+                End If
+                If Not String.IsNullOrEmpty(segmentCode) Then
+                    cmd.Parameters.AddWithValue("@SegmentCode", segmentCode)
+                End If
+                conn.Open()
+                Dim adapter As New SqlDataAdapter(cmd)
+                adapter.Fill(dt)
+            End Using
+        End Using
+        Return dt
+    End Function
+
+    ' 5. (Helper) ฟังก์ชันตรวจสอบ (จาก CheckVendorCodeAndSectionExists)
+    Private Function CheckVendorCodeAndSectionExists(vendorCode As String, segmentCode As String) As Boolean
+        Dim connectionString As String = ConfigurationManager.ConnectionStrings("BMSConnectionString").ConnectionString
+        Dim query As String = "SELECT COUNT(*) FROM MS_Vendor WHERE [VendorCode] = @code AND [SegmentCode] = @segmentCode"
+        Using conn As New SqlConnection(connectionString)
+            Using cmd As New SqlCommand(query, conn)
+                cmd.Parameters.AddWithValue("@code", vendorCode)
+                cmd.Parameters.AddWithValue("@segmentCode", segmentCode)
+                conn.Open()
+                Dim count As Integer = Convert.ToInt32(cmd.ExecuteScalar())
+                Return count > 0
+            End Using
+        End Using
+    End Function
     ReadOnly Property IsReusable() As Boolean Implements IHttpHandler.IsReusable
         Get
             Return False

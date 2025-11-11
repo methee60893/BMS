@@ -48,9 +48,9 @@
             box-shadow: 2px 0 10px rgba(0,0,0,0.3);
         }
 
-        .sidebar.active {
-            left: 0;
-        }
+            .sidebar.active {
+                left: 0;
+            }
 
         .sidebar-overlay {
             position: fixed;
@@ -63,9 +63,9 @@
             display: none;
         }
 
-        .sidebar-overlay.active {
-            display: block;
-        }
+            .sidebar-overlay.active {
+                display: block;
+            }
 
         .sidebar-header {
             padding: 25px 20px;
@@ -77,11 +77,11 @@
             border-bottom: 2px solid #34495e;
         }
 
-        .sidebar-header h3 {
-            margin: 0;
-            font-size: 1.8rem;
-            font-weight: 700;
-        }
+            .sidebar-header h3 {
+                margin: 0;
+                font-size: 1.8rem;
+                font-weight: 700;
+            }
 
         .close-sidebar {
             background: transparent;
@@ -100,13 +100,13 @@
             user-select: none;
         }
 
-        .close-sidebar:hover {
-            background: rgba(255,255,255,0.1);
-        }
+            .close-sidebar:hover {
+                background: rgba(255,255,255,0.1);
+            }
 
-        .close-sidebar:active {
-            background: rgba(255,255,255,0.2);
-        }
+            .close-sidebar:active {
+                background: rgba(255,255,255,0.2);
+            }
 
         .sidebar-menu {
             list-style: none;
@@ -128,32 +128,32 @@
             font-size: 0.95rem;
         }
 
-        .menu-link:hover {
-            background: var(--sidebar-hover);
-            color: white;
-            padding-left: 25px;
-        }
+            .menu-link:hover {
+                background: var(--sidebar-hover);
+                color: white;
+                padding-left: 25px;
+            }
 
-        .menu-link.active {
-            background: var(--orange-header);
-            color: white;
-            border-left: 4px solid #fff;
-        }
+            .menu-link.active {
+                background: #FF99CC;
+                color: white;
+                border-left: 4px solid #fff;
+            }
 
-        .menu-link i {
-            font-size: 1.2rem;
-            min-width: 35px;
-        }
+            .menu-link i {
+                font-size: 1.2rem;
+                min-width: 35px;
+            }
 
-        .menu-link .bi-chevron-down {
-            margin-left: auto;
-            font-size: 1rem;
-            transition: transform 0.3s;
-        }
+            .menu-link .bi-chevron-down {
+                margin-left: auto;
+                font-size: 1rem;
+                transition: transform 0.3s;
+            }
 
-        .menu-link.expanded .bi-chevron-down {
-            transform: rotate(180deg);
-        }
+            .menu-link.expanded .bi-chevron-down {
+                transform: rotate(180deg);
+            }
 
         .submenu {
             list-style: none;
@@ -164,20 +164,20 @@
             background: rgba(0,0,0,0.2);
         }
 
-        .submenu.show {
-            max-height: 600px;
-        }
+            .submenu.show {
+                max-height: 600px;
+            }
 
-        .submenu .menu-link {
-            padding-left: 55px;
-            font-size: 0.9rem;
-            padding-top: 12px;
-            padding-bottom: 12px;
-        }
+            .submenu .menu-link {
+                padding-left: 55px;
+                font-size: 0.9rem;
+                padding-top: 12px;
+                padding-bottom: 12px;
+            }
 
-        .submenu .menu-link:hover {
-            padding-left: 60px;
-        }
+                .submenu .menu-link:hover {
+                    padding-left: 60px;
+                }
 
         /* Main Wrapper */
         .main-wrapper {
@@ -213,14 +213,14 @@
             user-select: none;
         }
 
-        .menu-toggle:hover {
-            background: #094580;
-            transform: scale(1.05);
-        }
+            .menu-toggle:hover {
+                background: #094580;
+                transform: scale(1.05);
+            }
 
-        .menu-toggle:active {
-            transform: scale(0.95);
-        }
+            .menu-toggle:active {
+                transform: scale(0.95);
+            }
 
         .page-title {
             color: #2c3e50;
@@ -286,10 +286,10 @@
             font-size: 0.95rem;
         }
 
-        .form-control:focus, .form-select:focus {
-            border-color: var(--primary-blue);
-            box-shadow: 0 0 0 0.2rem rgba(11,86,164,0.15);
-        }
+            .form-control:focus, .form-select:focus {
+                border-color: var(--primary-blue);
+                box-shadow: 0 0 0 0.2rem rgba(11,86,164,0.15);
+            }
 
         /* Buttons */
         .btn-custom {
@@ -309,50 +309,50 @@
             color: white;
         }
 
-        .btn-create:hover {
-            background: #094580;
-            transform: translateY(-2px);
-        }
+            .btn-create:hover {
+                background: #094580;
+                transform: translateY(-2px);
+            }
 
         .btn-clear {
             background: #17a2b8;
             color: white;
         }
 
-        .btn-clear:hover {
-            background: #138496;
-            transform: translateY(-2px);
-        }
+            .btn-clear:hover {
+                background: #138496;
+                transform: translateY(-2px);
+            }
 
         .btn-view {
             background: var(--primary-blue);
             color: white;
         }
 
-        .btn-view:hover {
-            background: #094580;
-            transform: translateY(-2px);
-        }
+            .btn-view:hover {
+                background: #094580;
+                transform: translateY(-2px);
+            }
 
         .btn-submit {
             background: var(--green-btn);
             color: white;
         }
 
-        .btn-submit:hover {
-            background: #218838;
-            transform: translateY(-2px);
-        }
+            .btn-submit:hover {
+                background: #218838;
+                transform: translateY(-2px);
+            }
 
         .btn-export {
             background: var(--primary-blue);
             color: white;
         }
 
-        .btn-export:hover {
-            background: #094580;
-            transform: translateY(-2px);
-        }
+            .btn-export:hover {
+                background: #094580;
+                transform: translateY(-2px);
+            }
 
         .btn-edit {
             background: var(--yellow-btn);
@@ -361,9 +361,9 @@
             font-size: 0.85rem;
         }
 
-        .btn-edit:hover {
-            background: #e0a800;
-        }
+            .btn-edit:hover {
+                background: #e0a800;
+            }
 
         .btn-delete {
             background: var(--red-btn);
@@ -372,9 +372,9 @@
             font-size: 0.85rem;
         }
 
-        .btn-delete:hover {
-            background: #c82333;
-        }
+            .btn-delete:hover {
+                background: #c82333;
+            }
 
         /* Create Section */
         .create-section {
@@ -409,27 +409,27 @@
             white-space: nowrap;
         }
 
-        .table thead {
-            background: #f8f9fa;
-            color: #2c3e50;
-        }
+            .table thead {
+                background: #f8f9fa;
+                color: #2c3e50;
+            }
 
-        .table thead th {
-            padding: 14px 12px;
-            font-weight: 700;
-            border-bottom: 2px solid #dee2e6;
-            vertical-align: middle;
-        }
+                .table thead th {
+                    padding: 14px 12px;
+                    font-weight: 700;
+                    border-bottom: 2px solid #dee2e6;
+                    vertical-align: middle;
+                }
 
-        .table tbody td {
-            padding: 12px;
-            vertical-align: middle;
-            border-bottom: 1px solid #e9ecef;
-        }
+            .table tbody td {
+                padding: 12px;
+                vertical-align: middle;
+                border-bottom: 1px solid #e9ecef;
+            }
 
-        .table tbody tr:hover {
-            background: #f8f9fa;
-        }
+            .table tbody tr:hover {
+                background: #f8f9fa;
+            }
 
         .required {
             color: red;
@@ -444,7 +444,7 @@
         <!-- Sidebar -->
         <div class="sidebar" id="sidebar">
             <div class="sidebar-header">
-                <h3><i class="bi bi-building"></i> BMS</h3>
+                <h3><i class="bi bi-building"></i>BMS</h3>
                 <div class="close-sidebar" id="closeSidebarBtn">
                     <i class="bi bi-x-lg"></i>
                 </div>
@@ -552,113 +552,292 @@
                     <!-- Action Buttons -->
                     <div class="row">
                         <div class="col-12 text-end">
-                            <asp:Button ID="btnShowCreate" runat="server" Text="Create" CssClass="btn btn-create btn-custom me-2" />
-                            <asp:Button ID="btnClear" runat="server" Text="Clear filter" CssClass="btn btn-clear btn-custom me-2" OnClick="btnClear_Click" />
-                            <asp:Button ID="btnView" runat="server" Text="View" CssClass="btn btn-view btn-custom" OnClick="btnView_Click" />
+                            <button type="button" id="btnShowCreateModal" class="btn btn-create btn-custom me-2">
+                                <i class="bi bi-plus-circle"></i>Create
+                           
+                            </button>
+                            <button type="button" id="btnClearFilter" class="btn btn-clear btn-custom me-2">
+                                <i class="bi bi-x-circle"></i>Clear filter
+                           
+                            </button>
+                            <button type="button" id="btnViewTable" class="btn btn-view btn-custom">
+                                <i class="bi bi-eye"></i>View
+                           
+                            </button>
                         </div>
                     </div>
                 </div>
-
-                <!-- Create Form Box -->
-                <asp:Panel ID="createFormBox" runat="server" CssClass="master-box" Visible="false">
-                    <div class="create-section">
-                        Create New Vendor
-                    </div>
-                    <div class="row g-3">
-                        <div class="col-md-4">
-                            <label class="form-label">Vendor Code <span class="required">*</span></label>
-                            <asp:TextBox ID="txtCreateCode" runat="server" CssClass="form-control" placeholder="Enter vendor code" MaxLength="50" autocomplete="off"></asp:TextBox>
-                        </div>
-                        <div class="col-md-8">
-                            <label class="form-label">Vendor Name <span class="required">*</span></label>
-                            <asp:TextBox ID="txtCreateName" runat="server" CssClass="form-control" placeholder="Enter vendor name" MaxLength="255" autocomplete="off"></asp:TextBox>
-                        </div>
-                        <div class="col-md-3">
-                            <label class="form-label">CCY</label>
-                            <asp:TextBox ID="txtCreateCCY" runat="server" CssClass="form-control" placeholder="e.g., THB, USD" MaxLength="10" autocomplete="off"></asp:TextBox>
-                        </div>
-                        <div class="col-md-3">
-                            <label class="form-label">Payment Term Code</label>
-                            <asp:TextBox ID="txtCreatePaymentTermCode" runat="server" CssClass="form-control" placeholder="Enter code" MaxLength="50" autocomplete="off"></asp:TextBox>
-                        </div>
-                        <div class="col-md-6">
-                            <label class="form-label">Payment Term</label>
-                            <asp:TextBox ID="txtCreatePaymentTerm" runat="server" CssClass="form-control" placeholder="Enter payment term" MaxLength="255" autocomplete="off"></asp:TextBox>
-                        </div>
-                        <div class="col-md-3">
-                            <label class="form-label">Segment Code</label>
-                            <asp:TextBox ID="txtCreateSegmentCode" runat="server" CssClass="form-control" placeholder="Enter code" MaxLength="50" autocomplete="off"></asp:TextBox>
-                        </div>
-                        <div class="col-md-6">
-                            <label class="form-label">Segment</label>
-                            <asp:TextBox ID="txtCreateSegment" runat="server" CssClass="form-control" placeholder="Enter segment" MaxLength="255" autocomplete="off"></asp:TextBox>
-                        </div>
-                        <div class="col-md-3">
-                            <label class="form-label">Incoterm</label>
-                            <asp:TextBox ID="txtCreateIncoterm" runat="server" CssClass="form-control" placeholder="e.g., FOB, CIF" MaxLength="50" autocomplete="off"></asp:TextBox>
-                        </div>
-                        <div class="col-12">
-                            <div class="text-end">
-                                <asp:Button ID="btnCancelCreate" runat="server" Text="Cancel" CssClass="btn btn-secondary btn-custom me-2" />
-                                <asp:Button ID="btnCreate" runat="server" Text="Submit" CssClass="btn btn-submit btn-custom" />
-                            </div>
-                        </div>
-                    </div>
-                </asp:Panel>
 
                 <!-- Export Button -->
                 <div class="export-section">
                     <asp:Button ID="btnExport" runat="server" Text="📊 Export to Excel" CssClass="btn btn-export btn-custom" OnClick="btnExport_Click" />
                 </div>
-
                 <!-- Data Table -->
-                <div class="table-container">
-                    <asp:GridView 
-                        ID="gvVendor" 
-                        runat="server" 
-                        AutoGenerateColumns="False"
-                        CssClass="table table-hover mb-0"
-                        GridLines="None"
-                        DataKeyNames="VendorCode"
-                        ShowHeaderWhenEmpty="true"
-                        EmptyDataText="No data found."
-                        OnRowEditing="gvVendor_RowEditing"
-                        OnRowUpdating="gvVendor_RowUpdating"
-                        OnRowCancelingEdit="gvVendor_RowCancelingEdit"
-                        OnRowDeleting="gvVendor_RowDeleting"
-                    >
-                        <HeaderStyle CssClass="bg-light text-dark" />
-                        <RowStyle CssClass="border-bottom" />
-                        <Columns>
-                            <asp:BoundField DataField="VendorCode" HeaderText="Vendor Code" ReadOnly="true" ItemStyle-Width="120px" />
-                            <asp:BoundField DataField="Vendor" HeaderText="Vendor Name" ItemStyle-Width="200px" />
-                            <asp:BoundField DataField="CCY" HeaderText="CCY" ItemStyle-Width="80px" />
-                            <asp:BoundField DataField="PaymentTermCode" HeaderText="Payment Term Code" ItemStyle-Width="120px" />
-                            <asp:BoundField DataField="PaymentTerm" HeaderText="Payment Term" ItemStyle-Width="150px" />
-                            <asp:BoundField DataField="SegmentCode" HeaderText="Segment Code" ItemStyle-Width="120px" />
-                            <asp:BoundField DataField="Segment" HeaderText="Segment" ItemStyle-Width="150px" />
-                            <asp:BoundField DataField="Incoterm" HeaderText="Incoterm" ItemStyle-Width="100px" />
+             <div class="table-container">
+    <table id="vendorTable" class="table table-hover mb-0">
+        <thead class="bg-light text-dark">
+            <tr>
+                <th style="width: 120px;">Vendor Code</th>
+                <th style="width: 200px;">Vendor Name</th>
+                <th style="width: 80px;">CCY</th>
+                <th style="width: 120px;">Payment Term Code</th>
+                <th style="width: 150px;">Payment Term</th>
+                <th style="width: 120px;">Segment Code</th>
+                <th style="width: 150px;">Segment</th>
+                <th style="width: 100px;">Incoterm</th>
+                <th style="width: 180px;">Actions</th>
+            </tr>
+        </thead>
+        <tbody id="vendorTableBody">
+            <tr>
+                <td colspan="9" class="text-center text-muted">Loading...</td>
+            </tr>
+        </tbody>
+    </table>
+</div>
+                <div class="modal fade" id="vendorModal" tabindex="-1" aria-labelledby="vendorModalLabel" data-bs-backdrop="static" data-bs-keyboard="false">
+                    <div class="modal-dialog modal-lg">
+                        <div class="modal-content">
+                            <div class="modal-header">
+                                <h5 class="modal-title" id="vendorModalLabel">Create New Vendor</h5>
+                                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                            </div>
+                            <div class="modal-body">
+                                <input type="hidden" id="hdnEditMode" value="create" />
+                                <input type="hidden" id="hdnOriginalVendorCode" value="" />
 
-                            <asp:TemplateField HeaderText="Actions" ItemStyle-Width="180px">
-                                <ItemTemplate>
-                                    <asp:Button ID="btnEdit" runat="server" Text="Edit" CommandName="Edit" CssClass="btn btn-edit btn-sm me-1" />
-                                    <asp:Button ID="btnDelete" runat="server" Text="Delete" CommandName="Delete" CssClass="btn btn-delete btn-sm" 
-                                        OnClientClick="return confirm('Are you sure you want to delete this vendor?');" />
-                                </ItemTemplate>
-                                <EditItemTemplate>
-                                    <asp:Button ID="btnUpdate" runat="server" Text="Save" CommandName="Update" CssClass="btn btn-success btn-sm me-1" />
-                                    <asp:Button ID="btnCancel" runat="server" Text="Cancel" CommandName="Cancel" CssClass="btn btn-secondary btn-sm" />
-                                </EditItemTemplate>
-                            </asp:TemplateField>
-                        </Columns>
-                    </asp:GridView>
+                                <div class="row g-3">
+                                    <div class="col-md-4">
+                                        <label class="form-label">Vendor Code <span class="required">*</span></label>
+                                        <input type="text" id="txtModalCode" class="form-control" placeholder="Enter vendor code" maxlength="50" autocomplete="off" />
+                                    </div>
+                                    <div class="col-md-8">
+                                        <label class="form-label">Vendor Name <span class="required">*</span></label>
+                                        <input type="text" id="txtModalName" class="form-control" placeholder="Enter vendor name" maxlength="255" autocomplete="off" />
+                                    </div>
+                                    <div class="col-md-3">
+                                        <label class="form-label">CCY</label>
+                                        <input type="text" id="txtModalCCY" class="form-control" placeholder="e.g., THB, USD" maxlength="10" autocomplete="off" />
+                                    </div>
+                                    <div class="col-md-3">
+                                        <label class="form-label">Payment Term Code</label>
+                                        <input type="text" id="txtModalPaymentTermCode" class="form-control" placeholder="Enter code" maxlength="50" autocomplete="off" />
+                                    </div>
+                                    <div class="col-md-6">
+                                        <label class="form-label">Payment Term</label>
+                                        <input type="text" id="txtModalPaymentTerm" class="form-control" placeholder="Enter payment term" maxlength="255" autocomplete="off" />
+                                    </div>
+                                    <div class="col-md-3">
+                                        <label class="form-label">Segment Code</label>
+                                        <input type="text" id="txtModalSegmentCode" class="form-control" placeholder="Enter code" maxlength="50" autocomplete="off" />
+                                    </div>
+                                    <div class="col-md-6">
+                                        <label class="form-label">Segment</label>
+                                        <input type="text" id="txtModalSegment" class="form-control" placeholder="Enter segment" maxlength="255" autocomplete="off" />
+                                    </div>
+                                    <div class="col-md-3">
+                                        <label class="form-label">Incoterm</label>
+                                        <input type="text" id="txtModalIncoterm" class="form-control" placeholder="e.g., FOB, CIF" maxlength="50" autocomplete="off" />
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="modal-footer">
+                                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                                <button type="button" id="btnModalSave" class="btn btn-primary">
+                                    <i class="bi bi-check-circle"></i>Save Changes
+               
+                                </button>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
-    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+        <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+        <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+        <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
         <script type="text/javascript">
+
+            let vendorModal; // ตัวแปรสำหรับ Bootstrap Modal Instance
+
+            function showLoading(show) {
+                // (คุณสามารถเพิ่ม/ใช้ฟังก์ชัน Loading ที่สวยงามได้ที่นี่)
+                console.log(show ? "Loading..." : "Done.");
+            }
+
+            function clearModalForm() {
+                $('#hdnEditMode').val('create');
+                $('#hdnOriginalVendorCode').val('');
+                $('#vendorModalLabel').text('Create New Vendor');
+                $('#txtModalCode').val('').prop('readonly', false); // เปิดให้แก้ไข Code
+                $('#txtModalName').val('');
+                $('#txtModalCCY').val('');
+                $('#txtModalPaymentTermCode').val('');
+                $('#txtModalPaymentTerm').val('');
+                $('#txtModalSegmentCode').val('');
+                $('#txtModalSegment').val('');
+                $('#txtModalIncoterm').val('');
+            }
+
+            function loadVendorTable() {
+                showLoading(true);
+                const searchCode = $('#<%= txtSearchCode.ClientID %>').val();
+                const searchName = $('#<%= txtSearchName.ClientID %>').val();
+                const searchSegment = $('#<%= ddlSearchSegment.ClientID %>').val();
+
+                $.ajax({
+                    type: "POST",
+                    url: "Handler/MasterDataHandler.ashx?action=getVendorListHtml",
+                    data: {
+                        searchCode: searchCode,
+                        searchName: searchName,
+                        segmentCode: searchSegment
+                    },
+                    success: function (html) {
+                        $('#vendorTableBody').html(html);
+                                showLoading(false);
+                            },
+                            error: function (xhr) {
+                                showLoading(false);
+                                alert('Error loading vendor data: ' + xhr.responseText);
+                            }
+                        });
+            }
+
+            // --- DOM Ready (เมื่อหน้าเว็บโหลดเสร็จ) ---
+            $(document).ready(function () {
+
+                // 1. Initialize Modal
+                vendorModal = new bootstrap.Modal(document.getElementById('vendorModal'));
+
+                // 2. "Create" Button Click
+                // (ใช้ ID ที่เราตั้งใหม่ใน <button type="button">)
+                $('#btnShowCreateModal').on('click', function () {
+                    clearModalForm();
+                    vendorModal.show();
+                });
+
+                // 3. "Edit" Button Click (Event Delegation)
+                // (เราดักฟังที่ GridView แล้วหาปุ่ม .btn-edit-vendor ที่ถูกคลิก)
+                $('#vendorTableBody').on('click', '.btn-edit-vendor', function () {
+                    const btn = $(this);
+                    clearModalForm();
+
+                    $('#hdnEditMode').val('edit');
+                    $('#vendorModalLabel').text('Edit Vendor');
+
+                    const code = btn.data('code');
+                    $('#hdnOriginalVendorCode').val(code);
+
+                    $('#txtModalCode').val(code).prop('readonly', true);
+                    $('#txtModalName').val(btn.data('name'));
+                    $('#txtModalCCY').val(btn.data('ccy'));
+                    $('#txtModalPaymentTermCode').val(btn.data('term-code'));
+                    $('#txtModalPaymentTerm').val(btn.data('term'));
+                    $('#txtModalSegmentCode').val(btn.data('seg-code'));
+                    $('#txtModalSegment').val(btn.data('seg'));
+                    $('#txtModalIncoterm').val(btn.data('incoterm'));
+
+                    vendorModal.show();
+                });
+
+                // 4. "Delete" Button Click (Event Delegation)
+                // *** อัปเดตตรงนี้: เปลี่ยน gvVendor.ClientID เป็น #vendorTableBody ***
+                $('#vendorTableBody').on('click', '.btn-delete-vendor', function () {
+                    const btn = $(this);
+                    const code = btn.data('code');
+                    const name = btn.data('name');
+
+                    if (!confirm(`Are you sure you want to delete Vendor: ${code} (${name})?`)) {
+                        return;
+                    }
+
+                    showLoading(true);
+                    $.ajax({
+                        type: "POST",
+                        url: "Handler/MasterDataHandler.ashx?action=deleteVendor",
+                        data: { vendorCode: code },
+                        dataType: "json",
+                        success: function (response) {
+                            showLoading(false);
+                            if (response.success) {
+                                alert(response.message);
+                                loadVendorTable();
+                            } else {
+                                alert('Error: ' + response.message);
+                            }
+                        },
+                        error: function (xhr) {
+                            showLoading(false);
+                            alert('Fatal error deleting vendor: ' + xhr.responseText);
+                        }
+                    });
+                });
+
+                // 5. "Save" Button (in Modal) Click
+                $('#btnModalSave').on('click', function () {
+                    // (ส่วนนี้เหมือนเดิม)
+                    const mode = $('#hdnEditMode').val();
+                    const vendorData = {
+                        editMode: mode,
+                        code: $('#txtModalCode').val(),
+                        originalCode: $('#hdnOriginalVendorCode').val(),
+                        name: $('#txtModalName').val(),
+                        ccy: $('#txtModalCCY').val(),
+                        paymentTermCode: $('#txtModalPaymentTermCode').val(),
+                        paymentTerm: $('#txtModalPaymentTerm').val(),
+                        segmentCode: $('#txtModalSegmentCode').val(),
+                        segment: $('#txtModalSegment').val(),
+                        incoterm: $('#txtModalIncoterm').val()
+                    };
+
+                    if (!vendorData.code || !vendorData.name) {
+                        alert('Vendor Code and Vendor Name are required!');
+                        return;
+                    }
+
+                    showLoading(true);
+
+                    $.ajax({
+                        type: "POST",
+                        url: "Handler/MasterDataHandler.ashx?action=saveVendor",
+                        data: vendorData,
+                        dataType: "json",
+                        success: function (response) {
+                            showLoading(false);
+                            if (response.success) {
+                                alert(response.message);
+                                vendorModal.hide();
+                                loadVendorTable();
+                            } else {
+                                alert('Error: ' + response.message);
+                            }
+                        },
+                        error: function (xhr) {
+                            showLoading(false);
+                            alert('Fatal error saving vendor: ' + xhr.responseText);
+                        }
+                    });
+                });
+
+                // 6. "View" Button Click
+                $('#btnViewTable').on('click', function () {
+                    loadVendorTable();
+                });
+
+                // 7. "Clear Filter" Button Click
+                $('#btnClearFilter').on('click', function () {
+                    $('#<%= txtSearchCode.ClientID %>').val('');
+                    $('#<%= txtSearchName.ClientID %>').val('');
+                    $('#<%= ddlSearchSegment.ClientID %>').val('');
+                    loadVendorTable();
+                });
+
+                // 8. Initial Load (โหลดข้อมูลตารางครั้งแรกเมื่อหน้าเว็บพร้อม)
+                loadVendorTable();
+
+            }); // <-- End of $(document).ready()
+
             // Wait for DOM to be ready
             (function () {
                 // Toggle Sidebar Function

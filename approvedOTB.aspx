@@ -130,7 +130,7 @@
         }
 
         .menu-link.active {
-            background: var(--orange-header);
+            background: #FF99CC;
             color: white;
             border-left: 4px solid #fff;
         }
@@ -264,7 +264,7 @@
         }
 
         .filter-header {
-            background: var(--orange-header);
+            background: #FF99CC;
             color: white;
             padding: 15px 20px;
             font-weight: 600;

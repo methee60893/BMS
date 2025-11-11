@@ -133,7 +133,7 @@
         }
 
         .menu-link.active {
-            background: var(--orange-header);
+            background: #FF99CC;
             color: white;
             border-left: 4px solid #fff;
         }

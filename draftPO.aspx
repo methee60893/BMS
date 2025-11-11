@@ -129,7 +129,7 @@
         }
 
         .menu-link.active {
-            background: var(--orange-header);
+            background: #FF99CC;
             color: white;
             border-left: 4px solid #fff;
         }
@@ -244,7 +244,7 @@
 
         /* Page Header */
         .page-header {
-            background: var(--orange-header);
+            background: #FF99CC;
             color: white;
             padding: 15px 25px;
             border-radius: 8px 8px 0 0;
