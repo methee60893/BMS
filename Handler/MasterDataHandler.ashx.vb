@@ -87,6 +87,24 @@ Public Class MasterDataHandler
                 SaveVendor(context)
             ElseIf context.Request("action") = "deleteVendor" Then
                 DeleteVendor(context)
+
+                ' ===== START: NEW CATEGORY ACTIONS =====
+            ElseIf context.Request("action") = "getcategorylisthtml" Then
+                GetCategoryListHtml(context)
+            ElseIf context.Request("action") = "savecategory" Then
+                SaveCategory(context)
+            ElseIf context.Request("action") = "deletecategory" Then
+                DeleteCategory(context)
+                ' ===== END: NEW CATEGORY ACTIONS =====
+
+                ' ===== START: NEW BRAND ACTIONS =====
+            ElseIf context.Request("action") = "getbrandlisthtml" Then
+                GetBrandListHtml(context)
+            ElseIf context.Request("action") = "savebrand" Then
+                SaveBrand(context)
+            ElseIf context.Request("action") = "deletebrand" Then
+                DeleteBrand(context)
+                ' ===== END: NEW BRAND ACTIONS =====
             End If
 
         Catch ex As Exception
@@ -874,6 +892,333 @@ Public Class MasterDataHandler
             End Using
         End Using
     End Function
+
+
+    ' =================================================================
+    ' ===== START: NEW CATEGORY FUNCTIONS =============================
+    ' =================================================================
+
+    ' 1. ดึงข้อมูล Category (HTML)
+    Private Sub GetCategoryListHtml(context As HttpContext)
+        Dim searchCode As String = context.Request.Form("searchCode")
+        Dim searchName As String = context.Request.Form("searchName")
+
+        Dim dt As DataTable = GetCategoryData(searchCode, searchName)
+
+        Dim sb As New StringBuilder()
+        If dt.Rows.Count = 0 Then
+            sb.Append("<tr><td colspan='3' class='text-center text-muted'>No data found.</td></tr>")
+        Else
+            For Each row As DataRow In dt.Rows
+                sb.Append("<tr>")
+                sb.AppendFormat("<td>{0}</td>", HttpUtility.HtmlEncode(row("Cate")))
+                sb.AppendFormat("<td>{0}</td>", HttpUtility.HtmlEncode(row("Category")))
+
+                sb.Append("<td class='text-center'>")
+                sb.AppendFormat("<button type='button' class='btn btn-edit btn-sm me-1 btn-edit-category' " &
+                            "data-code='{0}' data-name='{1}'>" &
+                            "<i class='bi bi-pencil'></i> Edit</button>",
+                            HttpUtility.HtmlAttributeEncode(row("Cate")),
+                            HttpUtility.HtmlAttributeEncode(row("Category")))
+
+                sb.AppendFormat("<button type='button' class='btn btn-delete btn-sm btn-delete-category' " &
+                            "data-code='{0}' data-name='{1}'><i class='bi bi-trash'></i> Delete</button>",
+                            HttpUtility.HtmlAttributeEncode(row("Cate")),
+                            HttpUtility.HtmlAttributeEncode(row("Category")))
+                sb.Append("</td>")
+                sb.Append("</tr>")
+            Next
+        End If
+        context.Response.ContentType = "text/html"
+        context.Response.Write(sb.ToString())
+    End Sub
+
+    ' 2. บันทึก Category
+    Private Sub SaveCategory(context As HttpContext)
+        context.Response.ContentType = "application/json"
+        Dim serializer As New JavaScriptSerializer()
+        Dim response As New Dictionary(Of String, Object)
+
+        Try
+            Dim editMode As String = context.Request.Form("editMode")
+            Dim code As String = context.Request.Form("code")
+            Dim originalCode As String = If(editMode = "edit", context.Request.Form("originalCode"), code)
+            Dim name As String = context.Request.Form("name")
+
+            If String.IsNullOrEmpty(code) OrElse String.IsNullOrEmpty(name) Then
+                Throw New Exception("Category Code and Category Name are required!")
+            End If
+
+            Using conn As New SqlConnection(connectionString)
+                conn.Open()
+                Dim query As String = ""
+
+                If editMode = "create" Then
+                    If CheckCategoryCodeExists(code) Then
+                        Throw New Exception($"Category Code '{code}' already exists!")
+                    End If
+                    query = "INSERT INTO MS_Category ([Cate], [Category]) VALUES (@code, @name)"
+                Else
+                    query = "UPDATE MS_Category SET [Cate] = @code, [Category] = @name WHERE [Cate] = @originalCode"
+                End If
+
+                Using cmd As New SqlCommand(query, conn)
+                    cmd.Parameters.AddWithValue("@code", code)
+                    If editMode = "edit" Then
+                        cmd.Parameters.AddWithValue("@originalCode", originalCode)
+                    End If
+                    cmd.Parameters.AddWithValue("@name", name)
+                    cmd.ExecuteNonQuery()
+                End Using
+            End Using
+
+            response("success") = True
+            response("message") = "Category saved successfully!"
+        Catch ex As Exception
+            response("success") = False
+            response("message") = ex.Message
+        End Try
+        context.Response.Write(serializer.Serialize(response))
+    End Sub
+
+    ' 3. ลบ Category
+    Private Sub DeleteCategory(context As HttpContext)
+        context.Response.ContentType = "application/json"
+        Dim serializer As New JavaScriptSerializer()
+        Dim response As New Dictionary(Of String, Object)
+
+        Try
+            Dim categoryCode As String = context.Request.Form("categoryCode")
+
+            Using conn As New SqlConnection(connectionString)
+                conn.Open()
+                Dim query As String = "DELETE FROM MS_Category WHERE [Cate] = @code"
+                Using cmd As New SqlCommand(query, conn)
+                    cmd.Parameters.AddWithValue("@code", categoryCode)
+                    cmd.ExecuteNonQuery()
+                End Using
+            End Using
+
+            response("success") = True
+            response("message") = "Category deleted successfully!"
+        Catch ex As SqlException When ex.Number = 547 ' Foreign key constraint
+            response("success") = False
+            response("message") = "Cannot delete this category. It may be referenced by other records."
+        Catch ex As Exception
+            response("success") = False
+            response("message") = ex.Message
+        End Try
+        context.Response.Write(serializer.Serialize(response))
+    End Sub
+
+    ' 4. (Helper) ดึงข้อมูล Category
+    Private Function GetCategoryData(Optional searchCode As String = "", Optional searchName As String = "") As DataTable
+        Dim dt As New DataTable()
+        Dim query As String = "SELECT [Cate], [Category] FROM [MS_Category] WHERE 1=1"
+
+        If Not String.IsNullOrEmpty(searchCode) Then
+            query &= " AND [Cate] LIKE @Code"
+        End If
+        If Not String.IsNullOrEmpty(searchName) Then
+            query &= " AND [Category] LIKE @Name"
+        End If
+        query &= " ORDER BY [Cate]"
+
+        Using conn As New SqlConnection(connectionString)
+            Using cmd As New SqlCommand(query, conn)
+                If Not String.IsNullOrEmpty(searchCode) Then
+                    cmd.Parameters.AddWithValue("@Code", "%" & searchCode & "%")
+                End If
+                If Not String.IsNullOrEmpty(searchName) Then
+                    cmd.Parameters.AddWithValue("@Name", "%" & searchName & "%")
+                End If
+                conn.Open()
+                Dim adapter As New SqlDataAdapter(cmd)
+                adapter.Fill(dt)
+            End Using
+        End Using
+        Return dt
+    End Function
+
+    ' 5. (Helper) ตรวจสอบ Category Code
+    Private Function CheckCategoryCodeExists(categoryCode As String) As Boolean
+        Dim query As String = "SELECT COUNT(*) FROM MS_Category WHERE [Cate] = @code"
+        Using conn As New SqlConnection(connectionString)
+            Using cmd As New SqlCommand(query, conn)
+                cmd.Parameters.AddWithValue("@code", categoryCode)
+                conn.Open()
+                Dim count As Integer = Convert.ToInt32(cmd.ExecuteScalar())
+                Return count > 0
+            End Using
+        End Using
+    End Function
+    ' =================================================================
+    ' ===== END: NEW CATEGORY FUNCTIONS ===============================
+    ' =================================================================
+
+
+    ' =================================================================
+    ' ===== START: NEW BRAND FUNCTIONS ================================
+    ' =================================================================
+
+    ' 1. ดึงข้อมูล Brand (HTML)
+    Private Sub GetBrandListHtml(context As HttpContext)
+        Dim searchCode As String = context.Request.Form("searchCode")
+        Dim searchName As String = context.Request.Form("searchName")
+
+        Dim dt As DataTable = GetBrandData(searchCode, searchName)
+
+        Dim sb As New StringBuilder()
+        If dt.Rows.Count = 0 Then
+            sb.Append("<tr><td colspan='3' class='text-center text-muted'>No data found.</td></tr>")
+        Else
+            For Each row As DataRow In dt.Rows
+                sb.Append("<tr>")
+                sb.AppendFormat("<td>{0}</td>", HttpUtility.HtmlEncode(row("Brand Code")))
+                sb.AppendFormat("<td>{0}</td>", HttpUtility.HtmlEncode(row("Brand Name")))
+
+                sb.Append("<td class='text-center'>")
+                sb.AppendFormat("<button type='button' class='btn btn-edit btn-sm me-1 btn-edit-brand' " &
+                            "data-code='{0}' data-name='{1}'>" &
+                            "<i class='bi bi-pencil'></i> Edit</button>",
+                            HttpUtility.HtmlAttributeEncode(row("Brand Code")),
+                            HttpUtility.HtmlAttributeEncode(row("Brand Name")))
+
+                sb.AppendFormat("<button type='button' class='btn btn-delete btn-sm btn-delete-brand' " &
+                            "data-code='{0}' data-name='{1}'><i class='bi bi-trash'></i> Delete</button>",
+                            HttpUtility.HtmlAttributeEncode(row("Brand Code")),
+                            HttpUtility.HtmlAttributeEncode(row("Brand Name")))
+                sb.Append("</td>")
+                sb.Append("</tr>")
+            Next
+        End If
+        context.Response.ContentType = "text/html"
+        context.Response.Write(sb.ToString())
+    End Sub
+
+    ' 2. บันทึก Brand
+    Private Sub SaveBrand(context As HttpContext)
+        context.Response.ContentType = "application/json"
+        Dim serializer As New JavaScriptSerializer()
+        Dim response As New Dictionary(Of String, Object)
+
+        Try
+            Dim editMode As String = context.Request.Form("editMode")
+            Dim code As String = context.Request.Form("code")
+            Dim originalCode As String = If(editMode = "edit", context.Request.Form("originalCode"), code)
+            Dim name As String = context.Request.Form("name")
+
+            If String.IsNullOrEmpty(code) OrElse String.IsNullOrEmpty(name) Then
+                Throw New Exception("Brand Code and Brand Name are required!")
+            End If
+
+            Using conn As New SqlConnection(connectionString)
+                conn.Open()
+                Dim query As String = ""
+
+                If editMode = "create" Then
+                    If CheckBrandCodeExists(code) Then
+                        Throw New Exception($"Brand Code '{code}' already exists!")
+                    End If
+                    query = "INSERT INTO MS_Brand ([Brand Code], [Brand Name]) VALUES (@code, @name)"
+                Else
+                    query = "UPDATE MS_Brand SET [Brand Code] = @code, [Brand Name] = @name WHERE [Brand Code] = @originalCode"
+                End If
+
+                Using cmd As New SqlCommand(query, conn)
+                    cmd.Parameters.AddWithValue("@code", code)
+                    If editMode = "edit" Then
+                        cmd.Parameters.AddWithValue("@originalCode", originalCode)
+                    End If
+                    cmd.Parameters.AddWithValue("@name", name)
+                    cmd.ExecuteNonQuery()
+                End Using
+            End Using
+
+            response("success") = True
+            response("message") = "Brand saved successfully!"
+        Catch ex As Exception
+            response("success") = False
+            response("message") = ex.Message
+        End Try
+        context.Response.Write(serializer.Serialize(response))
+    End Sub
+
+    ' 3. ลบ Brand
+    Private Sub DeleteBrand(context As HttpContext)
+        context.Response.ContentType = "application/json"
+        Dim serializer As New JavaScriptSerializer()
+        Dim response As New Dictionary(Of String, Object)
+
+        Try
+            Dim brandCode As String = context.Request.Form("brandCode")
+
+            Using conn As New SqlConnection(connectionString)
+                conn.Open()
+                Dim query As String = "DELETE FROM MS_Brand WHERE [Brand Code] = @code"
+                Using cmd As New SqlCommand(query, conn)
+                    cmd.Parameters.AddWithValue("@code", brandCode)
+                    cmd.ExecuteNonQuery()
+                End Using
+            End Using
+
+            response("success") = True
+            response("message") = "Brand deleted successfully!"
+        Catch ex As SqlException When ex.Number = 547 ' Foreign key constraint
+            response("success") = False
+            response("message") = "Cannot delete this brand. It may be referenced by other records."
+        Catch ex As Exception
+            response("success") = False
+            response("message") = ex.Message
+        End Try
+        context.Response.Write(serializer.Serialize(response))
+    End Sub
+
+    ' 4. (Helper) ดึงข้อมูล Brand
+    Private Function GetBrandData(Optional searchCode As String = "", Optional searchName As String = "") As DataTable
+        Dim dt As New DataTable()
+        Dim query As String = "SELECT [Brand Code], [Brand Name] FROM [MS_Brand] WHERE 1=1"
+
+        If Not String.IsNullOrEmpty(searchCode) Then
+            query &= " AND [Brand Code] LIKE @Code"
+        End If
+        If Not String.IsNullOrEmpty(searchName) Then
+            query &= " AND [Brand Name] LIKE @Name"
+        End If
+        query &= " ORDER BY [Brand Code]"
+
+        Using conn As New SqlConnection(connectionString)
+            Using cmd As New SqlCommand(query, conn)
+                If Not String.IsNullOrEmpty(searchCode) Then
+                    cmd.Parameters.AddWithValue("@Code", "%" & searchCode & "%")
+                End If
+                If Not String.IsNullOrEmpty(searchName) Then
+                    cmd.Parameters.AddWithValue("@Name", "%" & searchName & "%")
+                End If
+                conn.Open()
+                Dim adapter As New SqlDataAdapter(cmd)
+                adapter.Fill(dt)
+            End Using
+        End Using
+        Return dt
+    End Function
+
+    ' 5. (Helper) ตรวจสอบ Brand Code
+    Private Function CheckBrandCodeExists(brandCode As String) As Boolean
+        Dim query As String = "SELECT COUNT(*) FROM MS_Brand WHERE [Brand Code] = @code"
+        Using conn As New SqlConnection(connectionString)
+            Using cmd As New SqlCommand(query, conn)
+                cmd.Parameters.AddWithValue("@code", brandCode)
+                conn.Open()
+                Dim count As Integer = Convert.ToInt32(cmd.ExecuteScalar())
+                Return count > 0
+            End Using
+        End Using
+    End Function
+    ' =================================================================
+    ' ===== END: NEW BRAND FUNCTIONS ==================================
+    ' =================================================================
+
     ReadOnly Property IsReusable() As Boolean Implements IHttpHandler.IsReusable
         Get
             Return False

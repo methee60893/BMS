@@ -531,11 +531,11 @@
                     <div class="row g-3 mb-4">
                         <div class="col-md-3">
                             <label class="form-label">Category Code</label>
-                            <asp:TextBox ID="txtSearchCode" runat="server" CssClass="form-control" placeholder="Enter category code" autocomplete="off"></asp:TextBox>
+                            <input type="text" id="txtSearchCode" class="form-control" placeholder="Enter category code" autocomplete="off" />
                         </div>
                         <div class="col-md-7">
                             <label class="form-label">Category Name</label>
-                            <asp:TextBox ID="txtSearchName" runat="server" CssClass="form-control" placeholder="Enter category name" autocomplete="off"></asp:TextBox>
+                            <input type="text" id="txtSearchName" class="form-control" placeholder="Enter category name" autocomplete="off" />
                         </div>
                         <div class="col-md-2">
                         </div>
@@ -544,35 +544,20 @@
                     <!-- Action Buttons -->
                     <div class="row">
                         <div class="col-12 text-end">
-                            <asp:Button ID="btnShowCreate" runat="server" Text="Create" CssClass="btn btn-create btn-custom me-2" />
-                            <asp:Button ID="btnClear" runat="server" Text="Clear filter" CssClass="btn btn-clear btn-custom me-2" OnClick="btnClear_Click" />
-                            <asp:Button ID="btnView" runat="server" Text="View" CssClass="btn btn-view btn-custom" OnClick="btnView_Click" />
+                            <button type="button" id="btnShowCreateModal" class="btn btn-create btn-custom me-2">
+                                 <i class="bi bi-plus-circle"></i>Create
+                            </button>
+                            <button type="button" id="btnClearFilter" class="btn btn-clear btn-custom me-2">
+                                <i class="bi bi-x-circle"></i>Clear filter
+                            </button>
+                            <button type="button" id="btnViewTable" class="btn btn-view btn-custom">
+                                <i class="bi bi-eye"></i>View
+                            </button>
                         </div>
                     </div>
                 </div>
 
-                <!-- Create Form Box -->
-                <asp:Panel ID="createFormBox" runat="server" CssClass="master-box" Visible="false">
-                    <div class="create-section">
-                        Create New Category
-                    </div>
-                    <div class="row g-3">
-                        <div class="col-md-3">
-                            <label class="form-label">Category Code <span class="required">*</span></label>
-                            <asp:TextBox ID="txtCreateCode" runat="server" CssClass="form-control" placeholder="Enter category code" MaxLength="50" autocomplete="off"></asp:TextBox>
-                        </div>
-                        <div class="col-md-9">
-                            <label class="form-label">Category Name <span class="required">*</span></label>
-                            <asp:TextBox ID="txtCreateName" runat="server" CssClass="form-control" placeholder="Enter category name" MaxLength="255" autocomplete="off"></asp:TextBox>
-                        </div>
-                        <div class="col-12">
-                            <div class="text-end">
-                                <asp:Button ID="btnCancelCreate" runat="server" Text="Cancel" CssClass="btn btn-secondary btn-custom me-2" />
-                                <asp:Button ID="btnCreate" runat="server" Text="Submit" CssClass="btn btn-submit btn-custom" />
-                            </div>
-                        </div>
-                    </div>
-                </asp:Panel>
+              
 
                 <!-- Export Button -->
                 <div class="export-section">
@@ -581,45 +566,213 @@
 
                 <!-- Data Table -->
                 <div class="table-container">
-                    <asp:GridView 
-                        ID="gvCategory" 
-                        runat="server" 
-                        AutoGenerateColumns="False"
-                        CssClass="table table-hover mb-0"
-                        GridLines="None"
-                        DataKeyNames="Cate"
-                        ShowHeaderWhenEmpty="true"
-                        EmptyDataText="No data found."
-                        OnRowEditing="gvCategory_RowEditing"
-                        OnRowUpdating="gvCategory_RowUpdating"
-                        OnRowCancelingEdit="gvCategory_RowCancelingEdit"
-                        OnRowDeleting="gvCategory_RowDeleting"
-                    >
-                        <HeaderStyle CssClass="bg-light text-dark" />
-                        <RowStyle CssClass="border-bottom" />
-                        <Columns>
-                            <asp:BoundField DataField="Cate" HeaderText="Category Code" ReadOnly="true" ItemStyle-Width="200px" />
-                            <asp:BoundField DataField="Category" HeaderText="Category Name" ItemStyle-Width="400px" />
-
-                            <asp:TemplateField HeaderText="Actions" ItemStyle-Width="180px">
-                                <ItemTemplate>
-                                    <asp:Button ID="btnEdit" runat="server" Text="Edit" CommandName="Edit" CssClass="btn btn-edit btn-sm me-1" />
-                                    <asp:Button ID="btnDelete" runat="server" Text="Delete" CommandName="Delete" CssClass="btn btn-delete btn-sm" 
-                                        OnClientClick="return confirm('Are you sure you want to delete this category?');" />
-                                </ItemTemplate>
-                                <EditItemTemplate>
-                                    <asp:Button ID="btnUpdate" runat="server" Text="Save" CommandName="Update" CssClass="btn btn-success btn-sm me-1" />
-                                    <asp:Button ID="btnCancel" runat="server" Text="Cancel" CommandName="Cancel" CssClass="btn btn-secondary btn-sm" />
-                                </EditItemTemplate>
-                            </asp:TemplateField>
-                        </Columns>
-                    </asp:GridView>
+                     <table id="categoryTable" class="table table-hover mb-0">
+                        <thead class="bg-light text-dark">
+                            <tr>
+                                 <th style="width: 200px;">Category Code</th>
+                                <th style="width: 400px;">Category Name</th>
+                                <th style="width: 180px;">Actions</th>
+                             </tr>
+                        </thead>
+                        <tbody id="categoryTableBody">
+                            <tr>
+                                 <td colspan="3" class="text-center text-muted">Loading...</td>
+                            </tr>
+                        </tbody>
+                     </table>
                 </div>
+
+                <div class="modal fade" id="categoryModal" tabindex="-1" aria-labelledby="categoryModalLabel" data-bs-backdrop="static" data-bs-keyboard="false">
+                    <div class="modal-dialog modal-lg">
+                        <div class="modal-content">
+                             <div class="modal-header">
+                                <h5 class="modal-title" id="categoryModalLabel">Create New Category</h5>
+                                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                             </div>
+                            <div class="modal-body">
+                                <input type="hidden" id="hdnEditMode" value="create" />
+                                <input type="hidden" id="hdnOriginalCategoryCode" value="" />
+
+                                <div class="row g-3">
+                                    <div class="col-md-4">
+                                         <label class="form-label">Category Code <span class="required">*</span></label>
+                                        <input type="text" id="txtModalCode" class="form-control" placeholder="Enter category code" maxlength="50" autocomplete="off" />
+                                     </div>
+                                    <div class="col-md-8">
+                                        <label class="form-label">Category Name <span class="required">*</span></label>
+                                         <input type="text" id="txtModalName" class="form-control" placeholder="Enter category name" maxlength="255" autocomplete="off" />
+                                    </div>
+                                 </div>
+                            </div>
+                             <div class="modal-footer">
+                                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                                <button type="button" id="btnModalSave" class="btn btn-primary">
+                                     <i class="bi bi-check-circle"></i>Save Changes
+                                </button>
+                            </div>
+                         </div>
+                    </div>
+                </div>
+
+
             </div>
         </div>
 
+        <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
         <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
         <script type="text/javascript">
+
+            let categoryModal; // ตัวแปรสำหรับ Bootstrap Modal Instance
+
+            function showLoading(show) {
+                console.log(show ? "Loading..." : "Done.");
+                // (สามารถเพิ่ม Logic การแสดง Loading overlay ที่นี่)
+            }
+            function clearModalForm() {
+                $('#hdnEditMode').val('create');
+                $('#hdnOriginalCategoryCode').val('');
+                $('#categoryModalLabel').text('Create New Category');
+                $('#txtModalCode').val('').prop('readonly', false); // เปิดให้แก้ไข Code
+                $('#txtModalName').val('');
+            }
+
+            function loadCategoryTable() {
+                showLoading(true);
+                const searchCode = $('#txtSearchCode').val();
+                const searchName = $('#txtSearchName').val();
+
+                $.ajax({
+                    type: "POST",
+                    url: "Handler/MasterDataHandler.ashx?action=getcategorylisthtml",
+                    data: {
+                        searchCode: searchCode,
+                        searchName: searchName
+                    },
+                    success: function (html) {
+                        $('#categoryTableBody').html(html);
+                        showLoading(false);
+                    },
+                    error: function (xhr) {
+                        showLoading(false);
+                        alert('Error loading category data: ' + xhr.responseText);
+                    }
+                });
+            }
+
+            $(document).ready(function () {
+
+                // 1. Initialize Modal
+                categoryModal = new bootstrap.Modal(document.getElementById('categoryModal'));
+
+                // 2. "Create" Button Click
+                $('#btnShowCreateModal').on('click', function () {
+                    clearModalForm();
+                    categoryModal.show();
+                });
+
+                // 3. "Edit" Button Click (Event Delegation)
+                $('#categoryTableBody').on('click', '.btn-edit-category', function () {
+                    const btn = $(this);
+                    clearModalForm();
+
+                    $('#hdnEditMode').val('edit');
+                    $('#categoryModalLabel').text('Edit Category');
+
+                    const code = btn.data('code');
+                    $('#hdnOriginalCategoryCode').val(code);
+
+                    $('#txtModalCode').val(code).prop('readonly', true); // ปิดการแก้ไข Code
+                    $('#txtModalName').val(btn.data('name'));
+
+                    categoryModal.show();
+                });
+
+                // 4. "Delete" Button Click (Event Delegation)
+                $('#categoryTableBody').on('click', '.btn-delete-category', function () {
+                    const btn = $(this);
+                    const code = btn.data('code');
+                    const name = btn.data('name');
+
+                    if (!confirm(`Are you sure you want to delete Category: ${code} (${name})?`)) {
+                        return;
+                    }
+
+                    showLoading(true);
+                    $.ajax({
+                        type: "POST",
+                        url: "Handler/MasterDataHandler.ashx?action=deletecategory",
+                        data: { categoryCode: code },
+                        dataType: "json",
+                        success: function (response) {
+                            showLoading(false);
+                            if (response.success) {
+                                alert(response.message);
+                                loadCategoryTable(); // โหลดตารางใหม่
+                            } else {
+                                alert('Error: ' + response.message);
+                            }
+                        },
+                        error: function (xhr) {
+                            showLoading(false);
+                            alert('Fatal error deleting category: ' + xhr.responseText);
+                        }
+                    });
+                });
+
+                // 5. "Save" Button (in Modal) Click
+                $('#btnModalSave').on('click', function () {
+                    const mode = $('#hdnEditMode').val();
+                    const categoryData = {
+                        editMode: mode,
+                        code: $('#txtModalCode').val(),
+                        originalCode: $('#hdnOriginalCategoryCode').val(),
+                        name: $('#txtModalName').val()
+                    };
+
+                    if (!categoryData.code || !categoryData.name) {
+                        alert('Category Code and Category Name are required!');
+                        return;
+                    }
+
+                    showLoading(true);
+                    $.ajax({
+                        type: "POST",
+                        url: "Handler/MasterDataHandler.ashx?action=savecategory",
+                        data: categoryData,
+                        dataType: "json",
+                        success: function (response) {
+                            showLoading(false);
+                            if (response.success) {
+                                alert(response.message);
+                                categoryModal.hide();
+                                loadCategoryTable(); // โหลดตารางใหม่
+                            } else {
+                                alert('Error: ' + response.message);
+                            }
+                        },
+                        error: function (xhr) {
+                            showLoading(false);
+                            alert('Fatal error saving category: ' + xhr.responseText);
+                        }
+                    });
+                });
+
+                // 6. "View" Button Click
+                $('#btnViewTable').on('click', function () {
+                    loadCategoryTable();
+                });
+
+                // 7. "Clear Filter" Button Click
+                $('#btnClearFilter').on('click', function () {
+                    $('#txtSearchCode').val('');
+                    $('#txtSearchName').val('');
+                    loadCategoryTable();
+                });
+
+                // 8. Initial Load
+                loadCategoryTable();
+            }); // <-- End of $(document).ready()
+
             // Wait for DOM to be ready
             (function () {
                 // Toggle Sidebar Function
@@ -713,6 +866,11 @@
                             }
                         }
                     });
+                }
+                if (document.readyState === 'loading') {
+                    document.addEventListener('DOMContentLoaded', init);
+                } else {
+                    init();
                 }
             })();
         </script>

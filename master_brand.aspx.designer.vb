@@ -23,96 +23,6 @@ Partial Public Class master_brand
     Protected WithEvents form1 As Global.System.Web.UI.HtmlControls.HtmlForm
 
     '''<summary>
-    '''txtSearchCode control.
-    '''</summary>
-    '''<remarks>
-    '''Auto-generated field.
-    '''To modify move field declaration from designer file to code-behind file.
-    '''</remarks>
-    Protected WithEvents txtSearchCode As Global.System.Web.UI.WebControls.TextBox
-
-    '''<summary>
-    '''txtSearchName control.
-    '''</summary>
-    '''<remarks>
-    '''Auto-generated field.
-    '''To modify move field declaration from designer file to code-behind file.
-    '''</remarks>
-    Protected WithEvents txtSearchName As Global.System.Web.UI.WebControls.TextBox
-
-    '''<summary>
-    '''btnShowCreate control.
-    '''</summary>
-    '''<remarks>
-    '''Auto-generated field.
-    '''To modify move field declaration from designer file to code-behind file.
-    '''</remarks>
-    Protected WithEvents btnShowCreate As Global.System.Web.UI.WebControls.Button
-
-    '''<summary>
-    '''btnClear control.
-    '''</summary>
-    '''<remarks>
-    '''Auto-generated field.
-    '''To modify move field declaration from designer file to code-behind file.
-    '''</remarks>
-    Protected WithEvents btnClear As Global.System.Web.UI.WebControls.Button
-
-    '''<summary>
-    '''btnView control.
-    '''</summary>
-    '''<remarks>
-    '''Auto-generated field.
-    '''To modify move field declaration from designer file to code-behind file.
-    '''</remarks>
-    Protected WithEvents btnView As Global.System.Web.UI.WebControls.Button
-
-    '''<summary>
-    '''createFormBox control.
-    '''</summary>
-    '''<remarks>
-    '''Auto-generated field.
-    '''To modify move field declaration from designer file to code-behind file.
-    '''</remarks>
-    Protected WithEvents createFormBox As Global.System.Web.UI.WebControls.Panel
-
-    '''<summary>
-    '''txtCreateCode control.
-    '''</summary>
-    '''<remarks>
-    '''Auto-generated field.
-    '''To modify move field declaration from designer file to code-behind file.
-    '''</remarks>
-    Protected WithEvents txtCreateCode As Global.System.Web.UI.WebControls.TextBox
-
-    '''<summary>
-    '''txtCreateName control.
-    '''</summary>
-    '''<remarks>
-    '''Auto-generated field.
-    '''To modify move field declaration from designer file to code-behind file.
-    '''</remarks>
-    Protected WithEvents txtCreateName As Global.System.Web.UI.WebControls.TextBox
-
-    '''<summary>
-    '''btnCancelCreate control.
-    '''</summary>
-    '''<remarks>
-    '''Auto-generated field.
-    '''To modify move field declaration from designer file to code-behind file.
-    '''</remarks>
-    Protected WithEvents btnCancelCreate As Global.System.Web.UI.WebControls.Button
-
-    '''<summary>
-    '''btnCreate control.
-    '''</summary>
-    '''<remarks>
-    '''Auto-generated field.
-    '''To modify move field declaration from designer file to code-behind file.
-    '''</remarks>
-    Protected WithEvents btnCreate As Global.System.Web.UI.WebControls.Button
-
-    '''<summary>
     '''btnExport control.
     '''</summary>
     '''<remarks>
@@ -120,13 +30,4 @@ Partial Public Class master_brand
     '''To modify move field declaration from designer file to code-behind file.
     '''</remarks>
     Protected WithEvents btnExport As Global.System.Web.UI.WebControls.Button
-
-    '''<summary>
-    '''gvBrand control.
-    '''</summary>
-    '''<remarks>
-    '''Auto-generated field.
-    '''To modify move field declaration from designer file to code-behind file.
-    '''</remarks>
-    Protected WithEvents gvBrand As Global.System.Web.UI.WebControls.GridView
 End Class

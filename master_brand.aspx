@@ -528,98 +528,244 @@
                 <div class="master-box">
                     <div class="master-title">Search & Filter</div>
 
-                    <div class="row g-3 mb-4">
+                     <div class="row g-3 mb-4">
                         <div class="col-md-3">
                             <label class="form-label">Brand Code</label>
-                            <asp:TextBox ID="txtSearchCode" runat="server" CssClass="form-control" placeholder="Enter brand code" autocomplete="off"></asp:TextBox>
+                            <input type="text" id="txtSearchCode" class="form-control" placeholder="Enter brand code" autocomplete="off" />
                         </div>
                         <div class="col-md-7">
                             <label class="form-label">Brand Name</label>
-                            <asp:TextBox ID="txtSearchName" runat="server" CssClass="form-control" placeholder="Enter brand name" autocomplete="off"></asp:TextBox>
-                        </div>
-                        <div class="col-md-2">
+                            <input type="text" id="txtSearchName" class="form-control" placeholder="Enter brand name" autocomplete="off" />
                         </div>
                     </div>
 
-                    <!-- Action Buttons -->
                     <div class="row">
                         <div class="col-12 text-end">
-                            <asp:Button ID="btnShowCreate" runat="server" Text="Create" CssClass="btn btn-create btn-custom me-2" />
-                            <asp:Button ID="btnClear" runat="server" Text="Clear filter" CssClass="btn btn-clear btn-custom me-2" OnClick="btnClear_Click" />
-                            <asp:Button ID="btnView" runat="server" Text="View" CssClass="btn btn-view btn-custom" OnClick="btnView_Click" />
+                            <button type="button" id="btnShowCreateModal" class="btn btn-create btn-custom me-2">
+                                 <i class="bi bi-plus-circle"></i>Create
+                            </button>
+                            <button type="button" id="btnClearFilter" class="btn btn-clear btn-custom me-2">
+                                <i class="bi bi-x-circle"></i>Clear filter
+                            </button>
+                            <button type="button" id="btnViewTable" class="btn btn-view btn-custom">
+                                <i class="bi bi-eye"></i>View
+                            </button>
                         </div>
                     </div>
                 </div>
 
-                <!-- Create Form Box -->
-                <asp:Panel ID="createFormBox" runat="server" CssClass="master-box" Visible="false">
-                    <div class="create-section">
-                        Create New Brand
-                    </div>
-                    <div class="row g-3">
-                        <div class="col-md-3">
-                            <label class="form-label">Brand Code <span class="required">*</span></label>
-                            <asp:TextBox ID="txtCreateCode" runat="server" CssClass="form-control" placeholder="Enter brand code" MaxLength="50" autocomplete="off"></asp:TextBox>
-                        </div>
-                        <div class="col-md-9">
-                            <label class="form-label">Brand Name <span class="required">*</span></label>
-                            <asp:TextBox ID="txtCreateName" runat="server" CssClass="form-control" placeholder="Enter brand name" MaxLength="255" autocomplete="off"></asp:TextBox>
-                        </div>
-                        <div class="col-12">
-                            <div class="text-end">
-                                <asp:Button ID="btnCancelCreate" runat="server" Text="Cancel" CssClass="btn btn-secondary btn-custom me-2" />
-                                <asp:Button ID="btnCreate" runat="server" Text="Submit" CssClass="btn btn-submit btn-custom" />
-                            </div>
-                        </div>
-                    </div>
-                </asp:Panel>
-
-                <!-- Export Button -->
                 <div class="export-section">
                     <asp:Button ID="btnExport" runat="server" Text="📊 Export to Excel" CssClass="btn btn-export btn-custom" OnClick="btnExport_Click" />
                 </div>
 
-                <!-- Data Table -->
                 <div class="table-container">
-                    <asp:GridView 
-                        ID="gvBrand" 
-                        runat="server" 
-                        AutoGenerateColumns="False"
-                        CssClass="table table-hover mb-0"
-                        GridLines="None"
-                        DataKeyNames="Brand Code"
-                        ShowHeaderWhenEmpty="true"
-                        EmptyDataText="No data found."
-                        OnRowEditing="gvBrand_RowEditing"
-                        OnRowUpdating="gvBrand_RowUpdating"
-                        OnRowCancelingEdit="gvBrand_RowCancelingEdit"
-                        OnRowDeleting="gvBrand_RowDeleting"
-                    >
-                        <HeaderStyle CssClass="bg-light text-dark" />
-                        <RowStyle CssClass="border-bottom" />
-                        <Columns>
-                            <asp:BoundField DataField="Brand Code" HeaderText="Brand Code" ReadOnly="true" ItemStyle-Width="200px" />
-                            <asp:BoundField DataField="Brand Name" HeaderText="Brand Name" ItemStyle-Width="400px" />
+                     <table id="brandTable" class="table table-hover mb-0">
+                        <thead class="bg-light text-dark">
+                            <tr>
+                                 <th style="width: 200px;">Brand Code</th>
+                                <th style="width: 400px;">Brand Name</th>
+                                <th style="width: 180px;">Actions</th>
+                             </tr>
+                        </thead>
+                        <tbody id="brandTableBody">
+                            <tr>
+                                 <td colspan="3" class="text-center text-muted">Loading...</td>
+                            </tr>
+                        </tbody>
+                     </table>
+                </div>
 
-                            <asp:TemplateField HeaderText="Actions" ItemStyle-Width="180px">
-                                <ItemTemplate>
-                                    <asp:Button ID="btnEdit" runat="server" Text="Edit" CommandName="Edit" CssClass="btn btn-edit btn-sm me-1" />
-                                    <asp:Button ID="btnDelete" runat="server" Text="Delete" CommandName="Delete" CssClass="btn btn-delete btn-sm" 
-                                        OnClientClick="return confirm('Are you sure you want to delete this brand?');" />
-                                </ItemTemplate>
-                                <EditItemTemplate>
-                                    <asp:Button ID="btnUpdate" runat="server" Text="Save" CommandName="Update" CssClass="btn btn-success btn-sm me-1" />
-                                    <asp:Button ID="btnCancel" runat="server" Text="Cancel" CommandName="Cancel" CssClass="btn btn-secondary btn-sm" />
-                                </EditItemTemplate>
-                            </asp:TemplateField>
-                        </Columns>
-                    </asp:GridView>
+                <div class="modal fade" id="brandModal" tabindex="-1" aria-labelledby="brandModalLabel" data-bs-backdrop="static" data-bs-keyboard="false">
+                    <div class="modal-dialog modal-lg">
+                        <div class="modal-content">
+                             <div class="modal-header">
+                                <h5 class="modal-title" id="brandModalLabel">Create New Brand</h5>
+                                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                             </div>
+                            <div class="modal-body">
+                                <input type="hidden" id="hdnEditMode" value="create" />
+                                <input type="hidden" id="hdnOriginalBrandCode" value="" />
+
+                                <div class="row g-3">
+                                    <div class="col-md-4">
+                                         <label class="form-label">Brand Code <span class="required">*</span></label>
+                                        <input type="text" id="txtModalCode" class="form-control" placeholder="Enter brand code" maxlength="50" autocomplete="off" />
+                                     </div>
+                                    <div class="col-md-8">
+                                        <label class="form-label">Brand Name <span class="required">*</span></label>
+                                         <input type="text" id="txtModalName" class="form-control" placeholder="Enter brand name" maxlength="255" autocomplete="off" />
+                                    </div>
+                                 </div>
+                            </div>
+                             <div class="modal-footer">
+                                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                                <button type="button" id="btnModalSave" class="btn btn-primary">
+                                     <i class="bi bi-check-circle"></i>Save Changes
+                                </button>
+                            </div>
+                         </div>
+                    </div>
                 </div>
             </div>
         </div>
-
+        <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
         <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
         <script type="text/javascript">
+
+            let brandModal; // ตัวแปรสำหรับ Bootstrap Modal Instance
+
+            function showLoading(show) {
+                console.log(show ? "Loading..." : "Done.");
+                // (สามารถเพิ่ม Logic การแสดง Loading overlay ที่นี่)
+            }
+
+            function clearModalForm() {
+                $('#hdnEditMode').val('create');
+                $('#hdnOriginalBrandCode').val('');
+                $('#brandModalLabel').text('Create New Brand');
+                $('#txtModalCode').val('').prop('readonly', false); // เปิดให้แก้ไข Code
+                $('#txtModalName').val('');
+            }
+
+            function loadBrandTable() {
+                showLoading(true);
+                const searchCode = $('#txtSearchCode').val();
+                const searchName = $('#txtSearchName').val();
+
+                $.ajax({
+                    type: "POST",
+                    url: "Handler/MasterDataHandler.ashx?action=getbrandlisthtml",
+                    data: {
+                        searchCode: searchCode,
+                        searchName: searchName
+                    },
+                    success: function (html) {
+                        $('#brandTableBody').html(html);
+                        showLoading(false);
+                    },
+                    error: function (xhr) {
+                        showLoading(false);
+                        alert('Error loading brand data: ' + xhr.responseText);
+                    }
+                });
+            }
+
+            // --- DOM Ready (เมื่อหน้าเว็บโหลดเสร็จ) ---
+            $(document).ready(function () {
+
+                // 1. Initialize Modal
+                brandModal = new bootstrap.Modal(document.getElementById('brandModal'));
+
+                // 2. "Create" Button Click
+                $('#btnShowCreateModal').on('click', function () {
+                    clearModalForm();
+                    brandModal.show();
+                });
+
+                // 3. "Edit" Button Click (Event Delegation)
+                $('#brandTableBody').on('click', '.btn-edit-brand', function () {
+                    const btn = $(this);
+                    clearModalForm();
+
+                    $('#hdnEditMode').val('edit');
+                    $('#brandModalLabel').text('Edit Brand');
+
+                    const code = btn.data('code');
+                    $('#hdnOriginalBrandCode').val(code);
+
+                    $('#txtModalCode').val(code).prop('readonly', true); // ปิดการแก้ไข Code
+                    $('#txtModalName').val(btn.data('name'));
+
+                    brandModal.show();
+                });
+
+                // 4. "Delete" Button Click (Event Delegation)
+                $('#brandTableBody').on('click', '.btn-delete-brand', function () {
+                    const btn = $(this);
+                    const code = btn.data('code');
+                    const name = btn.data('name');
+
+                    if (!confirm(`Are you sure you want to delete Brand: ${code} (${name})?`)) {
+                        return;
+                    }
+
+                    showLoading(true);
+                    $.ajax({
+                        type: "POST",
+                        url: "Handler/MasterDataHandler.ashx?action=deletebrand",
+                        data: { brandCode: code },
+                        dataType: "json",
+                        success: function (response) {
+                            showLoading(false);
+                            if (response.success) {
+                                alert(response.message);
+                                loadBrandTable(); // โหลดตารางใหม่
+                            } else {
+                                alert('Error: ' + response.message);
+                            }
+                        },
+                        error: function (xhr) {
+                            showLoading(false);
+                            alert('Fatal error deleting brand: ' + xhr.responseText);
+                        }
+                    });
+                });
+
+                // 5. "Save" Button (in Modal) Click
+                $('#btnModalSave').on('click', function () {
+                    const mode = $('#hdnEditMode').val();
+                    const brandData = {
+                        editMode: mode,
+                        code: $('#txtModalCode').val(),
+                        originalCode: $('#hdnOriginalBrandCode').val(),
+                        name: $('#txtModalName').val()
+                    };
+
+                    if (!brandData.code || !brandData.name) {
+                        alert('Brand Code and Brand Name are required!');
+                        return;
+                    }
+
+                    showLoading(true);
+                    $.ajax({
+                        type: "POST",
+                        url: "Handler/MasterDataHandler.ashx?action=savebrand",
+                        data: brandData,
+                        dataType: "json",
+                        success: function (response) {
+                            showLoading(false);
+                            if (response.success) {
+                                alert(response.message);
+                                brandModal.hide();
+                                loadBrandTable(); // โหลดตารางใหม่
+                            } else {
+                                alert('Error: ' + response.message);
+                            }
+                        },
+                        error: function (xhr) {
+                            showLoading(false);
+                            alert('Fatal error saving brand: ' + xhr.responseText);
+                        }
+                    });
+                });
+
+                // 6. "View" Button Click
+                $('#btnViewTable').on('click', function () {
+                    loadBrandTable();
+                });
+
+                // 7. "Clear Filter" Button Click
+                $('#btnClearFilter').on('click', function () {
+                    $('#txtSearchCode').val('');
+                    $('#txtSearchName').val('');
+                    loadBrandTable();
+                });
+
+                // 8. Initial Load
+                loadBrandTable();
+            }); // <-- End of $(document).ready()
+
+
             // Wait for DOM to be ready
             (function () {
                 // Toggle Sidebar Function
@@ -713,6 +859,12 @@
                             }
                         }
                     });
+                }
+
+                if (document.readyState === 'loading') {
+                    document.addEventListener('DOMContentLoaded', init);
+                } else {
+                    init();
                 }
             })();
         </script>
