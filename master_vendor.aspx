@@ -573,28 +573,28 @@
                     <asp:Button ID="btnExport" runat="server" Text="📊 Export to Excel" CssClass="btn btn-export btn-custom" OnClick="btnExport_Click" />
                 </div>
                 <!-- Data Table -->
-             <div class="table-container">
-    <table id="vendorTable" class="table table-hover mb-0">
-        <thead class="bg-light text-dark">
-            <tr>
-                <th style="width: 120px;">Vendor Code</th>
-                <th style="width: 200px;">Vendor Name</th>
-                <th style="width: 80px;">CCY</th>
-                <th style="width: 120px;">Payment Term Code</th>
-                <th style="width: 150px;">Payment Term</th>
-                <th style="width: 120px;">Segment Code</th>
-                <th style="width: 150px;">Segment</th>
-                <th style="width: 100px;">Incoterm</th>
-                <th style="width: 180px;">Actions</th>
-            </tr>
-        </thead>
-        <tbody id="vendorTableBody">
-            <tr>
-                <td colspan="9" class="text-center text-muted">Loading...</td>
-            </tr>
-        </tbody>
-    </table>
-</div>
+                <div class="table-container">
+                    <table id="vendorTable" class="table table-hover mb-0">
+                        <thead class="bg-light text-dark">
+                            <tr>
+                                <th style="width: 120px;">Vendor Code</th>
+                                <th style="width: 200px;">Vendor Name</th>
+                                <th style="width: 80px;">CCY</th>
+                                <th style="width: 120px;">Payment Term Code</th>
+                                <th style="width: 150px;">Payment Term</th>
+                                <th style="width: 120px;">Segment Code</th>
+                                <th style="width: 150px;">Segment</th>
+                                <th style="width: 100px;">Incoterm</th>
+                                <th style="width: 180px;">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="vendorTableBody">
+                            <tr>
+                                <td colspan="9" class="text-center text-muted">Loading...</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
                 <div class="modal fade" id="vendorModal" tabindex="-1" aria-labelledby="vendorModalLabel" data-bs-backdrop="static" data-bs-keyboard="false">
                     <div class="modal-dialog modal-lg">
                         <div class="modal-content">
@@ -615,25 +615,27 @@
                                         <label class="form-label">Vendor Name <span class="required">*</span></label>
                                         <input type="text" id="txtModalName" class="form-control" placeholder="Enter vendor name" maxlength="255" autocomplete="off" />
                                     </div>
+                                </div>
+                                <div class="row g-3">
                                     <div class="col-md-3">
                                         <label class="form-label">CCY</label>
-                                        <input type="text" id="txtModalCCY" class="form-control" placeholder="e.g., THB, USD" maxlength="10" autocomplete="off" />
+                                        <select id="ddlModalCCY" class="form-select" data-placeholder="-- Select CCY --">
+                                        </select>
                                     </div>
                                     <div class="col-md-3">
                                         <label class="form-label">Payment Term Code</label>
-                                        <input type="text" id="txtModalPaymentTermCode" class="form-control" placeholder="Enter code" maxlength="50" autocomplete="off" />
+                                        <input type="text" id="txtModalPaymentTermCod   e" class="form-control" placeholder="Enter code" maxlength="50" autocomplete="off" />
                                     </div>
                                     <div class="col-md-6">
                                         <label class="form-label">Payment Term</label>
                                         <input type="text" id="txtModalPaymentTerm" class="form-control" placeholder="Enter payment term" maxlength="255" autocomplete="off" />
                                     </div>
-                                    <div class="col-md-3">
-                                        <label class="form-label">Segment Code</label>
-                                        <input type="text" id="txtModalSegmentCode" class="form-control" placeholder="Enter code" maxlength="50" autocomplete="off" />
-                                    </div>
-                                    <div class="col-md-6">
+                                </div>
+                                <div class="row g-3">
+                                    <div class="col-md-9">
                                         <label class="form-label">Segment</label>
-                                        <input type="text" id="txtModalSegment" class="form-control" placeholder="Enter segment" maxlength="255" autocomplete="off" />
+                                        <select id="ddlModalSegment" class="form-select" data-placeholder="-- Select Segment --">
+                                            </select>
                                     </div>
                                     <div class="col-md-3">
                                         <label class="form-label">Incoterm</label>
@@ -671,12 +673,13 @@
                 $('#vendorModalLabel').text('Create New Vendor');
                 $('#txtModalCode').val('').prop('readonly', false); // เปิดให้แก้ไข Code
                 $('#txtModalName').val('');
-                $('#txtModalCCY').val('');
+                $('#txtModalIncoterm').val('');
                 $('#txtModalPaymentTermCode').val('');
                 $('#txtModalPaymentTerm').val('');
-                $('#txtModalSegmentCode').val('');
-                $('#txtModalSegment').val('');
-                $('#txtModalIncoterm').val('');
+
+                $('#ddlModalCCY').val(null).trigger('change');
+                $('#ddlModalSegment').val(null).trigger('change');
+                
             }
 
             function loadVendorTable() {
@@ -695,17 +698,105 @@
                     },
                     success: function (html) {
                         $('#vendorTableBody').html(html);
-                                showLoading(false);
-                            },
-                            error: function (xhr) {
-                                showLoading(false);
-                                alert('Error loading vendor data: ' + xhr.responseText);
-                            }
-                        });
+                        showLoading(false);
+                    },
+                    error: function (xhr) {
+                        showLoading(false);
+                        alert('Error loading vendor data: ' + xhr.responseText);
+                    }
+                });
+            }
+
+            // (MODIFIED: แก้ไขให้ฟังก์ชัน return $.ajax promise)
+            function InitMSCCY(element) {
+                return $.ajax({ // <--- **[CHANGES 1]**
+                    url: 'Handler/MasterDataHandler.ashx?action=CCYMSList',
+                    type: 'POST',
+                    data: { addAll: false },
+                    success: function (response) {
+                        element.innerHTML = response;
+                        $(element).prepend('<option value=""></option>').val(null);
+                    },
+                    error: function (xhr) { console.error('Error loading CCY:', xhr.responseText); }
+                });
+            }
+
+            // (MODIFIED: แก้ไขให้ฟังก์ชัน return $.ajax promise)
+            function InitMSSegment(element) {
+                return $.ajax({ // <--- **[CHANGES 2]**
+                    url: 'Handler/MasterDataHandler.ashx?action=SegmentMSList',
+                    type: 'POST',
+                    data: { addAll: false },
+                    success: function (response) {
+                        element.innerHTML = response;
+                        $(element).prepend('<option value=""></option>').val(null);
+                    },
+                    error: function (xhr) { console.error('Error loading Segment:', xhr.responseText); }
+                });
             }
 
             // --- DOM Ready (เมื่อหน้าเว็บโหลดเสร็จ) ---
             $(document).ready(function () {
+
+                $('#ddlModalCCY').select2({
+                    theme: "bootstrap-5",
+                    dropdownParent: $("#vendorModal"), // (สำคัญมากสำหรับ Modal)
+                    allowClear: true
+                });
+                $('#ddlModalSegment').select2({
+                    theme: "bootstrap-5",
+                    dropdownParent: $("#vendorModal"),
+                    allowClear: true
+                });
+
+                // 3. (MODIFIED: เรียกใช้ฟังก์ชันและเก็บค่า Promise)
+                var ccyPromise = InitMSCCY(document.getElementById('ddlModalCCY'));
+                var segmentPromise = InitMSSegment(document.getElementById('ddlModalSegment'));
+
+                // 4. (MODIFIED: ใช้ $.when() เพื่อรอให้ AJAX ทั้ง 2 ตัวทำงานเสร็จก่อน)
+                //    (โค้ดส่วนนี้จะทำงาน "หลังจาก" ที่ Dropdown มีข้อมูลแล้วเท่านั้น)
+                $.when(ccyPromise, segmentPromise).done(function () {
+
+                    console.log("Master data for modal (CCY, Segment) loaded successfully.");
+
+                    // 5. (MOVED: ย้าย Event "Edit" มาไว้ข้างใน .done())
+                    //    (ตอนนี้ Event จะถูกผูกเมื่อ Dropdown พร้อมใช้งานแล้ว)
+                    $('#vendorTableBody').on('click', '.btn-edit-vendor', function () {
+                        const btn = $(this);
+                        clearModalForm();
+
+                        $('#hdnEditMode').val('edit');
+                        $('#vendorModalLabel').text('Edit Vendor');
+
+                        const code = btn.data('code');
+                        $('#hdnOriginalVendorCode').val(code);
+                        $('#txtModalCode').val(code).prop('readonly', true);
+                        $('#txtModalName').val(btn.data('name'));
+
+                        $('#txtModalPaymentTermCode').val(btn.data('term-code'));
+                        $('#txtModalPaymentTerm').val(btn.data('term'));
+                        $('#txtModalIncoterm').val(btn.data('incoterm'));
+
+                        // (โค้ดส่วนนี้จะทำงานได้อย่างถูกต้องแล้ว)
+                        $('#ddlModalCCY').val(btn.data('ccy')).trigger('change');
+                        $('#ddlModalSegment').val(btn.data('seg-code')).trigger('change');
+
+                        vendorModal.show();
+                    });
+
+                }).fail(function () {
+                    alert("Critical error: Failed to load master data (CCY/Segment) for the edit modal. Please refresh the page.");
+                });
+
+
+                // 6. (Event ที่ไม่เกี่ยวข้องกับ Modal Master Data สามารถอยู่ที่เดิมได้)
+                $('#btnShowCreateModal').on('click', function () {
+                    clearModalForm();
+                    // (Reset Select2 ไปที่ค่าว่าง)
+                    $('#ddlModalCCY').val(null).trigger('change');
+                    $('#ddlModalSegment').val(null).trigger('change');
+                    vendorModal.show();
+                });
 
                 // 1. Initialize Modal
                 vendorModal = new bootstrap.Modal(document.getElementById('vendorModal'));
@@ -731,12 +822,12 @@
 
                     $('#txtModalCode').val(code).prop('readonly', true);
                     $('#txtModalName').val(btn.data('name'));
-                    $('#txtModalCCY').val(btn.data('ccy'));
                     $('#txtModalPaymentTermCode').val(btn.data('term-code'));
                     $('#txtModalPaymentTerm').val(btn.data('term'));
-                    $('#txtModalSegmentCode').val(btn.data('seg-code'));
-                    $('#txtModalSegment').val(btn.data('seg'));
                     $('#txtModalIncoterm').val(btn.data('incoterm'));
+
+                    $('#ddlModalCCY').val(btn.data('ccy'));
+                    $('#ddlModalSegment').val(btn.data('seg-code'));
 
                     vendorModal.show();
                 });
