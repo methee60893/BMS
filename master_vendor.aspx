@@ -874,11 +874,11 @@
                         code: $('#txtModalCode').val(),
                         originalCode: $('#hdnOriginalVendorCode').val(),
                         name: $('#txtModalName').val(),
-                        ccy: $('#txtModalCCY').val(),
                         paymentTermCode: $('#txtModalPaymentTermCode').val(),
                         paymentTerm: $('#txtModalPaymentTerm').val(),
-                        segmentCode: $('#txtModalSegmentCode').val(),
-                        segment: $('#txtModalSegment').val(),
+                        segmentCode: $('#ddlModalSegment').val(),
+                        segment: $('#ddlModalSegment').text(),
+                        ccy: $('#ddlModalCCY').val(),
                         incoterm: $('#txtModalIncoterm').val()
                     };
 
