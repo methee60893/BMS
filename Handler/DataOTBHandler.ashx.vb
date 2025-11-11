@@ -1308,7 +1308,7 @@ Public Class DataOTBHandler
 
         ' ===== MODIFIED QUERY (เพิ่ม [RunNo] และ Join Master Data เพื่อ Preview) =====
         Dim query As String = $"
-            SELECT 
+            SELECT DISTINCT
                 d.RunNo, d.Version, d.OTBCompany, d.OTBCategory, d.OTBVendor, 
                 d.OTBSegment, d.OTBBrand, d.Amount, d.OTBYear, 
                 d.OTBMonth, d.Remark, d.OTBType,

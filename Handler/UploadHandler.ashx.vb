@@ -143,7 +143,13 @@ Public Class UploadHandler : Implements IHttpHandler
             Else
                 ' ดึงค่า Year ที่ไม่ซ้ำกันทั้งหมด (ไม่รวมค่าว่าง)
                 Dim distinctYears = dt.AsEnumerable().
-                                    Select(Function(r) r.Field(Of String)("Year")?.Trim()).
+                                    Select(Function(r)
+                                               If r.IsNull("Year") Then
+                                                   Return Nothing
+                                               Else
+                                                   Return r("Year").ToString().Trim()
+                                               End If
+                                           End Function).
                                     Where(Function(y) Not String.IsNullOrEmpty(y)).
                                     Distinct().
                                     ToList()
@@ -247,7 +253,7 @@ Public Class UploadHandler : Implements IHttpHandler
                 Dim seriousErrors As Integer = 0
                 For Each err As String In errorMessages
                     Dim isWarning As Boolean = False
-                    If err.Contains("Duplicated_Draft OTB") Then isWarning = True ' (Rule 3)
+                    'If err.Contains("Duplicated_Draft OTB") Then isWarning = True ' (Rule 3)
                     If err.Contains("(Will Update)") Then isWarning = True
                     If err.Contains("Duplicate_Approved_Warn") Then isWarning = True ' (Rule 2)
                     If err.Contains("(Will Revise)") Then isWarning = True
