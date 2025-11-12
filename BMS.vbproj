@@ -215,6 +215,7 @@
     <Compile Include="class\ApprovedOTBManager.vb" />
     <Compile Include="class\GroupedActualPO.vb" />
     <Compile Include="class\GroupedDraftPO.vb" />
+    <Compile Include="class\MasterDatautil.vb" />
     <Compile Include="class\MatchedPOItem.vb" />
     <Compile Include="class\OTBBudgetCalculator.vb" />
     <Compile Include="class\OTBUploadPreviewRow.vb" />

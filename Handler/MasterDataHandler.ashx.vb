@@ -1070,19 +1070,23 @@ Public Class MasterDataHandler
 
         Dim sb As New StringBuilder()
         If dt.Rows.Count = 0 Then
-            sb.Append("<tr><td colspan='3' class='text-center text-muted'>No data found.</td></tr>")
+            sb.Append("<tr><td colspan='4' class='text-center text-muted'>No data found.</td></tr>")
         Else
             For Each row As DataRow In dt.Rows
+
+                Dim isActive As Boolean = If(row("isActive") IsNot DBNull.Value, Convert.ToBoolean(row("isActive")), False)
+
                 sb.Append("<tr>")
                 sb.AppendFormat("<td>{0}</td>", HttpUtility.HtmlEncode(row("Brand Code")))
                 sb.AppendFormat("<td>{0}</td>", HttpUtility.HtmlEncode(row("Brand Name")))
-
+                sb.AppendFormat("<td>{0}</td>", If(isActive, "<span class='badge bg-success'>Active</span>", "<span class='badge bg-secondary'>Inactive</span>"))
                 sb.Append("<td class='text-center'>")
                 sb.AppendFormat("<button type='button' class='btn btn-edit btn-sm me-1 btn-edit-brand' " &
-                            "data-code='{0}' data-name='{1}'>" &
+                            "data-code='{0}' data-name='{1}' data-active='{2}'>" &
                             "<i class='bi bi-pencil'></i> Edit</button>",
                             HttpUtility.HtmlAttributeEncode(row("Brand Code")),
-                            HttpUtility.HtmlAttributeEncode(row("Brand Name")))
+                            HttpUtility.HtmlAttributeEncode(row("Brand Name")),
+                            isActive.ToString().ToLower())
 
                 sb.AppendFormat("<button type='button' class='btn btn-delete btn-sm btn-delete-brand' " &
                             "data-code='{0}' data-name='{1}'><i class='bi bi-trash'></i> Delete</button>",
@@ -1108,6 +1112,9 @@ Public Class MasterDataHandler
             Dim originalCode As String = If(editMode = "edit", context.Request.Form("originalCode"), code)
             Dim name As String = context.Request.Form("name")
 
+            Dim isActive As Boolean = False
+            Boolean.TryParse(context.Request.Form("isActive"), isActive)
+
             If String.IsNullOrEmpty(code) OrElse String.IsNullOrEmpty(name) Then
                 Throw New Exception("Brand Code and Brand Name are required!")
             End If
@@ -1120,9 +1127,9 @@ Public Class MasterDataHandler
                     If CheckBrandCodeExists(code) Then
                         Throw New Exception($"Brand Code '{code}' already exists!")
                     End If
-                    query = "INSERT INTO MS_Brand ([Brand Code], [Brand Name]) VALUES (@code, @name)"
+                    query = "INSERT INTO MS_Brand ([Brand Code], [Brand Name], [isActive]) VALUES (@code, @name, @isActive)"
                 Else
-                    query = "UPDATE MS_Brand SET [Brand Code] = @code, [Brand Name] = @name WHERE [Brand Code] = @originalCode"
+                    query = "UPDATE MS_Brand SET [Brand Code] = @code, [Brand Name] = @name, [isActive] = @isActive WHERE [Brand Code] = @originalCode"
                 End If
 
                 Using cmd As New SqlCommand(query, conn)
@@ -1131,6 +1138,7 @@ Public Class MasterDataHandler
                         cmd.Parameters.AddWithValue("@originalCode", originalCode)
                     End If
                     cmd.Parameters.AddWithValue("@name", name)
+                    cmd.Parameters.AddWithValue("@isActive", isActive)
                     cmd.ExecuteNonQuery()
                 End Using
             End Using
@@ -1177,7 +1185,7 @@ Public Class MasterDataHandler
     ' 4. (Helper) ดึงข้อมูล Brand
     Private Function GetBrandData(Optional searchCode As String = "", Optional searchName As String = "") As DataTable
         Dim dt As New DataTable()
-        Dim query As String = "SELECT [Brand Code], [Brand Name] FROM [MS_Brand] WHERE 1=1"
+        Dim query As String = "SELECT [Brand Code], [Brand Name], [isActive] FROM [MS_Brand] WHERE 1=1"
 
         If Not String.IsNullOrEmpty(searchCode) Then
             query &= " AND [Brand Code] LIKE @Code"

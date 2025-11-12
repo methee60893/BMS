@@ -564,6 +564,7 @@
                             <tr>
                                  <th style="width: 200px;">Brand Code</th>
                                 <th style="width: 400px;">Brand Name</th>
+                                <th style="width: 100px;">Status</th>
                                 <th style="width: 180px;">Actions</th>
                              </tr>
                         </thead>
@@ -595,6 +596,12 @@
                                         <label class="form-label">Brand Name <span class="required">*</span></label>
                                          <input type="text" id="txtModalName" class="form-control" placeholder="Enter brand name" maxlength="255" autocomplete="off" />
                                     </div>
+                                    <div class="col-12">
+                                        <div class="form-check form-switch mt-2">
+                                            <input class="form-check-input" type="checkbox" role="switch" id="chkModalActive" checked>
+                                            <label class="form-check-label" for="chkModalActive">Active</label>
+                                        </div>
+                                    </div>
                                  </div>
                             </div>
                              <div class="modal-footer">
@@ -625,6 +632,7 @@
                 $('#brandModalLabel').text('Create New Brand');
                 $('#txtModalCode').val('').prop('readonly', false); // เปิดให้แก้ไข Code
                 $('#txtModalName').val('');
+                $('#chkModalActive').prop('checked', true);
             }
 
             function loadBrandTable() {
@@ -676,6 +684,9 @@
                     $('#txtModalCode').val(code).prop('readonly', true); // ปิดการแก้ไข Code
                     $('#txtModalName').val(btn.data('name'));
 
+                    const isActive = btn.data('active') === 'true' || btn.data('active') === true;
+                    $('#chkModalActive').prop('checked', isActive);
+
                     brandModal.show();
                 });
 
@@ -718,7 +729,8 @@
                         editMode: mode,
                         code: $('#txtModalCode').val(),
                         originalCode: $('#hdnOriginalBrandCode').val(),
-                        name: $('#txtModalName').val()
+                        name: $('#txtModalName').val(),
+                        isActive: $('#chkModalActive').is(':checked')
                     };
 
                     if (!brandData.code || !brandData.name) {

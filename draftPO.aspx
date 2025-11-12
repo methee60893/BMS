@@ -904,6 +904,106 @@
             errorValidationModal = new bootstrap.Modal(document.getElementById('errorValidationModal'));
             successModal = new bootstrap.Modal(document.getElementById('successModal'));
 
+            if (ddYearFilter) {
+                $(ddYearFilter).select2({
+                    theme: "bootstrap-5",
+                    allowClear: true
+                });
+            }
+            if (ddMonthFilter) {
+                $(ddMonthFilter).select2({
+                    theme: "bootstrap-5",
+                    allowClear: true
+                });
+            }
+            if (ddCompanyFilter) {
+                $(ddCompanyFilter).select2({
+                    theme: "bootstrap-5",
+                    allowClear: true
+                });
+            }
+            if (ddCategoryFilter) {
+                $(ddCategoryFilter).select2({
+                    theme: "bootstrap-5",
+                    allowClear: true
+                });
+            }
+            if (ddSegmentFilter) {
+                $(ddSegmentFilter).select2({
+                    theme: "bootstrap-5",
+                    allowClear: true
+                });
+            }
+            if (ddBrandFilter) {
+                $(ddBrandFilter).select2({
+                    theme: "bootstrap-5",
+                    allowClear: true
+                });
+            }
+            if (ddVendorFilter) {
+                $(ddVendorFilter).select2({
+                    theme: "bootstrap-5",
+                    allowClear: true
+                });
+            }
+
+            if (ddCCYEdit) {
+                $(ddCCYEdit).select2({
+                    theme: "bootstrap-5",
+                    dropdownParent: $("#editPOModal"), 
+                    allowClear: true
+                });
+            }
+            if (ddYearEdit) {
+                $(ddYearEdit).select2({
+                    theme: "bootstrap-5",
+                    dropdownParent: $("#editPOModal"), 
+                    allowClear: true
+                });
+            }
+            if (ddMonthEdit) {
+                $(ddMonthEdit).select2({
+                    theme: "bootstrap-5",
+                    dropdownParent: $("#editPOModal"), 
+                    allowClear: true
+                });
+            }
+            if (ddCompanyEdit) {
+                $(ddCompanyEdit).select2({
+                    theme: "bootstrap-5",
+                    dropdownParent: $("#editPOModal"), 
+                    allowClear: true
+                });
+            }
+            if (ddCategoryEdit) {
+                $(ddCategoryEdit).select2({
+                    theme: "bootstrap-5",
+                    dropdownParent: $("#editPOModal"), 
+                    allowClear: true
+                });
+            }
+            if (ddSegmentEdit) {
+                $(ddSegmentEdit).select2({
+                    theme: "bootstrap-5",
+                    dropdownParent: $("#editPOModal"), 
+                    allowClear: true
+                });
+            }
+            if (ddBrandEdit) {
+                $(ddBrandEdit).select2({
+                    theme: "bootstrap-5",
+                    dropdownParent: $("#editPOModal"), 
+                    allowClear: true
+                });
+            }
+            if (ddVendorEdit) {
+                $(ddVendorEdit).select2({
+                    theme: "bootstrap-5",
+                    dropdownParent: $("#editPOModal"), 
+                    allowClear: true
+                });
+            }
+
             // Load Master Data into Filters
             InitMSDataFilters();
             // Load Master Data into Edit Modal (run once)

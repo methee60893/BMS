@@ -23,7 +23,12 @@ Public Class UploadHandler : Implements IHttpHandler
         Dim uploadBy As String = context.Request.Form("uploadBy")
         If String.IsNullOrEmpty(uploadBy) Then uploadBy = "unknown"
 
+
+        Dim util As New MasterDataUtil()
+
         Dim action As String = context.Request("action")
+
+
         If action = "savePreview" Then
             Try
                 Dim jsonData As String = context.Request.Form("selectedData")
@@ -53,7 +58,7 @@ Public Class UploadHandler : Implements IHttpHandler
             End If
 
             If context.Request("action") = "preview" Then
-                context.Response.Write(GenerateHtmlTable(dt))
+                context.Response.Write(GenerateHtmlTable(dt, util))
             ElseIf context.Request("action") = "save" Then
                 SaveToDatabase(dt, uploadBy, context) '  ส่ง uploadBy ไปด้วย
                 context.Response.Write("OK")
@@ -122,7 +127,7 @@ Public Class UploadHandler : Implements IHttpHandler
         Return fields.ToArray()
     End Function
 
-    Private Function GenerateHtmlTable(dt As DataTable) As String
+    Private Function GenerateHtmlTable(dt As DataTable, util As MasterDataUtil) As String
         Dim validator As OTBValidate = Nothing
         Try
             validator = New OTBValidate()
@@ -334,14 +339,14 @@ Public Class UploadHandler : Implements IHttpHandler
             End Select
             sb.AppendFormat("<td class='text-center'>{0}</td>", HttpUtility.HtmlEncode(monthDisplay))
             sb.AppendFormat("<td class='text-center'>{0}</td>", HttpUtility.HtmlEncode(categoryValue))
-            sb.Append("<td class='text-center'>-</td>")
+            sb.AppendFormat("<td>{0}</td>", HttpUtility.HtmlEncode(util.GetCategoryName(categoryValue)))
             sb.AppendFormat("<td class='text-center'>{0}</td>", HttpUtility.HtmlEncode(companyValue))
             sb.AppendFormat("<td class='text-center'>{0}</td>", HttpUtility.HtmlEncode(segmentValue))
-            sb.Append("<td>-</td>")
+            sb.AppendFormat("<td>{0}</td>", HttpUtility.HtmlEncode(util.GetSegmentName(segmentValue)))
             sb.AppendFormat("<td class='text-center'>{0}</td>", HttpUtility.HtmlEncode(brandValue))
-            sb.Append("<td>-</td>")
+            sb.AppendFormat("<td>{0}</td>", HttpUtility.HtmlEncode(util.GetBrandName(brandValue)))
             sb.AppendFormat("<td class='text-center'>{0}</td>", HttpUtility.HtmlEncode(vendorValue))
-            sb.Append("<td>-</td>")
+            sb.AppendFormat("<td>{0}</td>", HttpUtility.HtmlEncode(util.GetVendorName(vendorValue)))
             Try
                 Dim amountDec As Decimal = Convert.ToDecimal(amountValue)
                 sb.AppendFormat("<td class='text-end'>{0}</td>", amountDec.ToString("N2"))

@@ -672,7 +672,7 @@
                                 <th>Remark</th>
                                 <th>Status</th>
                                 <th>Approved Date</th>
-                                <th>SAP Rate</th>
+                                <th>SAP Date</th>
                                 <th>Approved By</th>
                                 <th>SAP Status</th>
                                 <th>SAP Message</th>
@@ -686,9 +686,9 @@
             </div>
         </div>
     </div>
-
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
     <script>
 
         let typeDropdown = document.getElementById("DDType");
@@ -792,6 +792,62 @@
                 firstMenuLink.classList.add('expanded');
             }
 
+            if (typeDropdown) {
+                $(typeDropdown).select2({
+                    theme: "bootstrap-5",
+                    allowClear: true
+                });
+            }
+
+            if (yearDropdown) {
+                $(yearDropdown).select2({
+                    theme: "bootstrap-5",
+                    allowClear: true
+                });
+            }
+
+            if (monthDropdown) {
+                $(monthDropdown).select2({
+                    theme: "bootstrap-5",
+                    allowClear: true
+                });
+            }
+
+            if (companyDropdown) {
+                $(companyDropdown).select2({
+                    theme: "bootstrap-5",
+                    allowClear: true
+                });
+            }
+
+            if (segmentDropdown) {
+                $(segmentDropdown).select2({
+                    theme: "bootstrap-5",
+                    allowClear: true
+                });
+            }
+
+            if (categoryDropdown) {
+                $(categoryDropdown).select2({
+                    theme: "bootstrap-5",
+                    allowClear: true
+                });
+            }
+
+            if (brandDropdown) {
+                $(brandDropdown).select2({
+                    theme: "bootstrap-5",
+                    allowClear: true
+                });
+            }
+
+            if (vendorDropdown) {
+                $(vendorDropdown).select2({
+                    theme: "bootstrap-5",
+                    allowClear: true
+                });
+            }
+
 
             //InitData master
             InitMSData();
@@ -887,7 +943,7 @@
             InitMonth(monthDropdown);
             InitCompany(companyDropdown);
             InitVersion(versionDropdown);
-            search();
+          
         }
 
         let InitSegment = function (segmentDropdown) {

@@ -1204,6 +1204,63 @@
                 txtAmtCCY.addEventListener('focus', cleanCurrencyOnFocus);
                 txtAmtCCY.addEventListener('blur', formatCurrencyOnBlur);
             }
+
+            if (ccyDropdown) {
+                $(ccyDropdown).select2({
+                    theme: "bootstrap-5",
+                    allowClear: true
+                });
+            }
+
+            if (yearDropdown) {
+                $(yearDropdown).select2({
+                    theme: "bootstrap-5",
+                    allowClear: true
+                });
+            }
+
+            if (monthDropdown) {
+                $(monthDropdown).select2({
+                    theme: "bootstrap-5",
+                    allowClear: true
+                });
+            }
+
+            if (companyDropdown) {
+                $(companyDropdown).select2({
+                    theme: "bootstrap-5",
+                    allowClear: true
+                });
+            }
+
+            if (segmentDropdown) {
+                $(segmentDropdown).select2({
+                    theme: "bootstrap-5",
+                    allowClear: true
+                });
+            }
+
+            if (categoryDropdown) {
+                $(categoryDropdown).select2({
+                    theme: "bootstrap-5",
+                    allowClear: true
+                });
+            }
+
+            if (brandDropdown) {
+                $(brandDropdown).select2({
+                    theme: "bootstrap-5",
+                    allowClear: true
+                });
+            }
+
+            if (vendorDropdown) {
+                $(vendorDropdown).select2({
+                    theme: "bootstrap-5",
+                    allowClear: true
+                });
+            }
+
             //InitData master
             InitMSData();
 

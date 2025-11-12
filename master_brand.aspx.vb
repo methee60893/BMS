@@ -51,7 +51,9 @@ Partial Public Class master_brand
     ' Get Brand Data for Export
     Private Function GetBrandData() As DataTable
         Dim connectionString As String = ConfigurationManager.ConnectionStrings("BMSConnectionString").ConnectionString
-        Dim query As String = "SELECT [Brand Code], [Brand Name] FROM [MS_Brand] ORDER BY [Brand Code]"
+        Dim query As String = "SELECT [Brand Code], [Brand Name], " &
+                        "CASE WHEN ISNULL([isActive], 0) = 1 THEN 'Active' ELSE 'Inactive' END AS [Status] " &
+                        "FROM [MS_Brand] ORDER BY [Brand Code]"
 
         Using conn As New SqlConnection(connectionString)
             Using cmd As New SqlCommand(query, conn)

@@ -1039,6 +1039,7 @@
     </div>
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
     <script>
         // ==========================================
         // Global Variables
@@ -1172,6 +1173,141 @@
                 txtAmontEx.addEventListener('blur', formatCurrencyOnBlur);
             }
             // *** END NEW LISTENERS ***
+
+           
+
+            if (yearDropdownf) {
+                $(yearDropdownf).select2({
+                    theme: "bootstrap-5",
+                    allowClear: true
+                });
+            }
+            if (yearDropdownt) {
+                $(yearDropdownt).select2({
+                    theme: "bootstrap-5",
+                    allowClear: true
+                });
+            }
+            if (yearDropdownE) {
+                $(yearDropdownE).select2({
+                    theme: "bootstrap-5",
+                    allowClear: true
+                });
+            }
+
+            if (monthDropdownf) {
+                $(monthDropdownf).select2({
+                    theme: "bootstrap-5",
+                    allowClear: true
+                });
+            }
+            if (monthDropdownt) {
+                $(monthDropdownt).select2({
+                    theme: "bootstrap-5",
+                    allowClear: true
+                });
+            }
+            if (monthDropdownE) {
+                $(monthDropdownE).select2({
+                    theme: "bootstrap-5",
+                    allowClear: true
+                });
+            }
+
+            if (companyDropdownf) {
+                $(companyDropdownf).select2({
+                    theme: "bootstrap-5",
+                    allowClear: true
+                });
+            }
+            if (companyDropdownt) {
+                $(companyDropdownt).select2({
+                    theme: "bootstrap-5",
+                    allowClear: true
+                });
+            }
+            if (companyDropdownE) {
+                $(companyDropdownE).select2({
+                    theme: "bootstrap-5",
+                    allowClear: true
+                });
+            }
+
+            if (segmentDropdownf) {
+                $(segmentDropdownf).select2({
+                    theme: "bootstrap-5",
+                    allowClear: true
+                });
+            }
+            if (segmentDropdownt) {
+                $(segmentDropdownt).select2({
+                    theme: "bootstrap-5",
+                    allowClear: true
+                });
+            }
+            if (segmentDropdownE) {
+                $(segmentDropdownE).select2({
+                    theme: "bootstrap-5",
+                    allowClear: true
+                });
+            }
+
+            if (categoryDropdownf) {
+                $(categoryDropdownf).select2({
+                    theme: "bootstrap-5",
+                    allowClear: true
+                });
+            }
+            if (categoryDropdownt) {
+                $(categoryDropdownt).select2({
+                    theme: "bootstrap-5",
+                    allowClear: true
+                });
+            }
+            if (categoryDropdownE) {
+                $(categoryDropdownE).select2({
+                    theme: "bootstrap-5",
+                    allowClear: true
+                });
+            }
+
+            if (brandDropdownf) {
+                $(brandDropdownf).select2({
+                    theme: "bootstrap-5",
+                    allowClear: true
+                });
+            }
+            if (brandDropdownt) {
+                $(brandDropdownt).select2({
+                    theme: "bootstrap-5",
+                    allowClear: true
+                });
+            }
+            if (brandDropdownE) {
+                $(brandDropdownE).select2({
+                    theme: "bootstrap-5",
+                    allowClear: true
+                });
+            }
+
+            if (vendorDropdownf) {
+                $(vendorDropdownf).select2({
+                    theme: "bootstrap-5",
+                    allowClear: true
+                });
+            }
+            if (vendorDropdownt) {
+                $(vendorDropdownt).select2({
+                    theme: "bootstrap-5",
+                    allowClear: true
+                });
+            }
+            if (vendorDropdownE) {
+                $(vendorDropdownE).select2({
+                    theme: "bootstrap-5",
+                    allowClear: true
+                });
+            }
 
             // Init Master Data
             InitMSData();
