@@ -571,12 +571,16 @@
                             <tr>
                                  <th style="width: 200px;">Category Code</th>
                                 <th style="width: 400px;">Category Name</th>
+                                <!-- (START) ADDED COLUMN -->
+                                <th style="width: 100px;">Status</th>
+                                <!-- (END) ADDED COLUMN -->
                                 <th style="width: 180px;">Actions</th>
                              </tr>
                         </thead>
                         <tbody id="categoryTableBody">
                             <tr>
-                                 <td colspan="3" class="text-center text-muted">Loading...</td>
+                                 <!-- (MODIFIED) Colspan increased -->
+                                 <td colspan="4" class="text-center text-muted">Loading...</td>
                             </tr>
                         </tbody>
                      </table>
@@ -602,6 +606,14 @@
                                         <label class="form-label">Category Name <span class="required">*</span></label>
                                          <input type="text" id="txtModalName" class="form-control" placeholder="Enter category name" maxlength="255" autocomplete="off" />
                                     </div>
+                                    <!-- (START) ADDED TOGGLE SWITCH -->
+                                    <div class="col-12">
+                                        <div class="form-check form-switch mt-2">
+                                            <input class="form-check-input" type="checkbox" role="switch" id="chkModalActiveCategory" checked>
+                                            <label class="form-check-label" for="chkModalActiveCategory">Active</label>
+                                        </div>
+                                    </div>
+                                    <!-- (END) ADDED TOGGLE SWITCH -->
                                  </div>
                             </div>
                              <div class="modal-footer">
@@ -634,6 +646,7 @@
                 $('#categoryModalLabel').text('Create New Category');
                 $('#txtModalCode').val('').prop('readonly', false); // เปิดให้แก้ไข Code
                 $('#txtModalName').val('');
+                $('#chkModalActiveCategory').prop('checked', true); // (MODIFIED) Reset toggle
             }
 
             function loadCategoryTable() {
@@ -684,6 +697,11 @@
                     $('#txtModalCode').val(code).prop('readonly', true); // ปิดการแก้ไข Code
                     $('#txtModalName').val(btn.data('name'));
 
+                    // (START) MODIFIED: Read isActive status
+                    const isActive = btn.data('active') === 'true' || btn.data('active') === true;
+                    $('#chkModalActiveCategory').prop('checked', isActive);
+                    // (END) MODIFIED
+
                     categoryModal.show();
                 });
 
@@ -709,7 +727,7 @@
                                 alert(response.message);
                                 loadCategoryTable(); // โหลดตารางใหม่
                             } else {
-                                alert('Error: ' + response.message);
+                                alert('Error: 'D + response.message);
                             }
                         },
                         error: function (xhr) {
@@ -726,7 +744,10 @@
                         editMode: mode,
                         code: $('#txtModalCode').val(),
                         originalCode: $('#hdnOriginalCategoryCode').val(),
-                        name: $('#txtModalName').val()
+                        name: $('#txtModalName').val(),
+                        // (START) MODIFIED: Send isActive status
+                        isActive: $('#chkModalActiveCategory').is(':checked')
+                        // (END) MODIFIED
                     };
 
                     if (!categoryData.code || !categoryData.name) {

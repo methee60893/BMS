@@ -585,12 +585,16 @@
                                 <th style="width: 120px;">Segment Code</th>
                                 <th style="width: 150px;">Segment</th>
                                 <th style="width: 100px;">Incoterm</th>
+                                <!-- (START) ADDED COLUMN -->
+                                <th style="width: 100px;">Status</th>
+                                <!-- (END) ADDED COLUMN -->
                                 <th style="width: 180px;">Actions</th>
                             </tr>
                         </thead>
                         <tbody id="vendorTableBody">
                             <tr>
-                                <td colspan="9" class="text-center text-muted">Loading...</td>
+                                <!-- (MODIFIED) Colspan increased -->
+                                <td colspan="10" class="text-center text-muted">Loading...</td>
                             </tr>
                         </tbody>
                     </table>
@@ -624,7 +628,7 @@
                                     </div>
                                     <div class="col-md-3">
                                         <label class="form-label">Payment Term Code</label>
-                                        <input type="text" id="txtModalPaymentTermCod   e" class="form-control" placeholder="Enter code" maxlength="50" autocomplete="off" />
+                                        <input type="text" id="txtModalPaymentTermCode" class="form-control" placeholder="Enter code" maxlength="50" autocomplete="off" />
                                     </div>
                                     <div class="col-md-6">
                                         <label class="form-label">Payment Term</label>
@@ -642,6 +646,16 @@
                                         <input type="text" id="txtModalIncoterm" class="form-control" placeholder="e.g., FOB, CIF" maxlength="50" autocomplete="off" />
                                     </div>
                                 </div>
+                                <!-- (START) ADDED TOGGLE SWITCH -->
+                                <div class="row g-3 mt-2">
+                                     <div class="col-12">
+                                        <div class="form-check form-switch">
+                                            <input class="form-check-input" type="checkbox" role="switch" id="chkModalActiveVendor" checked>
+                                            <label class="form-check-label" for="chkModalActiveVendor">Active</label>
+                                        </div>
+                                    </div>
+                                </div>
+                                <!-- (END) ADDED TOGGLE SWITCH -->
                             </div>
                             <div class="modal-footer">
                                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
@@ -679,7 +693,7 @@
 
                 $('#ddlModalCCY').val(null).trigger('change');
                 $('#ddlModalSegment').val(null).trigger('change');
-                
+                $('#chkModalActiveVendor').prop('checked', true); // (MODIFIED) Reset toggle
             }
 
             function loadVendorTable() {
@@ -780,6 +794,11 @@
                         // (โค้ดส่วนนี้จะทำงานได้อย่างถูกต้องแล้ว)
                         $('#ddlModalCCY').val(btn.data('ccy')).trigger('change');
                         $('#ddlModalSegment').val(btn.data('seg-code')).trigger('change');
+                        
+                        // (START) MODIFIED: Read isActive status
+                        const isActive = btn.data('active') === 'true' || btn.data('active') === true;
+                        $('#chkModalActiveVendor').prop('checked', isActive);
+                        // (END) MODIFIED
 
                         vendorModal.show();
                     });
@@ -828,6 +847,11 @@
 
                     $('#ddlModalCCY').val(btn.data('ccy'));
                     $('#ddlModalSegment').val(btn.data('seg-code'));
+                    
+                    // (START) MODIFIED: Read isActive status
+                    const isActive = btn.data('active') === 'true' || btn.data('active') === true;
+                    $('#chkModalActiveVendor').prop('checked', isActive);
+                    // (END) MODIFIED
 
                     vendorModal.show();
                 });
@@ -877,9 +901,12 @@
                         paymentTermCode: $('#txtModalPaymentTermCode').val(),
                         paymentTerm: $('#txtModalPaymentTerm').val(),
                         segmentCode: $('#ddlModalSegment').val(),
-                        segment: $('#ddlModalSegment').text(),
+                        segment: $('#ddlModalSegment option:selected').text().split(' - ')[1], // (MODIFIED) Get text better
                         ccy: $('#ddlModalCCY').val(),
-                        incoterm: $('#txtModalIncoterm').val()
+                        incoterm: $('#txtModalIncoterm').val(),
+                        // (START) MODIFIED: Send isActive status
+                        isActive: $('#chkModalActiveVendor').is(':checked')
+                        // (END) MODIFIED
                     };
 
                     if (!vendorData.code || !vendorData.name) {

@@ -211,9 +211,11 @@ Public Class ApprovedOTBManager
         exportDt.Columns.Add("Revised Diff", GetType(String))
         exportDt.Columns.Add("Remark", GetType(String))
         exportDt.Columns.Add("Status", GetType(String))
-        exportDt.Columns.Add("Approved date", GetType(String))
-        exportDt.Columns.Add("SAP date", GetType(String))
-        exportDt.Columns.Add("Action by", GetType(String))
+        exportDt.Columns.Add("Approved Date", GetType(String))
+        exportDt.Columns.Add("Create By", GetType(String))
+        exportDt.Columns.Add("Approved By", GetType(String))
+        exportDt.Columns.Add("SAP Status", GetType(String))
+
 
         For Each row As DataRow In dt.Rows
             Dim newRow As DataRow = exportDt.NewRow()
@@ -246,8 +248,9 @@ Public Class ApprovedOTBManager
             newRow("Remark") = If(row("Remark") IsNot DBNull.Value, row("Remark").ToString(), "")
             newRow("Status") = If(row("OTBStatus") IsNot DBNull.Value, row("OTBStatus").ToString(), "")
             newRow("Approved date") = If(row("ApprovedDate") IsNot DBNull.Value, Convert.ToDateTime(row("ApprovedDate")).ToString("dd/MM/yyyy HH:mm"), "")
-            newRow("SAP date") = If(row("SAPDate") IsNot DBNull.Value, Convert.ToDateTime(row("SAPDate")).ToString("dd/MM/yyyy HH:mm"), "")
-            newRow("Action by") = If(row("ActionBy") IsNot DBNull.Value, row("ActionBy").ToString(), "")
+            newRow("Create By") = If(row("Createby") IsNot DBNull.Value, row("CreateBy").ToString(), "")
+            newRow("Approved by") = If(row("ActionBy") IsNot DBNull.Value, row("ActionBy").ToString(), "")
+            newRow("SAP Status") = If(row("SAPStatus") IsNot DBNull.Value, row("SAPStatus").ToString(), "")
 
             exportDt.Rows.Add(newRow)
         Next

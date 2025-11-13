@@ -70,9 +70,11 @@ Partial Public Class master_vendor
     ' Get Vendor Data for Export
     Private Function GetVendorData() As DataTable
         Dim connectionString As String = ConfigurationManager.ConnectionStrings("BMSConnectionString").ConnectionString
+        ' (MODIFIED) Added isActive column
         Dim query As String = "SELECT [VendorCode] AS 'Vendor Code', [Vendor] AS 'Vendor Name', [CCY], " &
                             "[PaymentTermCode] AS 'Payment Term Code', [PaymentTerm] AS 'Payment Term', " &
-                            "[SegmentCode] AS 'Segment Code', [Segment], [Incoterm] " &
+                            "[SegmentCode] AS 'Segment Code', [Segment], [Incoterm], " &
+                            "CASE WHEN ISNULL([isActive], 0) = 1 THEN 'Active' ELSE 'Inactive' END AS [Status] " &
                             "FROM [MS_Vendor] ORDER BY [VendorCode]"
 
         Using conn As New SqlConnection(connectionString)

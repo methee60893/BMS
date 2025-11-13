@@ -303,6 +303,7 @@ Public Class MasterDataHandler
             conn.Open()
             Dim query As String = "SELECT DISTINCT [dbo].[MS_Category].[Category], [dbo].[MS_Category].Cate FROM [BMS].[dbo].[Template_Upload_Draft_OTB]
                                     INNER JOIN [dbo].[MS_Category] ON  [BMS].[dbo].[Template_Upload_Draft_OTB].[Category] =  [dbo].[MS_Category].Cate
+                                    WHERE [isActive] = 1        
                                     ORDER BY [dbo].[MS_Category].Cate ASC
                                     "
             Using cmd As New SqlCommand(query, conn)
@@ -320,6 +321,7 @@ Public Class MasterDataHandler
             conn.Open()
             Dim query As String = "SELECT DISTINCT [dbo].[MS_Brand].[Brand Name], [dbo].[MS_Brand].[Brand Code] FROM [BMS].[dbo].[Template_Upload_Draft_OTB]
                                     INNER JOIN [dbo].[MS_Brand] ON  [BMS].[dbo].[Template_Upload_Draft_OTB].[Brand] = [dbo].[MS_Brand].[Brand Code]
+                                    WHERE [isActive] = 1
                                     ORDER BY [dbo].[MS_Brand].[Brand Code] ASC
                                     " ' ปรับเปลี่ยนตามตารางจริง
             Using cmd As New SqlCommand(query, conn)
@@ -337,6 +339,7 @@ Public Class MasterDataHandler
             conn.Open()
             Dim query As String = "SELECT DISTINCT [dbo].[MS_Vendor].[VendorCode], [dbo].[MS_Vendor].[Vendor] FROM [BMS].[dbo].[Template_Upload_Draft_OTB]
                                     INNER JOIN [dbo].[MS_Vendor] ON  [BMS].[dbo].[Template_Upload_Draft_OTB].[Vendor] = [dbo].[MS_Vendor].[VendorCode]
+                                    WHERE [isActive] = 1
                                     ORDER BY [dbo].[MS_Vendor].[VendorCode] ASC
                                     "
             Using cmd As New SqlCommand(query, conn)
@@ -354,7 +357,7 @@ Public Class MasterDataHandler
             conn.Open()
             Dim query As String = "SELECT DISTINCT  [dbo].[MS_Vendor].[VendorCode], [dbo].[MS_Vendor].[Vendor] FROM [BMS].[dbo].[Template_Upload_Draft_OTB]
                                     INNER JOIN [dbo].[MS_Vendor] ON  [BMS].[dbo].[Template_Upload_Draft_OTB].[Vendor] = [dbo].[MS_Vendor].[VendorCode]
-                                    WHERE [BMS].[dbo].[Template_Upload_Draft_OTB].[SegmentCode] = @segmentCode
+                                    WHERE [isActive] = 1 AND [BMS].[dbo].[Template_Upload_Draft_OTB].[SegmentCode] = @segmentCode
                                     ORDER BY [dbo].[MS_Vendor].[VendorCode] ASC
                                     "
             Using cmd As New SqlCommand(query, conn)
@@ -416,7 +419,7 @@ Public Class MasterDataHandler
         Dim dt As New DataTable()
         Using conn As New SqlConnection(connectionString)
             conn.Open()
-            Dim query As String = "SELECT  [dbo].[MS_Company].[CompanyNameShort], [dbo].[MS_Company].[CompanyCode] FROM [dbo].[MS_Company]
+            Dim query As String = "SELECT  [dbo].[MS_Company].[CompanyNameShort], [dbo].[MS_Company].[CompanyCode] FROM [dbo].[MS_Company] 
                                     ORDER BY [dbo].[MS_Company].[CompanyCode] ASC
                                     "
             Using cmd As New SqlCommand(query, conn)
@@ -432,7 +435,7 @@ Public Class MasterDataHandler
         Dim dt As New DataTable()
         Using conn As New SqlConnection(connectionString)
             conn.Open()
-            Dim query As String = "SELECT  [dbo].[MS_Category].[Category], [dbo].[MS_Category].Cate FROM [dbo].[MS_Category]
+            Dim query As String = "SELECT  [dbo].[MS_Category].[Category], [dbo].[MS_Category].Cate FROM [dbo].[MS_Category]  WHERE [isActive] = 1
                                     ORDER BY [dbo].[MS_Category].Cate ASC
                                     "
             Using cmd As New SqlCommand(query, conn)
@@ -448,7 +451,7 @@ Public Class MasterDataHandler
         Dim dt As New DataTable()
         Using conn As New SqlConnection(connectionString)
             conn.Open()
-            Dim query As String = "SELECT [dbo].[MS_Brand].[Brand Name], [dbo].[MS_Brand].[Brand Code] FROM  [dbo].[MS_Brand]
+            Dim query As String = "SELECT [dbo].[MS_Brand].[Brand Name], [dbo].[MS_Brand].[Brand Code] FROM  [dbo].[MS_Brand]  WHERE [isActive] = 1
                                     ORDER BY [dbo].[MS_Brand].[Brand Code] ASC
                                     " ' ปรับเปลี่ยนตามตารางจริง
             Using cmd As New SqlCommand(query, conn)
@@ -464,7 +467,7 @@ Public Class MasterDataHandler
         Dim dt As New DataTable()
         Using conn As New SqlConnection(connectionString)
             conn.Open()
-            Dim query As String = "SELECT DISTINCT [dbo].[MS_Vendor].[Vendor], [dbo].[MS_Vendor].[VendorCode] FROM [MS_Vendor]
+            Dim query As String = "SELECT DISTINCT [dbo].[MS_Vendor].[Vendor], [dbo].[MS_Vendor].[VendorCode] FROM [MS_Vendor] WHERE [isActive] = 1 
                                     ORDER BY [dbo].[MS_Vendor].[VendorCode] ASC
                                     "
             Using cmd As New SqlCommand(query, conn)
@@ -481,7 +484,8 @@ Public Class MasterDataHandler
         Using conn As New SqlConnection(connectionString)
             conn.Open()
             Dim query As String = "SELECT DISTINCT [dbo].[MS_Vendor].[Vendor], [dbo].[MS_Vendor].[VendorCode] FROM  [dbo].[MS_Vendor]
-                                    WHERE [BMS].[dbo].[MS_Vendor].[SegmentCode] = @segmentCode
+                                    WHERE [isActive] = 1 
+                                    AND  [BMS].[dbo].[MS_Vendor].[SegmentCode] = @segmentCode
                                     ORDER BY [dbo].[MS_Vendor].[VendorCode] ASC
                                     "
             Using cmd As New SqlCommand(query, conn)
@@ -500,7 +504,8 @@ Public Class MasterDataHandler
             conn.Open()
             Dim query As String = "SELECT  DISTINCT [CCY]
                                    FROM [BMS].[dbo].[MS_Vendor]
-                                   WHERE (@vendorCode IS NULL OR @vendorCode = '' OR [VendorCode] = @vendorCode)
+                                   WHERE [isActive] = 1 
+                                   AND (@vendorCode IS NULL OR @vendorCode = '' OR [VendorCode] = @vendorCode)
                                    ORDER BY [dbo].[MS_Vendor].[CCY] ASC
                                     "
             Using cmd As New SqlCommand(query, conn)
@@ -696,9 +701,14 @@ Public Class MasterDataHandler
         ' (สร้าง HTML <tbody>)
         Dim sb As New StringBuilder()
         If dt.Rows.Count = 0 Then
-            sb.Append("<tr><td colspan='9' class='text-center text-muted'>No data found.</td></tr>")
+            ' (MODIFIED) Colspan increased
+            sb.Append("<tr><td colspan='10' class='text-center text-muted'>No data found.</td></tr>")
         Else
             For Each row As DataRow In dt.Rows
+                ' (START) ADDED: Read isActive
+                Dim isActive As Boolean = If(row("isActive") IsNot DBNull.Value, Convert.ToBoolean(row("isActive")), False)
+                ' (END) ADDED
+
                 sb.Append("<tr>")
                 sb.AppendFormat("<td>{0}</td>", HttpUtility.HtmlEncode(row("VendorCode")))
                 sb.AppendFormat("<td>{0}</td>", HttpUtility.HtmlEncode(row("Vendor")))
@@ -709,11 +719,15 @@ Public Class MasterDataHandler
                 sb.AppendFormat("<td>{0}</td>", HttpUtility.HtmlEncode(row("Segment")))
                 sb.AppendFormat("<td>{0}</td>", HttpUtility.HtmlEncode(row("Incoterm")))
 
+                ' (START) ADDED: Status column
+                sb.AppendFormat("<td>{0}</td>", If(isActive, "<span class='badge bg-success'>Active</span>", "<span class='badge bg-secondary'>Inactive</span>"))
+                ' (END) ADDED
+
                 ' (สร้างปุ่ม Edit/Delete ใหม่)
                 sb.Append("<td class='text-center'>")
                 sb.AppendFormat("<button type='button' class='btn btn-edit btn-sm me-1 btn-edit-vendor' " &
                             "data-code='{0}' data-name='{1}' data-ccy='{2}' data-term-code='{3}' " &
-                            "data-term='{4}' data-seg-code='{5}' data-seg='{6}' data-incoterm='{7}'>" &
+                            "data-term='{4}' data-seg-code='{5}' data-seg='{6}' data-incoterm='{7}' data-active='{8}'>" &
                             "<i class='bi bi-pencil'></i> Edit</button>",
                             HttpUtility.HtmlAttributeEncode(row("VendorCode")),
                             HttpUtility.HtmlAttributeEncode(row("Vendor")),
@@ -722,7 +736,8 @@ Public Class MasterDataHandler
                             HttpUtility.HtmlAttributeEncode(row("PaymentTerm")),
                             HttpUtility.HtmlAttributeEncode(row("SegmentCode")),
                             HttpUtility.HtmlAttributeEncode(row("Segment")),
-                            HttpUtility.HtmlAttributeEncode(row("Incoterm")))
+                            HttpUtility.HtmlAttributeEncode(row("Incoterm")),
+                            isActive.ToString().ToLower()) ' (MODIFIED) Added data-active
 
                 sb.AppendFormat("<button type='button' class='btn btn-delete btn-sm btn-delete-vendor' " &
                             "data-code='{0}' data-name='{1}><i class='bi bi-trash'></i> Delete</button>",
@@ -758,6 +773,10 @@ Public Class MasterDataHandler
             Dim segmentCode As String = context.Request.Form("segmentCode")
             Dim segment As String = context.Request.Form("segment")
             Dim incoterm As String = context.Request.Form("incoterm")
+            ' (START) ADDED: Read isActive
+            Dim isActive As Boolean = False
+            Boolean.TryParse(context.Request.Form("isActive"), isActive)
+            ' (END) ADDED
 
             ' (ย้าย Logic มาจาก btnCreate_Click และ gvVendor_RowUpdating)
             Using conn As New SqlConnection(connectionString)
@@ -770,13 +789,15 @@ Public Class MasterDataHandler
                         Throw New Exception($"Vendor Code '{code}' With SegmentCode '{segmentCode}' already exists!")
                     End If
 
-                    query = "INSERT INTO MS_Vendor ([VendorCode], [Vendor], [CCY], [PaymentTermCode], [PaymentTerm], [SegmentCode], [Segment], [Incoterm]) " &
-                        "VALUES (@code, @name, @ccy, @paymentTermCode, @paymentTerm, @segmentCode, @segment, @incoterm)"
+                    ' (MODIFIED) Added isActive
+                    query = "INSERT INTO MS_Vendor ([VendorCode], [Vendor], [CCY], [PaymentTermCode], [PaymentTerm], [SegmentCode], [Segment], [Incoterm], [isActive]) " &
+                        "VALUES (@code, @name, @ccy, @paymentTermCode, @paymentTerm, @segmentCode, @segment, @incoterm, @isActive)"
                 Else
                     ' (Logic จาก gvVendor_RowUpdating)
                     ' *** FIX: ใช้ originalCode ใน WHERE clause ***
+                    ' (MODIFIED) Added isActive
                     query = "UPDATE MS_Vendor SET [VendorCode] = @code, [Vendor] = @name, [CCY] = @ccy, [PaymentTermCode] = @paymentTermCode, " &
-                        "[PaymentTerm] = @paymentTerm, [SegmentCode] = @segmentCode, [Segment] = @segment, [Incoterm] = @incoterm " &
+                        "[PaymentTerm] = @paymentTerm, [SegmentCode] = @segmentCode, [Segment] = @segment, [Incoterm] = @incoterm, [isActive] = @isActive " &
                         "WHERE [VendorCode] = @originalCode"
                 End If
 
@@ -792,6 +813,7 @@ Public Class MasterDataHandler
                     cmd.Parameters.AddWithValue("@segmentCode", If(String.IsNullOrEmpty(segmentCode), DBNull.Value, segmentCode))
                     cmd.Parameters.AddWithValue("@segment", If(String.IsNullOrEmpty(segment), DBNull.Value, segment))
                     cmd.Parameters.AddWithValue("@incoterm", If(String.IsNullOrEmpty(incoterm), DBNull.Value, incoterm))
+                    cmd.Parameters.AddWithValue("@isActive", isActive) ' (MODIFIED) Added parameter
 
                     cmd.ExecuteNonQuery()
                 End Using
@@ -846,7 +868,8 @@ Public Class MasterDataHandler
         Dim dt As New DataTable()
         ' (Logic เดียวกับ BindGridView เดิม)
         Dim connectionString As String = ConfigurationManager.ConnectionStrings("BMSConnectionString").ConnectionString
-        Dim query As String = "SELECT [VendorCode], [Vendor], [CCY], [PaymentTermCode], [PaymentTerm], [SegmentCode], [Segment], [Incoterm] FROM [MS_Vendor] WHERE 1=1"
+        ' (MODIFIED) Added isActive
+        Dim query As String = "SELECT [VendorCode], [Vendor], [CCY], [PaymentTermCode], [PaymentTerm], [SegmentCode], [Segment], [Incoterm], ISNULL([isActive], 0) AS [isActive] FROM [MS_Vendor] WHERE 1=1"
 
         If Not String.IsNullOrEmpty(searchCode) Then
             query &= " AND [VendorCode] LIKE @Code"
@@ -907,19 +930,29 @@ Public Class MasterDataHandler
 
         Dim sb As New StringBuilder()
         If dt.Rows.Count = 0 Then
-            sb.Append("<tr><td colspan='3' class='text-center text-muted'>No data found.</td></tr>")
+            ' (MODIFIED) Colspan increased
+            sb.Append("<tr><td colspan='4' class='text-center text-muted'>No data found.</td></tr>")
         Else
             For Each row As DataRow In dt.Rows
+                ' (START) ADDED: Read isActive
+                Dim isActive As Boolean = If(row("isActive") IsNot DBNull.Value, Convert.ToBoolean(row("isActive")), False)
+                ' (END) ADDED
+
                 sb.Append("<tr>")
                 sb.AppendFormat("<td>{0}</td>", HttpUtility.HtmlEncode(row("Cate")))
                 sb.AppendFormat("<td>{0}</td>", HttpUtility.HtmlEncode(row("Category")))
 
+                ' (START) ADDED: Status column
+                sb.AppendFormat("<td>{0}</td>", If(isActive, "<span class='badge bg-success'>Active</span>", "<span class='badge bg-secondary'>Inactive</span>"))
+                ' (END) ADDED
+
                 sb.Append("<td class='text-center'>")
                 sb.AppendFormat("<button type='button' class='btn btn-edit btn-sm me-1 btn-edit-category' " &
-                            "data-code='{0}' data-name='{1}'>" &
+                            "data-code='{0}' data-name='{1}' data-active='{2}'>" &
                             "<i class='bi bi-pencil'></i> Edit</button>",
                             HttpUtility.HtmlAttributeEncode(row("Cate")),
-                            HttpUtility.HtmlAttributeEncode(row("Category")))
+                            HttpUtility.HtmlAttributeEncode(row("Category")),
+                            isActive.ToString().ToLower()) ' (MODIFIED) Added data-active
 
                 sb.AppendFormat("<button type='button' class='btn btn-delete btn-sm btn-delete-category' " &
                             "data-code='{0}' data-name='{1}'><i class='bi bi-trash'></i> Delete</button>",
@@ -944,6 +977,10 @@ Public Class MasterDataHandler
             Dim code As String = context.Request.Form("code")
             Dim originalCode As String = If(editMode = "edit", context.Request.Form("originalCode"), code)
             Dim name As String = context.Request.Form("name")
+            ' (START) ADDED: Read isActive
+            Dim isActive As Boolean = False
+            Boolean.TryParse(context.Request.Form("isActive"), isActive)
+            ' (END) ADDED
 
             If String.IsNullOrEmpty(code) OrElse String.IsNullOrEmpty(name) Then
                 Throw New Exception("Category Code and Category Name are required!")
@@ -957,9 +994,11 @@ Public Class MasterDataHandler
                     If CheckCategoryCodeExists(code) Then
                         Throw New Exception($"Category Code '{code}' already exists!")
                     End If
-                    query = "INSERT INTO MS_Category ([Cate], [Category]) VALUES (@code, @name)"
+                    ' (MODIFIED) Added isActive
+                    query = "INSERT INTO MS_Category ([Cate], [Category], [isActive]) VALUES (@code, @name, @isActive)"
                 Else
-                    query = "UPDATE MS_Category SET [Cate] = @code, [Category] = @name WHERE [Cate] = @originalCode"
+                    ' (MODIFIED) Added isActive
+                    query = "UPDATE MS_Category SET [Cate] = @code, [Category] = @name, [isActive] = @isActive WHERE [Cate] = @originalCode"
                 End If
 
                 Using cmd As New SqlCommand(query, conn)
@@ -968,6 +1007,7 @@ Public Class MasterDataHandler
                         cmd.Parameters.AddWithValue("@originalCode", originalCode)
                     End If
                     cmd.Parameters.AddWithValue("@name", name)
+                    cmd.Parameters.AddWithValue("@isActive", isActive) ' (MODIFIED) Added parameter
                     cmd.ExecuteNonQuery()
                 End Using
             End Using
@@ -1014,7 +1054,8 @@ Public Class MasterDataHandler
     ' 4. (Helper) ดึงข้อมูล Category
     Private Function GetCategoryData(Optional searchCode As String = "", Optional searchName As String = "") As DataTable
         Dim dt As New DataTable()
-        Dim query As String = "SELECT [Cate], [Category] FROM [MS_Category] WHERE 1=1"
+        ' (MODIFIED) Added isActive
+        Dim query As String = "SELECT [Cate], [Category], ISNULL([isActive], 0) AS [isActive] FROM [MS_Category] WHERE 1=1"
 
         If Not String.IsNullOrEmpty(searchCode) Then
             query &= " AND [Cate] LIKE @Code"

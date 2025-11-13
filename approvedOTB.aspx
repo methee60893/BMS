@@ -672,10 +672,9 @@
                                 <th>Remark</th>
                                 <th>Status</th>
                                 <th>Approved Date</th>
-                                <th>SAP Date</th>
+                                <th>Create By</th>
                                 <th>Approved By</th>
                                 <th>SAP Status</th>
-                                <th>SAP Message</th>
                             </tr>
                         </thead>
                         <tbody id="tableViewBody">

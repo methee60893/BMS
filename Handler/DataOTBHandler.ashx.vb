@@ -200,8 +200,8 @@ Public Class DataOTBHandler
         dtExport.Columns.Add("Brand Name", GetType(String))
         dtExport.Columns.Add("Vendor", GetType(String))
         dtExport.Columns.Add("Vendor Name", GetType(String))
-        dtExport.Columns.Add("TO-BE Amount (THB)", GetType(Decimal))
         dtExport.Columns.Add("Current Approved", GetType(Decimal))
+        dtExport.Columns.Add("TO-BE Amount (THB)", GetType(Decimal))
         dtExport.Columns.Add("Diff", GetType(Decimal))
         dtExport.Columns.Add("Status", GetType(String))
         dtExport.Columns.Add("Version", GetType(String))
@@ -238,8 +238,8 @@ Public Class DataOTBHandler
                 If(row("BrandName") IsNot DBNull.Value, row("BrandName").ToString(), ""),
                 OTBVendor_Calc,
                 If(row("Vendor") IsNot DBNull.Value, row("Vendor").ToString(), ""),
-                amountValue,
                 currentBudget,
+                amountValue,
                 diffAmount,
                 OTBStatus,
                 If(row("Version") IsNot DBNull.Value, row("Version").ToString(), ""),
@@ -419,7 +419,7 @@ Public Class DataOTBHandler
         Dim sb As New StringBuilder()
         Dim budgetCalculator As New OTBBudgetCalculator()
         If dt.Rows.Count = 0 Then
-            sb.Append("<tr><td colspan='20' class='text-center text-muted'>No Draft OTB records found</td></tr>")
+            sb.Append("<tr><td colspan='21' class='text-center text-muted'>No Draft OTB records found</td></tr>")
         Else
             For i As Integer = 0 To dt.Rows.Count - 1
 
@@ -496,8 +496,8 @@ Public Class DataOTBHandler
                             HttpUtility.HtmlEncode(BrandName),
                             HttpUtility.HtmlEncode(OTBVendor),
                             HttpUtility.HtmlEncode(Vendor),
-                            HttpUtility.HtmlEncode(Amount),
                             HttpUtility.HtmlEncode(CurrentBudgetAmount),
+                            HttpUtility.HtmlEncode(Amount),
                             HttpUtility.HtmlEncode(Diff),
                             If(OTBStatus.Equals("Draft"), "<span class=""badge-draft"">Draft</span>", "<span class=""badge-approved"">Approved</span>"),
                             HttpUtility.HtmlEncode(Version),
@@ -512,7 +512,7 @@ Public Class DataOTBHandler
 
 
         If dt.Rows.Count = 0 Then
-            sb.Append("<tr><td colspan='21' class='text-center text-muted'>No approved OTB records found</td></tr>")
+            sb.Append("<tr><td colspan='22' class='text-center text-muted'>No approved OTB records found</td></tr>")
         Else
             For Each row As DataRow In dt.Rows
                 sb.Append("<tr>")
@@ -575,16 +575,12 @@ Public Class DataOTBHandler
                 sb.AppendFormat("<td class='date-cell'>{0}</td>",
                            If(row("ApprovedDate") IsNot DBNull.Value, Convert.ToDateTime(row("ApprovedDate")).ToString("dd/MM/yyyy HH:mm"), ""))
 
-                ' SAP Date
-                sb.AppendFormat("<td class='date-cell'>{0}</td>",
-                           If(row("SAPDate") IsNot DBNull.Value, Convert.ToDateTime(row("SAPDate")).ToString("dd/MM/yyyy HH:mm"), ""))
-
+                ' Create By
+                sb.AppendFormat("<td>{0}</td>", HttpUtility.HtmlEncode(If(row("CreateBy") IsNot DBNull.Value, row("CreateBy").ToString(), "")))
                 ' Action By
                 sb.AppendFormat("<td>{0}</td>", HttpUtility.HtmlEncode(If(row("ActionBy") IsNot DBNull.Value, row("ActionBy").ToString(), "")))
                 ' SAP Status
                 sb.AppendFormat("<td>{0}</td>", HttpUtility.HtmlEncode(If(row("SAPStatus") IsNot DBNull.Value, row("SAPStatus").ToString(), "")))
-                ' SAP Message
-                sb.AppendFormat("<td>{0}</td>", HttpUtility.HtmlEncode(If(row("SAPErrorMessage") IsNot DBNull.Value, row("SAPErrorMessage").ToString(), "")))
 
                 sb.Append("</tr>")
             Next

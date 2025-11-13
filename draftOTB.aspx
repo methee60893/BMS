@@ -818,8 +818,8 @@
                                 <th>Brand Name</th>
                                 <th>Vendor</th>
                                 <th>Vendor Name</th>
-                                <th>TO-BE Amount (THB)</th>
                                 <th>Current Approved</th>
+                                <th>TO-BE Amount (THB)</th>
                                 <th>Diff</th>
                                 <th>Status</th>
                                 <th>Version</th>
