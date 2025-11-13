@@ -192,8 +192,7 @@
     <Content Include="master_vendor.aspx" />
     <Content Include="matchActualPO.aspx" />
     <Content Include="otbRemaining.aspx" />
-    <Content Include="popup_DraftOTB.aspx" />
-    <Content Include="popup_DraftPO.aspx" />
+    <Content Include="style\theme.css" />
     <Content Include="transactionOTBSwitching.aspx" />
     <Content Include="Web.config" />
   </ItemGroup>
@@ -358,20 +357,6 @@
     </Compile>
     <Compile Include="otbRemaining.aspx.vb">
       <DependentUpon>otbRemaining.aspx</DependentUpon>
-      <SubType>ASPXCodebehind</SubType>
-    </Compile>
-    <Compile Include="popup_DraftOTB.aspx.designer.vb">
-      <DependentUpon>popup_DraftOTB.aspx</DependentUpon>
-    </Compile>
-    <Compile Include="popup_DraftOTB.aspx.vb">
-      <DependentUpon>popup_DraftOTB.aspx</DependentUpon>
-      <SubType>ASPXCodebehind</SubType>
-    </Compile>
-    <Compile Include="popup_DraftPO.aspx.designer.vb">
-      <DependentUpon>popup_DraftPO.aspx</DependentUpon>
-    </Compile>
-    <Compile Include="popup_DraftPO.aspx.vb">
-      <DependentUpon>popup_DraftPO.aspx</DependentUpon>
       <SubType>ASPXCodebehind</SubType>
     </Compile>
     <Compile Include="transactionOTBSwitching.aspx.designer.vb">

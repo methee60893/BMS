@@ -5,8 +5,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>BMS - Draft PO</title>
+    <title>KBMS - Draft PO</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="style/theme.css" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/select2-bootstrap-5-theme@1.3.0/dist/select2-bootstrap-5-theme.min.css" />
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
@@ -129,7 +130,7 @@
         }
 
         .menu-link.active {
-            background: #FF99CC;
+            background: var(--bms-primary, #0B56A4);
             color: white;
             border-left: 4px solid #fff;
         }
@@ -244,7 +245,7 @@
 
         /* Page Header */
         .page-header {
-            background: #FF99CC;
+            background: var(--bms-primary);
             color: white;
             padding: 15px 25px;
             border-radius: 8px 8px 0 0;
@@ -457,7 +458,7 @@
     <!-- Sidebar -->
     <div class="sidebar" id="sidebar">
         <div class="sidebar-header">
-            <h3><i class="bi bi-building"></i> BMS</h3>
+            <h3><i class="bi bi-building"></i> KBMS</h3>
             <button class="close-sidebar" onclick="toggleSidebar()">
                 <i class="bi bi-x-lg"></i>
             </button>
@@ -527,7 +528,7 @@
                 <button class="menu-toggle" onclick="toggleSidebar()">
                     <i class="bi bi-list"></i>
                 </button>
-                <h1 class="page-title" id="pageTitle">BMS</h1>
+                <h1 class="page-title" id="pageTitle">KBMS</h1>
             </div>
             <div class="user-info">
                 <span class="d-none d-md-inline">Welcome, Admin</span>
