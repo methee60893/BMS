@@ -5,7 +5,7 @@
 <head>
     <meta charset="UTF-g">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>BMS - OTB Management System</title>
+    <title>KBMS - draft OTB</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="style/theme.css" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
@@ -21,7 +21,7 @@
     <!-- Sidebar -->
     <div class="sidebar" id="sidebar">
         <div class="sidebar-header">
-            <h3><i class="bi bi-building"></i> BMS</h3>
+            <h3><a class="text-decoration-none text-white" href="dashboard.aspx" ><i class="bi bi-building"></i> KBMS</a></h3>
             <button class="close-sidebar" type="button" onclick="toggleSidebar()">
                 <i class="bi bi-x-lg"></i>
             </button>
@@ -30,7 +30,7 @@
             <li class="menu-item">
                 <a href="#" class="menu-link" onclick="toggleSubmenu(event, 'otbPlan')">
                     <i class="bi bi-clipboard-data"></i>
-                    <span>OTB Plan</span>
+                    <span>OTB Plan / Revise</span>
                     <i class="bi bi-chevron-down"></i>
                 </a>
                 <ul class="submenu" id="otbPlan">
@@ -91,7 +91,7 @@
                 <button class="menu-toggle" type="button" onclick="toggleSidebar()">
                     <i class="bi bi-list"></i>
                 </button>
-                <h1 class="page-title" id="pageTitle">BMS</h1>
+                <h1 class="page-title" id="pageTitle">KBMS - Draft OTB</h1>
             </div>
             <div class="user-info">
                 <span class="d-none d-md-inline">Welcome, Admin</span>
@@ -115,9 +115,9 @@
                 <label class="form-label">Select File</label>
                 <input type="file" id="fileUpload" class="form-control" accept=".xlsx,.xls,.csv">
             </div>
-            <div class="col-md-1 col-lg-1 mt-1 mt-md-0">
-                <button id="btnUpload" class="btn btn-upload btn-custom w-100" type="button">
-                    <i class="bi bi-upload"></i> Upload
+            <div class="col-md-3 col-lg-2 mt-1 mt-md-0">
+                <button id="btnUpload" class="btn btn-upload btn-custom w-150" type="button">
+                    <i class="bi bi-upload"></i> Upload Draft OTB
                 </button>
             </div>
             <div class="col-md-3 col-lg-5 mt-3 mt-md-0">
@@ -623,10 +623,22 @@
 
             //InitData master
             InitMSData();
-            segmentDropdown.addEventListener('change', changeVendor);
+
+            $('#DDSegment').on('select2:select', changeVendor);
             btnClearFilter.addEventListener('click', function () {
                 mainForm.reset();
+
+                $("#DDType").val(null).trigger('change');
+                $("#DDYear").val(null).trigger('change');
+                $("#DDMonth").val(null).trigger('change');
+                $("#DDCompany").val(null).trigger('change');
+                $("#DDSegment").val(null).trigger('change');
+                $("#DDCategory").val(null).trigger('change');
+                $("#DDBrand").val(null).trigger('change');
+                $("#DDVendor").val(null).trigger('change');
+
                 InitMSData();
+
                 tableViewBody.innerHTML = "";
             });
             btnView.addEventListener('click', search);

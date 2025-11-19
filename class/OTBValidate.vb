@@ -221,8 +221,8 @@ Public Class OTBValidate
                 If dtDraftOTB.Columns.Contains("OTBStatus") Then
                     For Each row As DataRow In rows
                         Dim status As String = If(row("OTBStatus") IsNot DBNull.Value, row("OTBStatus").ToString(), "")
-                        If status.Equals("Approved", StringComparison.OrdinalIgnoreCase) Then
-                            ' มี Approved แล้ว - ไม่ควร Update
+                        If status.Equals("Approved", StringComparison.OrdinalIgnoreCase) And type.Equals("Original", StringComparison.OrdinalIgnoreCase) Then
+                            ' มี Approved แล้วและเป็น Original - ไม่ควร Update
                             Return "DUPLICATED_APPROVED"
                         End If
                     Next

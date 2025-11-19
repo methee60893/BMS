@@ -727,9 +727,10 @@ Public Class MasterDataHandler
                 ' (สร้างปุ่ม Edit/Delete ใหม่)
                 sb.Append("<td class='text-center'>")
                 sb.AppendFormat("<button type='button' class='btn btn-edit btn-sm me-1 btn-edit-vendor' " &
-                            "data-code='{0}' data-name='{1}' data-ccy='{2}' data-term-code='{3}' " &
-                            "data-term='{4}' data-seg-code='{5}' data-seg='{6}' data-incoterm='{7}' data-active='{8}'>" &
+                            "data-vendorid='{0}' data-code='{1}' data-name='{2}' data-ccy='{3}' data-term-code='{4}' " &
+                            "data-term='{5}' data-seg-code='{6}' data-seg='{7}' data-incoterm='{8}' data-active='{9}' >" &
                             "<i class='bi bi-pencil'></i> Edit</button>",
+                            HttpUtility.HtmlAttributeEncode(row("VendorId")),
                             HttpUtility.HtmlAttributeEncode(row("VendorCode")),
                             HttpUtility.HtmlAttributeEncode(row("Vendor")),
                             HttpUtility.HtmlAttributeEncode(row("CCY")),
@@ -741,7 +742,8 @@ Public Class MasterDataHandler
                             isActive.ToString().ToLower()) ' (MODIFIED) Added data-active
 
                 sb.AppendFormat("<button type='button' class='btn btn-delete btn-sm btn-delete-vendor' " &
-                            "data-code='{0}' data-name='{1}><i class='bi bi-trash'></i> Delete</button>",
+                            "data-vendorid='{0}' data-code='{1}' data-name='{2}><i class='bi bi-trash'></i> Delete</button>",
+                            HttpUtility.HtmlAttributeEncode(row("VendorId")),
                             HttpUtility.HtmlAttributeEncode(row("VendorCode")),
                             HttpUtility.HtmlAttributeEncode(row("Vendor")))
                 sb.Append("</td>")
@@ -765,7 +767,7 @@ Public Class MasterDataHandler
             Dim editMode As String = context.Request.Form("editMode")
             Dim code As String = context.Request.Form("code")
             ' *** FIX: รับ OriginalCode สำหรับ Edit Mode ***
-            Dim originalCode As String = If(editMode = "edit", context.Request.Form("originalCode"), code)
+            Dim vendorId As Int64 = context.Request.Form("vendorId")
 
             Dim name As String = context.Request.Form("name")
             Dim ccy As String = context.Request.Form("ccy")
@@ -799,13 +801,13 @@ Public Class MasterDataHandler
                     ' (MODIFIED) Added isActive
                     query = "UPDATE MS_Vendor SET [VendorCode] = @code, [Vendor] = @name, [CCY] = @ccy, [PaymentTermCode] = @paymentTermCode, " &
                         "[PaymentTerm] = @paymentTerm, [SegmentCode] = @segmentCode, [Segment] = @segment, [Incoterm] = @incoterm, [isActive] = @isActive " &
-                        "WHERE [VendorCode] = @originalCode"
+                        "WHERE [VendorId] = @VendorId"
                 End If
 
                 Using cmd As New SqlCommand(query, conn)
                     cmd.Parameters.AddWithValue("@code", code)
                     If editMode = "edit" Then
-                        cmd.Parameters.AddWithValue("@originalCode", originalCode)
+                        cmd.Parameters.AddWithValue("@VendorId", vendorId)
                     End If
                     cmd.Parameters.AddWithValue("@name", If(String.IsNullOrEmpty(name), String.Empty, name))
                     cmd.Parameters.AddWithValue("@ccy", If(String.IsNullOrEmpty(ccy), String.Empty, ccy))
@@ -838,14 +840,14 @@ Public Class MasterDataHandler
         Dim response As New Dictionary(Of String, Object)
 
         Try
-            Dim vendorCode As String = context.Request.Form("vendorCode")
+            Dim vendorId As String = context.Request.Form("vendorId")
 
             ' (ย้าย Logic มาจาก gvVendor_RowDeleting)
             Using conn As New SqlConnection(connectionString)
                 conn.Open()
-                Dim query As String = "DELETE FROM MS_Vendor WHERE [VendorCode] = @code"
+                Dim query As String = "DELETE FROM MS_Vendor WHERE [VendorId] = @vendorId"
                 Using cmd As New SqlCommand(query, conn)
-                    cmd.Parameters.AddWithValue("@code", vendorCode)
+                    cmd.Parameters.AddWithValue("@vendorId", vendorId)
                     cmd.ExecuteNonQuery()
                 End Using
             End Using
@@ -870,7 +872,7 @@ Public Class MasterDataHandler
         ' (Logic เดียวกับ BindGridView เดิม)
         Dim connectionString As String = ConfigurationManager.ConnectionStrings("BMSConnectionString").ConnectionString
         ' (MODIFIED) Added isActive
-        Dim query As String = "SELECT [VendorCode], [Vendor], [CCY], [PaymentTermCode], [PaymentTerm], [SegmentCode], [Segment], [Incoterm], ISNULL([isActive], 0) AS [isActive] FROM [MS_Vendor] WHERE 1=1"
+        Dim query As String = "SELECT [VendorId], [VendorCode], [Vendor], [CCY], [PaymentTermCode], [PaymentTerm], [SegmentCode], [Segment], [Incoterm], ISNULL([isActive], 0) AS [isActive] FROM [MS_Vendor] WHERE 1=1"
 
         If Not String.IsNullOrEmpty(searchCode) Then
             query &= " AND [VendorCode] LIKE @Code"

@@ -102,36 +102,30 @@ Public Class DataOTBHandler
 
         ' Add headers matching the complex table structure
         dtExport.Columns.Add("Create Date", GetType(String))
-        dtExport.Columns.Add("Type (From)", GetType(String))
-        dtExport.Columns.Add("Year (From)", GetType(String))
-        dtExport.Columns.Add("Month (From)", GetType(String))
-        dtExport.Columns.Add("Category (From)", GetType(String))
-        dtExport.Columns.Add("Category Name (From)", GetType(String))
-        dtExport.Columns.Add("Company (From)", GetType(String))
-        dtExport.Columns.Add("Segment (From)", GetType(String))
-        dtExport.Columns.Add("Segment Name (From)", GetType(String))
-        dtExport.Columns.Add("Brand (From)", GetType(String))
-        dtExport.Columns.Add("Brand Name (From)", GetType(String))
-        dtExport.Columns.Add("Vendor (From)", GetType(String))
-        dtExport.Columns.Add("Vendor Name (From)", GetType(String))
+        dtExport.Columns.Add("Type (Out)", GetType(String))
+        dtExport.Columns.Add("Year (Out)", GetType(String))
+        dtExport.Columns.Add("Month (Out)", GetType(String))
+        dtExport.Columns.Add("Category (Out)", GetType(String))
+        dtExport.Columns.Add("Category Name (Out)", GetType(String))
+        dtExport.Columns.Add("Company (Out)", GetType(String))
+        dtExport.Columns.Add("Segment (Out)", GetType(String))
+        dtExport.Columns.Add("Segment Name (Out)", GetType(String))
+        dtExport.Columns.Add("Brand (Out)", GetType(String))
+        dtExport.Columns.Add("Brand Name (Out)", GetType(String))
+        dtExport.Columns.Add("Vendor (Out)", GetType(String))
+        dtExport.Columns.Add("Vendor Name (Out)", GetType(String))
 
-        dtExport.Columns.Add("Type (To)", GetType(String))
-        dtExport.Columns.Add("Year (To)", GetType(String))
-        dtExport.Columns.Add("Month (To)", GetType(String))
-        dtExport.Columns.Add("Category (To)", GetType(String))
-        dtExport.Columns.Add("Company (To)", GetType(String))
-        dtExport.Columns.Add("Segment (To)", GetType(String))
-        dtExport.Columns.Add("Brand (To)", GetType(String))
-        dtExport.Columns.Add("Vendor (To)", GetType(String))
+        dtExport.Columns.Add("Type (In)", GetType(String))
+        dtExport.Columns.Add("Year (In)", GetType(String))
+        dtExport.Columns.Add("Month (In)", GetType(String))
+        dtExport.Columns.Add("Category (In)", GetType(String))
+        dtExport.Columns.Add("Company (In)", GetType(String))
+        dtExport.Columns.Add("Segment (In)", GetType(String))
+        dtExport.Columns.Add("Brand (In)", GetType(String))
+        dtExport.Columns.Add("Vendor (In)", GetType(String))
 
         dtExport.Columns.Add("Amount (THB)", GetType(Decimal))
-        dtExport.Columns.Add("Release", GetType(Decimal))
-        dtExport.Columns.Add("Batch", GetType(String))
-        dtExport.Columns.Add("Remark", GetType(String))
-        dtExport.Columns.Add("Status", GetType(String))
-        dtExport.Columns.Add("Approved Date", GetType(String))
-        dtExport.Columns.Add("SAP Date", GetType(String))
-        dtExport.Columns.Add("Action By", GetType(String))
+        dtExport.Columns.Add("Create By", GetType(String))
 
         For Each row As DataRow In dtRaw.Rows
             dtExport.Rows.Add(
@@ -141,29 +135,23 @@ Public Class DataOTBHandler
                 If(row("MonthName") IsNot DBNull.Value, row("MonthName").ToString(), ""),
                 If(row("Category") IsNot DBNull.Value, row("Category").ToString(), ""),
                 If(row("CategoryName") IsNot DBNull.Value, row("CategoryName").ToString(), ""),
-                If(row("Company") IsNot DBNull.Value, row("Company").ToString(), ""),
+                If(row("CompanyName") IsNot DBNull.Value, row("CompanyName").ToString(), ""),
                 If(row("Segment") IsNot DBNull.Value, row("Segment").ToString(), ""),
                 If(row("SegmentName") IsNot DBNull.Value, row("SegmentName").ToString(), ""),
                 If(row("Brand") IsNot DBNull.Value, row("Brand").ToString(), ""),
                 If(row("BrandName") IsNot DBNull.Value, row("BrandName").ToString(), ""),
                 If(row("Vendor") IsNot DBNull.Value, row("Vendor").ToString(), ""),
                 If(row("VendorName") IsNot DBNull.Value, row("VendorName").ToString(), ""),
-                If(row("ToType") IsNot DBNull.Value, row("ToType").ToString(), ""), ' Assuming column name from SP is 'ToType'
+                If(row("SwitchType") IsNot DBNull.Value, row("SwitchType").ToString(), ""), ' Assuming column name from SP is 'ToType'
                 If(row("SwitchYear") IsNot DBNull.Value, row("SwitchYear").ToString(), ""),
                 If(row("SwitchMonthName") IsNot DBNull.Value, row("SwitchMonthName").ToString(), ""),
                 If(row("SwitchCategory") IsNot DBNull.Value, row("SwitchCategory").ToString(), ""),
-                If(row("SwitchCompany") IsNot DBNull.Value, row("SwitchCompany").ToString(), ""),
+                If(row("SwitchCompanyName") IsNot DBNull.Value, row("SwitchCompanyName").ToString(), ""),
                 If(row("SwitchSegment") IsNot DBNull.Value, row("SwitchSegment").ToString(), ""),
                 If(row("SwitchBrand") IsNot DBNull.Value, row("SwitchBrand").ToString(), ""),
                 If(row("SwitchVendor") IsNot DBNull.Value, row("SwitchVendor").ToString(), ""),
                 If(row("BudgetAmount") IsNot DBNull.Value, Convert.ToDecimal(row("BudgetAmount")), 0),
-                If(row("Release") IsNot DBNull.Value, Convert.ToDecimal(row("Release")), 0),
-                If(row("Batch") IsNot DBNull.Value, row("Batch").ToString(), ""),
-                If(row("Remark") IsNot DBNull.Value, row("Remark").ToString(), ""),
-                If(row("OTBStatus") IsNot DBNull.Value, row("OTBStatus").ToString(), ""),
-                If(row("ApproveDT") IsNot DBNull.Value, Convert.ToDateTime(row("ApproveDT")).ToString("dd/MM/yyyy HH:mm"), ""),
-                If(row("SAPDate") IsNot DBNull.Value, Convert.ToDateTime(row("SAPDate")).ToString("dd/MM/yyyy HH:mm"), ""),
-                If(row("ActionBy") IsNot DBNull.Value, row("ActionBy").ToString(), ""))
+                If(row("CreateBy") IsNot DBNull.Value, row("CreateBy").ToString(), ""))
         Next
 
         Return dtExport
@@ -682,7 +670,7 @@ Public Class DataOTBHandler
                        HttpUtility.HtmlEncode(If(row("SwitchCategoryName") IsNot DBNull.Value, row("SwitchCategoryName").ToString(), "")))
                 ' Switch Company (Target)
                 sb.AppendFormat("<td class='text-center'>{0}</td>",
-                       HttpUtility.HtmlEncode(If(row("SwitchCompany") IsNot DBNull.Value, row("SwitchCompany").ToString(), "")))
+                       HttpUtility.HtmlEncode(If(row("SwitchCompanyName") IsNot DBNull.Value, row("SwitchCompanyName").ToString(), "")))
 
 
                 ' Switch Segment (Target)
@@ -708,13 +696,9 @@ Public Class DataOTBHandler
                 sb.AppendFormat("<td class='amount-cell'>{0}</td>", budgetAmount.ToString("N2"))
                 ' Batch
 
-                ' SAP Date
-                sb.AppendFormat("<td class='date-cell'>{0}</td>",
-                       If(row("SAPDate") IsNot DBNull.Value, Convert.ToDateTime(row("SAPDate")).ToString("dd/MM/yyyy HH:mm"), ""))
-
-                ' Action By
+                ' Create By
                 sb.AppendFormat("<td>{0}</td>",
-                       HttpUtility.HtmlEncode(If(row("ActionBy") IsNot DBNull.Value, row("ActionBy").ToString(), "")))
+                       HttpUtility.HtmlEncode(If(row("CreateBy") IsNot DBNull.Value, row("CreateBy").ToString(), "")))
 
                 sb.Append("</tr>")
             Next

@@ -17,7 +17,7 @@
         <!-- Sidebar -->
         <div class="sidebar" id="sidebar">
             <div class="sidebar-header">
-                <h3><i class="bi bi-building"></i> KBMS</h3>
+                <h3><a class="text-decoration-none text-white" href="dashboard.aspx" ><i class="bi bi-building"></i> KBMS</a></h3>
                 <div class="close-sidebar" id="closeSidebarBtn">
                     <i class="bi bi-x-lg"></i>
                 </div>
@@ -26,7 +26,7 @@
                 <li class="menu-item">
                     <a href="#" class="menu-link" data-submenu="otbPlan">
                         <i class="bi bi-clipboard-data"></i>
-                        <span>OTB Plan</span>
+                        <span>OTB Plan / Revise</span>
                         <i class="bi bi-chevron-down"></i>
                     </a>
                     <ul class="submenu" id="otbPlan">

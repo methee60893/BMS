@@ -19,7 +19,7 @@
     <!-- Sidebar -->
     <div class="sidebar" id="sidebar">
         <div class="sidebar-header">
-            <h3><i class="bi bi-building"></i> KBMS</h3>
+            <h3><a class="text-decoration-none text-white" href="dashboard.aspx" ><i class="bi bi-building"></i> KBMS</a></h3>
             <button class="close-sidebar" onclick="toggleSidebar()">
                 <i class="bi bi-x-lg"></i>
             </button>
@@ -28,7 +28,7 @@
             <li class="menu-item">
                 <a href="#" class="menu-link" onclick="toggleSubmenu(event, 'otbPlan')">
                     <i class="bi bi-clipboard-data"></i>
-                    <span>OTB Plan</span>
+                    <span>OTB Plan / Revise</span>
                     <i class="bi bi-chevron-down"></i>
                 </a>
                 <ul class="submenu" id="otbPlan">
@@ -89,7 +89,7 @@
                 <button class="menu-toggle" onclick="toggleSidebar()">
                     <i class="bi bi-list"></i>
                 </button>
-                <h1 class="page-title" id="pageTitle">KBMS</h1>
+                <h1 class="page-title" id="pageTitle">KBMS - Approved OTB</h1>
             </div>
             <div class="user-info">
                 <span class="d-none d-md-inline">Welcome, Admin</span>
@@ -390,23 +390,22 @@
 
             //InitData master
             InitMSData();
-            segmentDropdown.addEventListener('change', changeVendor);
-            typeDropdown.addEventListener('change', changeType);
+            $('#DDSegment').on('select2:select', changeVendor);
+            $('#DDType').on('select2:select', changeType);
             btnClearFilter.addEventListener('click', function () {
 
                 // Reset ค่าใน Dropdown ทุกตัวด้วยตนเอง
-                typeDropdown.value = "";
-                versionDropdown.value = "";
-                categoryDropdown.value = "";
-                yearDropdown.value = "";
-                monthDropdown.value = "";
-                segmentDropdown.value = "";
-                companyDropdown.value = "";
-                brandDropdown.value = "";
-                vendorDropdown.value = "";
+                $("#DDType").val(null).trigger('change');
+                $("#DDYear").val(null).trigger('change');
+                $("#DDMonth").val(null).trigger('change');
+                $("#DDCompany").val(null).trigger('change');
+                $("#DDSegment").val(null).trigger('change');
+                $("#DDCategory").val(null).trigger('change');
+                $("#DDBrand").val(null).trigger('change');
+                $("#DDVendor").val(null).trigger('change');
+                $("#DDVersion").val(null).trigger('change');
 
-                InitMSData();
-
+               
                 tableViewBody.innerHTML = "<tr><td colspan='24' class='text-center text-muted'>Filters cleared. Click View to search.</td></tr>";
             });
             btnView.addEventListener('click', search);

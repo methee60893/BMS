@@ -20,7 +20,7 @@
     <!-- Sidebar -->
     <div class="sidebar" id="sidebar">
         <div class="sidebar-header">
-            <h3><i class="bi bi-building"></i>KBMS</h3>
+            <h3><a class="text-decoration-none text-white" href="dashboard.aspx" ><i class="bi bi-building"></i> KBMS</a></h3>
             <button class="close-sidebar" onclick="toggleSidebar()">
                 <i class="bi bi-x-lg"></i>
             </button>
@@ -29,7 +29,7 @@
             <li class="menu-item">
                 <a href="#" class="menu-link" onclick="toggleSubmenu(event, 'otbPlan')">
                     <i class="bi bi-clipboard-data"></i>
-                    <span>OTB Plan</span>
+                    <span>OTB Plan / Revise</span>
                     <i class="bi bi-chevron-down"></i>
                 </a>
                 <ul class="submenu" id="otbPlan">
@@ -90,7 +90,7 @@
                 <button class="menu-toggle" onclick="toggleSidebar()">
                     <i class="bi bi-list"></i>
                 </button>
-                <h1 class="page-title" id="pageTitle">KBMS</h1>
+                <h1 class="page-title" id="pageTitle">KBMS - Create OTB Switching</h1>
             </div>
             <div class="user-info">
                 <span class="d-none d-md-inline">Welcome, Admin</span>
@@ -126,7 +126,7 @@
                                 <!-- From Section -->
                                 <div class="switch-section">
                                     <div class="section-title">
-                                        <i class="bi bi-box-arrow-right"></i>From
+                                        <i class="bi bi-box-arrow-right"></i>Out
                                     </div>
 
                                     <div class="row g-3 mb-3">
@@ -179,7 +179,7 @@
                                 <!-- To Section -->
                                 <div class="switch-section">
                                     <div class="section-title">
-                                        <i class="bi bi-box-arrow-in-right"></i>To
+                                        <i class="bi bi-box-arrow-in-right"></i>In
                                     </div>
 
                                     <div class="row g-3 mb-3">
@@ -1155,6 +1155,7 @@
         // ==========================================
         async function saveSwitchingData() {
             showLoading(true, "Saving...");
+            var currentUser = '<%= HttpUtility.JavaScriptStringEncode(Session("user").ToString()) %>';
             var formData = new FormData();
 
             // ดึงข้อมูลจาก Value ของ Dropdown (ไม่ใช่ Text ที่แสดง)
@@ -1175,7 +1176,8 @@
             formData.append('vendorTo', vendorDropdownt.value);
 
             formData.append('amount', document.getElementById('tsAmontSwitch').value);
-            formData.append('createdBy', 'System'); // TODO: เปลี่ยนเป็น User จริง
+            var createdBy = currentUser || 'unknown';
+            formData.append('createdBy', createdBy); // TODO: เปลี่ยนเป็น User จริง
             formData.append('remark', ''); // TODO: เพิ่มช่อง Remark ถ้าต้องการ
 
             try {

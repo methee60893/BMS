@@ -458,7 +458,7 @@
     <!-- Sidebar -->
     <div class="sidebar" id="sidebar">
         <div class="sidebar-header">
-            <h3><i class="bi bi-building"></i> KBMS</h3>
+            <h3><a class="text-decoration-none text-white" href="dashboard.aspx" ><i class="bi bi-building"></i> KBMS</a></h3>
             <button class="close-sidebar" onclick="toggleSidebar()">
                 <i class="bi bi-x-lg"></i>
             </button>
@@ -467,7 +467,7 @@
             <li class="menu-item">
                 <a href="#" class="menu-link" onclick="toggleSubmenu(event, 'otbPlan')">
                     <i class="bi bi-clipboard-data"></i>
-                    <span>OTB Plan</span>
+                    <span>OTB Plan / Revise</span>
                     <i class="bi bi-chevron-down"></i>
                 </a>
                 <ul class="submenu" id="otbPlan">
@@ -528,7 +528,7 @@
                 <button class="menu-toggle" onclick="toggleSidebar()">
                     <i class="bi bi-list"></i>
                 </button>
-                <h1 class="page-title" id="pageTitle">KBMS</h1>
+                <h1 class="page-title" id="pageTitle">KBMS - Draft PO</h1>
             </div>
             <div class="user-info">
                 <span class="d-none d-md-inline">Welcome, Admin</span>
@@ -1018,7 +1018,8 @@
             // Add Listeners for Edit Modal Calculations
             txtAmtCCYEdit.addEventListener('input', currencyCalEdit);
             txtExRateEdit.addEventListener('input', currencyCalEdit);
-            ddCCYEdit.addEventListener('change', currencyCalEdit);
+           
+            $('#ddCCYEdit').on('select2:select', currencyCalEdit);
         }
 
         // ==========================================
@@ -1119,13 +1120,14 @@
         // ==========================================
 
         function clearFilters() {
-            ddYearFilter.value = "";
-            ddMonthFilter.value = "";
-            ddCompanyFilter.value = "";
-            ddCategoryFilter.value = "";
-            ddSegmentFilter.value = "";
-            ddBrandFilter.value = "";
-            ddVendorFilter.value = "";
+
+            $('ddYearFilter').val(null).trigger('change');
+            $('ddMonthFilter').val(null).trigger('change');
+            $('ddCompanyFilter').val(null).trigger('change');
+            $('ddCategoryFilter').val(null).trigger('change');
+            $('ddSegmentFilter').val(null).trigger('change');
+            $('ddBrandFilter').val(null).trigger('change');
+            $('ddVendorFilter').val(null).trigger('change');
         }
 
         async function handleViewData() {

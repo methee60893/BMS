@@ -25,7 +25,7 @@
     <!-- Sidebar -->
     <div class="sidebar" id="sidebar">
         <div class="sidebar-header">
-            <h3><i class="bi bi-building"></i> KBMS</h3>
+            <h3><a class="text-decoration-none text-white" href="dashboard.aspx" ><i class="bi bi-building"></i> KBMS</a></h3>
             <button class="close-sidebar" onclick="toggleSidebar()">
                 <i class="bi bi-x-lg"></i>
             </button>
@@ -34,7 +34,7 @@
             <li class="menu-item">
                 <a href="#" class="menu-link" onclick="toggleSubmenu(event, 'otbPlan')">
                     <i class="bi bi-clipboard-data"></i>
-                    <span>OTB Plan</span>
+                    <span>OTB Plan / Revise</span>
                     <i class="bi bi-chevron-down"></i>
                 </a>
                 <ul class="submenu" id="otbPlan">
@@ -95,7 +95,7 @@
                 <button class="menu-toggle" onclick="toggleSidebar()">
                     <i class="bi bi-list"></i>
                 </button>
-                <h1 class="page-title" id="pageTitle">KBMS</h1>
+                <h1 class="page-title" id="pageTitle">KBMS - Match Actual PO</h1>
             </div>
             <div class="user-info">
                 <span class="d-none d-md-inline">Welcome, Admin</span>

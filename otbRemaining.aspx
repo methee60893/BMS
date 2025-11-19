@@ -20,7 +20,7 @@
     <!-- Sidebar -->
     <div class="sidebar" id="sidebar">
         <div class="sidebar-header">
-            <h3><i class="bi bi-building"></i> KBMS</h3>
+           <h3><a class="text-decoration-none text-white" href="dashboard.aspx" ><i class="bi bi-building"></i> KBMS</a></h3>
             <button class="close-sidebar" onclick="toggleSidebar()">
                 <i class="bi bi-x-lg"></i>
             </button>
@@ -29,7 +29,7 @@
             <li class="menu-item">
                 <a href="#" class="menu-link" onclick="toggleSubmenu(event, 'otbPlan')">
                     <i class="bi bi-clipboard-data"></i>
-                    <span>OTB Plan</span>
+                    <span>OTB Plan / Revise</span>
                     <i class="bi bi-chevron-down"></i>
                 </a>
                 <ul class="submenu" id="otbPlan">
@@ -90,7 +90,7 @@
                 <button class="menu-toggle" onclick="toggleSidebar()">
                     <i class="bi bi-list"></i>
                 </button>
-                <h1 class="page-title" id="pageTitle">KBMS</h1>
+                <h1 class="page-title" id="pageTitle">KBMS - OTB Remaining</h1>
             </div>
             <div class="user-info">
                 <span class="d-none d-md-inline">Welcome, Admin</span>
@@ -218,7 +218,7 @@
                     </div>
 
                     <div class="detail-row">
-                        <div class="detail-label">Total Switch to</div>
+                        <div class="detail-label">Total Switch in</div>
                         <div class="detail-value" id="detail_Budget_SwitchOut">
                             0.00 THB
                             <%-- <a href="#" class="detail-link ms-3">Click history</a> --%>
@@ -421,13 +421,13 @@
             segmentDropdown.addEventListener('change', changeVendor);
             btnClearFilter.addEventListener('click', function () {
                 // Clear filter fields
-                yearDropdown.value = "";
-                monthDropdown.value = "";
-                companyDropdown.value = "";
-                segmentDropdown.value = "";
-                categoryDropdown.value = "";
-                brandDropdown.value = "";
-                vendorDropdown.value = "";
+                $("DDYear").val(null).trigger('change');
+                $("DDMonth").val(null).trigger('change');
+                $("DDCompany").val(null).trigger('change');
+                $("DDSegment").val(null).trigger('change');
+                $("DDCategory").val(null).trigger('change');
+                $("DDBrand").val(null).trigger('change');
+                $("DDVendor").val(null).trigger('change');
                 // Re-initialize vendor dropdown (to show all)
                 InitVendor(vendorDropdown);
                 // Clear table

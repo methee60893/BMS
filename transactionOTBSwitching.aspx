@@ -19,7 +19,7 @@
     <!-- Sidebar -->
     <div class="sidebar" id="sidebar">
         <div class="sidebar-header">
-            <h3><i class="bi bi-building"></i> KBMS</h3>
+            <h3><a class="text-decoration-none text-white" href="dashboard.aspx" ><i class="bi bi-building"></i> KBMS</a></h3>
             <button class="close-sidebar" onclick="toggleSidebar()">
                 <i class="bi bi-x-lg"></i>
             </button>
@@ -28,7 +28,7 @@
             <li class="menu-item">
                 <a href="#" class="menu-link" onclick="toggleSubmenu(event, 'otbPlan')">
                     <i class="bi bi-clipboard-data"></i>
-                    <span>OTB Plan</span>
+                    <span>OTB Plan / Revise</span>
                     <i class="bi bi-chevron-down"></i>
                 </a>
                 <ul class="submenu" id="otbPlan">
@@ -89,7 +89,7 @@
                 <button class="menu-toggle" onclick="toggleSidebar()">
                     <i class="bi bi-list"></i>
                 </button>
-                <h1 class="page-title" id="pageTitle">KBMS</h1>
+                <h1 class="page-title" id="pageTitle">KBMS - Switching Transaction</h1>
             </div>
             <div class="user-info">
                 <span class="d-none d-md-inline">Welcome, Admin</span>
@@ -195,15 +195,14 @@
                             <tr>
                                 <th rowspan="2">Create date</th>
                                 <th rowspan="2">Type</th>
-                                <th colspan="11" style="background: #5fa8d3;">From</th>
+                                <th colspan="11" style="background: #5fa8d3;">out</th>
                                 <th rowspan="2">Type</th>
-                                <th colspan="11" style="background: #5fa8d3;">To</th>
+                                <th colspan="11" style="background: #5fa8d3;">in</th>
                                 <th rowspan="2">Amount (THB)</th>
-                                <th rowspan="2">SAP date</th>
-                                <th rowspan="2">Action by</th>
+                                <th rowspan="2">Create by</th>
                             </tr>
                             <tr>
-                                <!-- From columns -->
+                                <!-- Out columns -->
                                 <th rowspan="1">Year</th>
                                 <th rowspan="1">Month</th>
                                 <th rowspan="1">Category</th>
@@ -215,7 +214,7 @@
                                 <th rowspan="1">Brand name</th>
                                 <th rowspan="1">Vendor</th>
                                 <th rowspan="1">Vendor name</th>
-                                <!-- To columns -->
+                                <!-- In columns -->
                                 <th rowspan="1">Year</th>
                                 <th rowspan="1">Month</th>
                                 <th rowspan="1">Category</th>
@@ -398,22 +397,24 @@
             if (segmentDropdown) {
                 segmentDropdown.addEventListener('change', changeVendor);
             }
-            if (btnClearFilter) {
+
                 btnClearFilter.addEventListener('click', function () {
                     //mainForm.reset(); // No mainForm here
                     // Manual reset
-                    if (typeDropdown) typeDropdown.value = "D";
-                    if (yearDropdown) yearDropdown.value = "";
-                    if (monthDropdown) monthDropdown.value = "";
-                    if (companyDropdown) companyDropdown.value = "";
-                    if (categoryDropdown) categoryDropdown.value = "";
-                    if (segmentDropdown) segmentDropdown.value = "";
-                    if (brandDropdown) brandDropdown.value = "";
-                    if (vendorDropdown) vendorDropdown.value = "";
-                    InitVendor(vendorDropdown); // Reset vendor
-                    if (tableViewBody) tableViewBody.innerHTML = "<tr><td colspan='30' class='text-center text-muted'>No switch OTB records found</td></tr>";
+                    // Reset ค่าใน Dropdown ทุกตัวด้วยตนเอง
+                    $("#DDSwitchType").val(null).trigger('change');
+                    $("#DDYear").val(null).trigger('change');
+                    $("#DDMonth").val(null).trigger('change');
+                    $("#DDCompany").val(null).trigger('change');
+                    $("#DDSegment").val(null).trigger('change');
+                    $("#DDCategory").val(null).trigger('change');
+                    $("#DDBrand").val(null).trigger('change');
+                    $("#DDVendor").val(null).trigger('change');
+
+  
+                    tableViewBody.innerHTML = "<tr><td colspan='30' class='text-center text-muted'>No switch OTB records found</td></tr>";
                 });
-            }
+            
             if (btnView) {
                 btnView.addEventListener('click', search);
             }

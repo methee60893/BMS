@@ -445,7 +445,7 @@
         <!-- Sidebar -->
         <div class="sidebar" id="sidebar">
             <div class="sidebar-header">
-                <h3><i class="bi bi-building"></i>KBMS</h3>
+                <h3><a class="text-decoration-none text-white" href="dashboard.aspx" ><i class="bi bi-building"></i> KBMS</a></h3>
                 <div class="close-sidebar" id="closeSidebarBtn">
                     <i class="bi bi-x-lg"></i>
                 </div>
@@ -454,7 +454,7 @@
                 <li class="menu-item">
                     <a href="#" class="menu-link" data-submenu="otbPlan">
                         <i class="bi bi-clipboard-data"></i>
-                        <span>OTB Plan</span>
+                        <span>OTB Plan / Revise</span>
                         <i class="bi bi-chevron-down"></i>
                     </a>
                     <ul class="submenu" id="otbPlan">
@@ -609,6 +609,7 @@
                             </div>
                             <div class="modal-body">
                                 <input type="hidden" id="hdnEditMode" value="create" />
+                                <input type="hidden" id="hdVendorId" value="" />
                                 <input type="hidden" id="hdnOriginalVendorCode" value="" />
 
                                 <div class="row g-3">
@@ -796,6 +797,7 @@
 
                         const code = btn.data('code');
                         $('#hdnOriginalVendorCode').val(code);
+                        $('#hdVendorId').val(btn.data('vendorId'));
                         $('#txtModalCode').val(code).prop('readonly', true);
                         $('#txtModalName').val(btn.data('name'));
 
@@ -844,7 +846,7 @@
                 $('#vendorTableBody').on('click', '.btn-edit-vendor', function () {
                     const btn = $(this);
                     clearModalForm();
-
+                    $('#hdVendorId').val(btn.data('vendorId'));
                     $('#hdnEditMode').val('edit');
                     $('#vendorModalLabel').text('Edit Vendor');
 
@@ -872,6 +874,7 @@
                 // *** อัปเดตตรงนี้: เปลี่ยน gvVendor.ClientID เป็น #vendorTableBody ***
                 $('#vendorTableBody').on('click', '.btn-delete-vendor', function () {
                     const btn = $(this);
+                    const venid = btn.data('vendorId');
                     const code = btn.data('code');
                     const name = btn.data('name');
 
@@ -883,7 +886,7 @@
                     $.ajax({
                         type: "POST",
                         url: "Handler/MasterDataHandler.ashx?action=deleteVendor",
-                        data: { vendorCode: code },
+                        data: { vendorCode: code, vendorId: venid },
                         dataType: "json",
                         success: function (response) {
                             showLoading(false);
@@ -907,6 +910,7 @@
                     const mode = $('#hdnEditMode').val();
                     const vendorData = {
                         editMode: mode,
+                        vendorId: $('#hdVendorId').val(),
                         code: $('#txtModalCode').val(),
                         originalCode: $('#hdnOriginalVendorCode').val(),
                         name: $('#txtModalName').val(),

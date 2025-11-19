@@ -58,9 +58,10 @@ Public Class SaveOTBHandler
 
             Dim amount As Decimal = Convert.ToDecimal(context.Request.Form("amount"))
             Dim createdBy As String = If(String.IsNullOrEmpty(context.Request.Form("createdBy")), "System", context.Request.Form("createdBy"))
+            Dim actionBy As String = If(String.IsNullOrEmpty(context.Request.Form("createdBy")), "System", context.Request.Form("createdBy"))
             Dim remark As String = If(String.IsNullOrEmpty(context.Request.Form("remark")), "", context.Request.Form("remark"))
 
-            ' 2. ตรวจสอบเงื่อนไขเพื่อกำหนด SwitchCode (D, G, I)
+            'ตรวจสอบเงื่อนไขเพื่อกำหนด SwitchCode (D, G, I)
             Dim fromCode As String = "D" ' Default: Switch (D)
             Dim toCode As String = "C"
 
@@ -71,10 +72,8 @@ Public Class SaveOTBHandler
                 fromCode = "G" ' Carry Out
                 toCode = "F" ' Carry In
             ElseIf dateFrom < dateTo Then
-                If categoryFrom = categoryTo AndAlso brandFrom = brandTo AndAlso vendorFrom = vendorTo Then
-                    fromCode = "I" ' Balance Out
-                    toCode = "H" ' Balance In
-                End If
+                fromCode = "I" ' Balance Out
+                toCode = "H" ' Balance In
             End If
 
             Dim sapRequest As New OtbSwitchRequest()
@@ -145,14 +144,14 @@ Public Class SaveOTBHandler
                     [SwitchYear], [SwitchMonth], [SwitchCompany], [SwitchCategory], [SwitchSegment], 
                     [To], [SwitchBrand], [SwitchVendor],
                     [OTBStatus], [Batch], [Remark], 
-                    [CreateBy], [CreateDT]
+                    [CreateBy], [CreateDT], [ActionBy]
                 ) VALUES (
                     @Year, @Month, @Company, @Category, @Segment, @Brand, @Vendor,
                     @From, @BudgetAmount, 0,
                     @SwitchYear, @SwitchMonth, @SwitchCompany, @SwitchCategory, @SwitchSegment,
                     @To, @SwitchBrand, @SwitchVendor,
                     'Approved', NULL, @Remark,
-                    @CreateBy, GETDATE()
+                    @CreateBy, GETDATE(), @ActionBy
                 )
             "
             ' (หมายเหตุ: User ระบุ [Draft_PO_Transaction] แต่ Code เดิมใช้ [OTB_Switching_Transaction] ซึ่งถูกต้องกว่าสำหรับหน้านี้)
@@ -186,6 +185,7 @@ Public Class SaveOTBHandler
                             ' Other Parameters
                             cmd.Parameters.AddWithValue("@Remark", If(String.IsNullOrEmpty(remark), DBNull.Value, remark))
                             cmd.Parameters.AddWithValue("@CreateBy", createdBy)
+                            cmd.Parameters.AddWithValue("@ActionBy", actionBy)
 
                             cmd.ExecuteNonQuery()
                         End Using
@@ -232,6 +232,7 @@ Public Class SaveOTBHandler
 
             Dim amount As Decimal = Convert.ToDecimal(context.Request.Form("amount"))
             Dim createdBy As String = If(String.IsNullOrEmpty(context.Request.Form("createdBy")), "System", context.Request.Form("createdBy"))
+            Dim actionBy As String = If(String.IsNullOrEmpty(context.Request.Form("createdBy")), "System", context.Request.Form("createdBy"))
             Dim remark As String = If(String.IsNullOrEmpty(context.Request.Form("remark")), "", context.Request.Form("remark"))
 
             Dim sapRequest As New OtbSwitchRequest()
@@ -298,14 +299,14 @@ Public Class SaveOTBHandler
                     [SwitchYear], [SwitchCompany], [SwitchCategory], [SwitchSegment], 
                     [To], [SwitchBrand], [SwitchVendor],
                     [OTBStatus], [Batch], [Remark], 
-                    [CreateBy], [CreateDT]
+                    [CreateBy], [CreateDT],[ActionBy]
                 ) VALUES (
                     @Year, @Month, @Company, @Category, @Segment, @Brand, @Vendor,
                     'E', @BudgetAmount, 0,
                     NULL, NULL, NULL, NULL,
                     NULL, NULL, NULL,
                     'Approved', NULL, @Remark,
-                    @CreateBy, GETDATE()
+                    @CreateBy, GETDATE(), @ActionBy
                 )
             "
 
@@ -324,7 +325,7 @@ Public Class SaveOTBHandler
                             cmd.Parameters.AddWithValue("@BudgetAmount", amount)
                             cmd.Parameters.AddWithValue("@Remark", If(String.IsNullOrEmpty(remark), DBNull.Value, remark))
                             cmd.Parameters.AddWithValue("@CreateBy", createdBy)
-
+                            cmd.Parameters.AddWithValue("@ActionBy", actionBy)
                             cmd.ExecuteNonQuery()
                         End Using
 
