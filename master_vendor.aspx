@@ -534,17 +534,17 @@
                     <div class="row g-3 mb-4">
                         <div class="col-md-3">
                             <label class="form-label">Vendor Code</label>
-                            <asp:TextBox ID="txtSearchCode" runat="server" CssClass="form-control" placeholder="Enter vendor code" autocomplete="off"></asp:TextBox>
+                            <input id="txtSearchCode" class="form-control" placeholder="Enter vendor code" autocomplete="off" />
                         </div>
                         <div class="col-md-4">
                             <label class="form-label">Vendor Name</label>
-                            <asp:TextBox ID="txtSearchName" runat="server" CssClass="form-control" placeholder="Enter vendor name" autocomplete="off"></asp:TextBox>
+                            <input id="txtSearchName" class="form-control" placeholder="Enter vendor name" autocomplete="off" />
                         </div>
                         <div class="col-md-3">
                             <label class="form-label">Segment</label>
-                            <asp:DropDownList ID="ddlSearchSegment" runat="server" CssClass="form-select">
-                                <asp:ListItem Text="-- All Segments --" Value=""></asp:ListItem>
-                            </asp:DropDownList>
+                            <select id="ddlSearchSegment" class="form-select">
+                                <option value="">-- All Segments --</option>
+                            </select>
                         </div>
                         <div class="col-md-2">
                         </div>
@@ -699,10 +699,10 @@
 
             function loadVendorTable() {
                 showLoading(true);
-                const searchCode = $('#<%= txtSearchCode.ClientID %>').val();
-                const searchName = $('#<%= txtSearchName.ClientID %>').val();
-                const searchSegment = $('#<%= ddlSearchSegment.ClientID %>').val();
-
+                const searchCode = $('#txtSearchCode').val();
+                const searchName = $('#txtSearchName').val();
+                const searchSegment = $('#ddlSearchSegment').val();
+                console.log('searchCode : ' + searchCode + ', searchName : ' + searchName + ', searchSegment : ' + searchSegment);
                 $.ajax({
                     type: "POST",
                     url: "Handler/MasterDataHandler.ashx?action=getVendorListHtml",
@@ -745,6 +745,17 @@
                     success: function (response) {
                         element.innerHTML = response;
                         $(element).prepend('<option value=""></option>').val(null);
+                    },
+                    error: function (xhr) { console.error('Error loading Segment:', xhr.responseText); }
+                });
+            }
+            function InitMSSegmentSearch(element) {
+                return $.ajax({ // <--- **[CHANGES 2]**
+                    url: 'Handler/MasterDataHandler.ashx?action=SegmentMSList',
+                    type: 'POST',
+                    data: { addAll: false },
+                    success: function (response) {
+                        element.innerHTML = response;
                     },
                     error: function (xhr) { console.error('Error loading Segment:', xhr.responseText); }
                 });
@@ -946,9 +957,9 @@
 
                 // 7. "Clear Filter" Button Click
                 $('#btnClearFilter').on('click', function () {
-                    $('#<%= txtSearchCode.ClientID %>').val('');
-                    $('#<%= txtSearchName.ClientID %>').val('');
-                    $('#<%= ddlSearchSegment.ClientID %>').val('');
+                    $('#txtSearchCode').val('');
+                    $('#txtSearchName').val('');
+                    $('#ddlSearchSegment').val('');
                     loadVendorTable();
                 });
 
@@ -997,6 +1008,8 @@
                             toggleSidebar();
                         });
                     }
+
+                    var ddlSearchSegment = InitMSSegmentSearch(document.getElementById('ddlSearchSegment'));
 
                     // Close Sidebar Button
                     var closeSidebarBtn = document.getElementById('closeSidebarBtn');

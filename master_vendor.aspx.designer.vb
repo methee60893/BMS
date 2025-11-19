@@ -23,33 +23,6 @@ Partial Public Class master_vendor
     Protected WithEvents form1 As Global.System.Web.UI.HtmlControls.HtmlForm
 
     '''<summary>
-    '''txtSearchCode control.
-    '''</summary>
-    '''<remarks>
-    '''Auto-generated field.
-    '''To modify move field declaration from designer file to code-behind file.
-    '''</remarks>
-    Protected WithEvents txtSearchCode As Global.System.Web.UI.WebControls.TextBox
-
-    '''<summary>
-    '''txtSearchName control.
-    '''</summary>
-    '''<remarks>
-    '''Auto-generated field.
-    '''To modify move field declaration from designer file to code-behind file.
-    '''</remarks>
-    Protected WithEvents txtSearchName As Global.System.Web.UI.WebControls.TextBox
-
-    '''<summary>
-    '''ddlSearchSegment control.
-    '''</summary>
-    '''<remarks>
-    '''Auto-generated field.
-    '''To modify move field declaration from designer file to code-behind file.
-    '''</remarks>
-    Protected WithEvents ddlSearchSegment As Global.System.Web.UI.WebControls.DropDownList
-
-    '''<summary>
     '''btnExport control.
     '''</summary>
     '''<remarks>

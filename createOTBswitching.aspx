@@ -109,17 +109,18 @@
 
             <!-- Tabs -->
             <div class="custom-tabs">
-                <button class="tab-button custom-tab active" onclick="switchTab('switching')">
+                <button class="tab-button active" onclick="switchTab('switching')">
                     <i class="bi bi-arrow-repeat"></i>OTB Switching
                 </button>
-                <button class="tab-button custom-tab" onclick="switchTab('extra')">
+                <button class="tab-button " onclick="switchTab('extra')">
                     <i class="bi bi-plus-circle"></i>Extra Budget
                 </button>
             </div>
+
             <div class="tab-content-area">
                 <!-- Switch Tab Content -->
-                <div class="tab-pane active" id="switchingTab">
-                    <div class="switch-container">
+                <div class="tab-content active" id="switchingTab">
+                    <div class="form-container">
                         <div class="row">
                             <div class="col-12">
                                 <!-- From Section -->
@@ -247,8 +248,8 @@
                 </div>
 
                 <!-- Extra Tab Content -->
-                <div class="tab-pane" id="extraTab">
-                    <div class="switch-container">
+                <div class="tab-content" id="extraTab">
+                    <div class="form-container">
                         <div class="row">
                             <div class="col-12">
                                 <div class="switch-section">
@@ -611,26 +612,19 @@
         // ==========================================
         // Tab Switching Function
         // ==========================================
-        function switchTab(tabName) {
-            // Hide all tab panes
-            var tabPanes = document.querySelectorAll('.tab-pane');
-            for (var i = 0; i < tabPanes.length; i++) {
-                tabPanes[i].classList.remove('active');
-            }
+        function switchTab(tab) {
+            const tabs = document.querySelectorAll('.tab-button');
+            tabs.forEach(t => t.classList.remove('active'));
 
-            // Remove active class from all tab buttons
-            var tabButtons = document.querySelectorAll('.custom-tab');
-            for (var j = 0; j < tabButtons.length; j++) {
-                tabButtons[j].classList.remove('active');
-            }
+            const tabContents = document.querySelectorAll('.tab-content');
+            tabContents.forEach(tc => tc.classList.remove('active'));
 
-            // Show selected tab by index
-            if (tabName === 'switching') {
-                if (tabPanes[0]) tabPanes[0].classList.add('active');
-                if (tabButtons[0]) tabButtons[0].classList.add('active');
-            } else if (tabName === 'extra') {
-                if (tabPanes[1]) tabPanes[1].classList.add('active');
-                if (tabButtons[1]) tabButtons[1].classList.add('active');
+            event.target.closest('.tab-button').classList.add('active');
+
+            if (tab === 'switching') {
+                document.getElementById('switchingTab').classList.add('active');
+            } else if (tab === 'extra') {
+                document.getElementById('extraTab').classList.add('active');
             }
         }
 

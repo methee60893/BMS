@@ -9,26 +9,7 @@ Partial Public Class master_vendor
     Inherits System.Web.UI.Page
 
     Protected Sub Page_Load(ByVal sender As Object, ByVal e As EventArgs) Handles Me.Load
-        If Not IsPostBack Then
-            LoadSegments()
-        End If
-    End Sub
 
-    ' Load Segments for dropdown filter
-    Private Sub LoadSegments()
-        Dim connectionString As String = ConfigurationManager.ConnectionStrings("BMSConnectionString").ConnectionString
-        Dim query As String = "SELECT DISTINCT [SegmentCode], [Segment] FROM [MS_Vendor] WHERE [SegmentCode] IS NOT NULL AND [SegmentCode] <> '' ORDER BY [Segment]"
-
-        Using conn As New SqlConnection(connectionString)
-            Using cmd As New SqlCommand(query, conn)
-                conn.Open()
-                Dim reader As SqlDataReader = cmd.ExecuteReader()
-                While reader.Read()
-                    Dim item As New ListItem(reader("Segment").ToString(), reader("SegmentCode").ToString())
-                    ddlSearchSegment.Items.Add(item)
-                End While
-            End Using
-        End Using
     End Sub
 
     ' Export to Excel

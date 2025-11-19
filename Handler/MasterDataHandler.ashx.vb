@@ -11,6 +11,7 @@ Imports System.Web
 Imports System.Web.Script.Serialization
 Imports ExcelDataReader
 Imports Newtonsoft.Json
+Imports OfficeOpenXml.FormulaParsing.Ranges
 
 Public Class MasterDataHandler
     Implements IHttpHandler
@@ -806,13 +807,13 @@ Public Class MasterDataHandler
                     If editMode = "edit" Then
                         cmd.Parameters.AddWithValue("@originalCode", originalCode)
                     End If
-                    cmd.Parameters.AddWithValue("@name", name)
-                    cmd.Parameters.AddWithValue("@ccy", If(String.IsNullOrEmpty(ccy), DBNull.Value, ccy))
-                    cmd.Parameters.AddWithValue("@paymentTermCode", If(String.IsNullOrEmpty(paymentTermCode), DBNull.Value, paymentTermCode))
-                    cmd.Parameters.AddWithValue("@paymentTerm", If(String.IsNullOrEmpty(paymentTerm), DBNull.Value, paymentTerm))
-                    cmd.Parameters.AddWithValue("@segmentCode", If(String.IsNullOrEmpty(segmentCode), DBNull.Value, segmentCode))
-                    cmd.Parameters.AddWithValue("@segment", If(String.IsNullOrEmpty(segment), DBNull.Value, segment))
-                    cmd.Parameters.AddWithValue("@incoterm", If(String.IsNullOrEmpty(incoterm), DBNull.Value, incoterm))
+                    cmd.Parameters.AddWithValue("@name", If(String.IsNullOrEmpty(name), String.Empty, name))
+                    cmd.Parameters.AddWithValue("@ccy", If(String.IsNullOrEmpty(ccy), String.Empty, ccy))
+                    cmd.Parameters.AddWithValue("@paymentTermCode", If(String.IsNullOrEmpty(paymentTermCode), String.Empty, paymentTermCode))
+                    cmd.Parameters.AddWithValue("@paymentTerm", If(String.IsNullOrEmpty(paymentTerm), String.Empty, paymentTerm))
+                    cmd.Parameters.AddWithValue("@segmentCode", If(String.IsNullOrEmpty(segmentCode), String.Empty, segmentCode))
+                    cmd.Parameters.AddWithValue("@segment", If(String.IsNullOrEmpty(segment), String.Empty, segment))
+                    cmd.Parameters.AddWithValue("@incoterm", If(String.IsNullOrEmpty(incoterm), String.Empty, incoterm))
                     cmd.Parameters.AddWithValue("@isActive", isActive) ' (MODIFIED) Added parameter
 
                     cmd.ExecuteNonQuery()
