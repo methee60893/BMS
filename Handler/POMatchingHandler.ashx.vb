@@ -125,8 +125,10 @@ Public Class POMatchingHandler
             Dim combinedPoList As New List(Of SapPOResultItem)()
 
             ' 2.3 ดึงข้อมูล "สองวันก่อน"
+            Dim filterDate As Date = Date.Today.AddDays(-30) 'New DateTime(2025, 11, 20)
+
             Dim poListTwoDaysAgo As List(Of SapPOResultItem) = Task.Run(Async Function()
-                                                                            Return Await SapApiHelper.GetPOsAsync(Date.Today.AddDays(-2), top, skip)
+                                                                            Return Await SapApiHelper.GetPOsAsync(filterDate, top, skip)
                                                                         End Function).Result
             If poListTwoDaysAgo IsNot Nothing Then
                 combinedPoList.AddRange(poListTwoDaysAgo)
@@ -229,6 +231,16 @@ Public Class POMatchingHandler
         dtPOs.Columns.Add("BMS_Last_Synced", GetType(DateTime))
 
         Dim syncTime As DateTime = DateTime.Now
+
+        'ตรงส่วนนี้ ให้ เพิ่มเงื่อนไข การตรวจสอบ เอา เฉพาะข้อมูล ที่ OTBYear ตั้งแต่ 2025 OTBMonth ตั้งแต่ เดือน 12 เป็นต้นไป
+        poList = poList.Where(Function(po)
+                                  Dim year As Integer
+                                  Dim month As Integer
+                                  If Integer.TryParse(po.OtbYear, year) AndAlso Integer.TryParse(po.OtbMonth, month) Then
+                                      Return (year > 2025) OrElse (year = 2025 AndAlso month >= 12)
+                                  End If
+                                  Return False
+                              End Function).ToList()
 
         ' 2. วนลูป List จาก SAP มาใส่ DataTable
         For Each po In poList

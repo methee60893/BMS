@@ -315,9 +315,7 @@ Public Class DataOTBHandler
         Dim segment As String = If(String.IsNullOrWhiteSpace(context.Request.QueryString("OTBSegment")), "", context.Request.QueryString("OTBSegment").Trim())
 
         ' (บังคับต้องมี Year)
-        If year = 0 Then
-            Throw New Exception("Year is required for summary export.")
-        End If
+        If year = 0 Then Throw New Exception("Year is required.")
 
         ' 2. ดึงข้อมูลจาก SP ใหม่
         Dim dt As New DataTable()
@@ -341,52 +339,61 @@ Public Class DataOTBHandler
         Using package As New ExcelPackage()
             Dim ws = package.Workbook.Worksheets.Add("OTB Plan Summary")
 
-            ' --- สร้าง Headers ตามรูปภาพ (FIXED) ---
             ws.Cells("A1").Value = "Categories"
-            ws.Cells("A1:B2").Merge = True ' *** FIX: Merge A1:B2 (2 columns) ***
+            ws.Cells("A1:B2").Merge = True
             ws.Cells("A1:B2").Style.Fill.PatternType = ExcelFillStyle.Solid
-            ws.Cells("A1:B2").Style.Fill.BackgroundColor.SetColor(Color.FromArgb(217, 217, 217)) ' Light Gray
+            ws.Cells("A1:B2").Style.Fill.BackgroundColor.SetColor(Color.LightGray)
 
-            ws.Cells("C1").Value = "OTB Amount"
-            ws.Cells("C1:N1").Merge = True ' *** FIX: C1 to N1 (Cols 3-14) ***
+            ' Header C-N (OTB Plan) - สีฟ้า
+            ws.Cells("C1").Value = "OTB Amount (Current Approved / Actual PO)"
+            ws.Cells("C1:N1").Merge = True
             ws.Cells("C1:N1").Style.Fill.PatternType = ExcelFillStyle.Solid
-            ws.Cells("C1:N1").Style.Fill.BackgroundColor.SetColor(Color.FromArgb(204, 229, 255)) ' Light Blue
+            ws.Cells("C1:N1").Style.Fill.BackgroundColor.SetColor(Color.FromArgb(189, 215, 238)) ' Light Blue
 
+            ' Header O-Z (TO-BE Amount) - สีส้ม
             ws.Cells("O1").Value = "TO-BE Amount (Revised)"
-            ws.Cells("O1:Z1").Merge = True ' *** FIX: O1 to Z1 (Cols 15-26) ***
+            ws.Cells("O1:Z1").Merge = True
             ws.Cells("O1:Z1").Style.Fill.PatternType = ExcelFillStyle.Solid
-            ws.Cells("O1:Z1").Style.Fill.BackgroundColor.SetColor(Color.FromArgb(255, 229, 204)) ' Light Orange
+            ws.Cells("O1:Z1").Style.Fill.BackgroundColor.SetColor(Color.FromArgb(248, 203, 173)) ' Light Orange
 
-            ws.Cells("AA1").Value = "DIFF"
-            ws.Cells("AA1:AL1").Merge = True ' *** FIX: AA1 to AL1 (Cols 27-38) ***
+            ' Header AA-AL (Diff) - สีเขียว
+            ws.Cells("AA1").Value = "Diff"
+            ws.Cells("AA1:AL1").Merge = True
             ws.Cells("AA1:AL1").Style.Fill.PatternType = ExcelFillStyle.Solid
-            ws.Cells("AA1:AL1").Style.Fill.BackgroundColor.SetColor(Color.FromArgb(229, 255, 204)) ' Light Green
+            ws.Cells("AA1:AL1").Style.Fill.BackgroundColor.SetColor(Color.FromArgb(226, 239, 218)) ' Light Green
 
-            ' --- สร้าง Sub-Headers (Jan-Dec) 3 ครั้ง ---
+            ' --- สร้าง Headers แถวที่ 2 (Months) ---
             Dim months() As String = {"Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"}
+
+
+            ' Loop 3 รอบ สำหรับ 3 Section
             For i As Integer = 0 To 2
                 For m As Integer = 0 To 11
-                    ' *** FIX: Start col at 3 (Col C) ***
-                    Dim col As Integer = (i * 12) + m + 3
-                    ws.Cells(2, col).Value = months(m)
+                    Dim colIndex As Integer = 3 + (i * 12) + m ' เริ่มที่คอลัมน์ C (3)
+                    ws.Cells(2, colIndex).Value = months(m)
+
+                    ' ใส่สีพื้นหลังให้ตรงกับ Section ด้านบน
+                    ws.Cells(2, colIndex).Style.Fill.PatternType = ExcelFillStyle.Solid
+                    If i = 0 Then ws.Cells(2, colIndex).Style.Fill.BackgroundColor.SetColor(Color.FromArgb(189, 215, 238))
+                    If i = 1 Then ws.Cells(2, colIndex).Style.Fill.BackgroundColor.SetColor(Color.FromArgb(248, 203, 173))
+                    If i = 2 Then ws.Cells(2, colIndex).Style.Fill.BackgroundColor.SetColor(Color.FromArgb(226, 239, 218))
                 Next
             Next
 
-            ' (จัดกลาง Headers)
-            ws.Cells("A1:AL2").Style.HorizontalAlignment = ExcelHorizontalAlignment.Center ' *** FIX: A1:AL2 ***
+            ' จัดรูปแบบ Header
+            ws.Cells("A1:AL2").Style.HorizontalAlignment = ExcelHorizontalAlignment.Center
             ws.Cells("A1:AL2").Style.VerticalAlignment = ExcelVerticalAlignment.Center
             ws.Cells("A1:AL2").Style.Font.Bold = True
+            ws.Cells("A1:AL2").Style.Border.Top.Style = ExcelBorderStyle.Thin
+            ws.Cells("A1:AL2").Style.Border.Bottom.Style = ExcelBorderStyle.Thin
+            ws.Cells("A1:AL2").Style.Border.Left.Style = ExcelBorderStyle.Thin
+            ws.Cells("A1:AL2").Style.Border.Right.Style = ExcelBorderStyle.Thin
 
-            ' --- ใส่ Data ---
+            ' --- ใส่ข้อมูล ---
             If dt.Rows.Count > 0 Then
-                ' dt (38 cols) จะถูกโหลดลง A3:AL...
                 ws.Cells("A3").LoadFromDataTable(dt, False)
-            End If
 
-            ' --- จัด Format ตัวเลข ---
-            ' dt มี 38 คอลัมน์ (CatCode(A), CatName(B), Data(C)...Data(AL))
-            ' เราจะ Format ตั้งแต่คอลัมน์ที่ 3 (C) ถึง 38 (AL)
-            If dt.Rows.Count > 0 Then
+                ' Format Numbers
                 ws.Cells(3, 3, dt.Rows.Count + 2, 38).Style.Numberformat.Format = "#,##0.00"
             End If
 

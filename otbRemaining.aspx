@@ -244,8 +244,16 @@
                     </div>
 
                     <div class="detail-row">
-                        <div class="detail-label">Total Actual/Draft</div>
-                        <div class="detail-value" id="detail_TotalPO_Usage">
+                        <div class="detail-label">Total Draft PO</div>
+                        <div class="detail-value" id="detail_DraftPO_Usage">
+                            0.00 THB
+                            <%-- <a href="#" class="detail-link ms-3">Click history</a> --%>
+                        </div>
+                    </div>
+
+                    <div class="detail-row">
+                        <div class="detail-label">Total Actual PO</div>
+                        <div class="detail-value" id="detail_ActualPO_Usage">
                             0.00 THB
                             <%-- <a href="#" class="detail-link ms-3">Click history</a> --%>
                         </div>
@@ -507,7 +515,8 @@
 
                 // --- Logic from image: TotalPO_Usage = TotalDraftPO + TotalActualPO ---
                 // (SP ส่งมา 3 ค่า เราจะใช้ TotalPO_Usage)
-                document.getElementById('detail_TotalPO_Usage').textContent = formatTHB(data.TotalPO_Usage);
+                document.getElementById('detail_DraftPO_Usage').textContent = formatTHB(data.TotalDraftPO);
+                document.getElementById('detail_ActualPO_Usage').textContent = formatTHB(data.TotalActualPO);
 
                 document.getElementById('detail_Remaining').textContent = formatTHB(data.Remaining);
             } else {
@@ -522,7 +531,8 @@
                 document.getElementById('detail_Budget_BalanceOut').textContent = "0.00 THB";
                 document.getElementById('detail_Budget_CarryOut').textContent = "0.00 THB";
                 document.getElementById('detail_TotalBudgetApproved').textContent = "0.00 THB";
-                document.getElementById('detail_TotalPO_Usage').textContent = "0.00 THB";
+                document.getElementById('detail_DraftPO_Usage').textContent = "0.00 THB";
+                document.getElementById('detail_ActualPO_Usage').textContent = "0.00 THB";
                 document.getElementById('detail_Remaining').textContent = "0.00 THB";
             }
         }

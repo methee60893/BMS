@@ -37,14 +37,14 @@ Public Class DataPOHandler
         ElseIf context.Request("action") = "PoListFilter" Then
             Try
                 ' 1. รับค่า Parameters (ตัวอย่าง)
-                Dim startDate As Date = New DateTime(2025, 11, 4)
+                Dim filterDate As Date = New DateTime(2025, 11, 4)
                 Dim top As Integer = 1000
                 Dim skip As Integer = 0
 
                 ' 2. เรียก Helper ด้วย Workaround (Task.Run)
                 ' *** ผลลัพธ์ที่ได้จะเป็น List(Of SapPOResultItem) ทันที ***
                 Dim poList As List(Of SapPOResultItem) = Task.Run(Async Function()
-                                                                      Return Await SapApiHelper.GetPOsAsync(startDate, top, skip)
+                                                                      Return Await SapApiHelper.GetPOsAsync(filterDate, top, skip)
                                                                   End Function).Result
 
                 ' 3. ตรวจสอบผลลัพธ์
