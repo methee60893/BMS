@@ -428,7 +428,7 @@ Public Class OTBValidate
                     Dim approvedFilter As String = $"[Year] = '{year.Replace("'", "''")}' AND [Month] = '{month.Replace("'", "''")}' AND [Category] = '{category.Replace("'", "''")}' AND [Company] = '{company.Replace("'", "''")}' AND [Segment] = '{segment.Replace("'", "''")}' AND [Brand] = '{brand.Replace("'", "''")}' AND [Vendor] = '{vendor.Replace("'", "''")}'"
                     Dim approvedRows() As DataRow = dtApprovedOTB.Select(approvedFilter)
                     If approvedRows.Length > 0 Then
-                        errors.Append("Duplicate_Approved_Warn (Will Revise)|")
+                        'errors.Append("Duplicate_Approved_Warn (Will Revise)|")
                     End If
                 Catch ex As Exception
                 End Try
@@ -439,7 +439,7 @@ Public Class OTBValidate
 
             If duplicateResult = "CAN_UPDATE" Then
                 canUpdate = True
-                errors.Append("Duplicated_Draft OTB (Will Update)|")
+                'errors.Append("Duplicated_Draft OTB (Will Update)|")
             ElseIf duplicateResult = "DUPLICATED_APPROVED" Then
                 canUpdate = False
                 errors.Append("Duplicated_Approved OTB (Cannot Update)|")

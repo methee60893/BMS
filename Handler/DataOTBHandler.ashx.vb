@@ -34,6 +34,10 @@ Public Class DataOTBHandler
                 HandleExportSwitchingOTB(context)
             ElseIf action = "exportdraftotbsum" Then
                 ExportDraftOTBSum(context)
+            ElseIf action = "exportotbmovement" Then
+                HandleExportOTBMovement(context)
+            ElseIf action = "exportsummarycategory" Then
+                HandleExportSummaryCategory(context)
             Else
                 ' *** MOVED: The rest of the logic into an Else block ***
                 context.Response.Clear()
@@ -55,7 +59,7 @@ Public Class DataOTBHandler
                     dt = GetOTBDraftDataWithFilter(OTBtype, OTByear, OTBmonth, OTBCompany, OTBCategory, OTBSegment, OTBBrand, OTBVendor)
                     context.Response.Write(GenerateHtmlDraftTable(dt))
                 ElseIf context.Request("action") = "approveDraftOTB" Then
-                    ApproveDraftOTB(context) ' <<< นี่คือ Sub ที่เราจะแก้ไข
+                    ApproveDraftOTB(context)
                 ElseIf context.Request("action") = "deleteDraftOTB" Then
                     DeleteDraftOTB(context)
                 ElseIf context.Request("action") = "obtApprovelistbyfilter" Then
@@ -64,7 +68,6 @@ Public Class DataOTBHandler
                 ElseIf context.Request("action") = "obtswitchlistbyfilter" Then
                     dt = GetOTBSwitchDataWithFilter(OTBtype, OTByear, OTBmonth, OTBCompany, OTBCategory, OTBSegment, OTBBrand, OTBVendor)
                     context.Response.Write(GenerateHtmlSwitchable(dt))
-                    ' (ลบ ElseIf ที่ซ้ำซ้อนสำหรับ "approveDraftOTB" ออก)
                 End If
             End If
         Catch ex As Exception
@@ -526,7 +529,7 @@ Public Class DataOTBHandler
                 sb.AppendFormat("<td>{0}</td>", HttpUtility.HtmlEncode(If(row("CategoryName") IsNot DBNull.Value, row("CategoryName").ToString(), "")))
 
                 ' Company
-                sb.AppendFormat("<td class='text-center'>{0}</td>", HttpUtility.HtmlEncode(If(row("Company") IsNot DBNull.Value, row("Company").ToString(), "")))
+                sb.AppendFormat("<td class='text-center'>{0}</td>", HttpUtility.HtmlEncode(If(row("CompanyName") IsNot DBNull.Value, row("CompanyName").ToString(), "")))
 
                 ' Segment
                 sb.AppendFormat("<td class='text-center'>{0}</td>", HttpUtility.HtmlEncode(If(row("Segment") IsNot DBNull.Value, row("Segment").ToString(), "")))
@@ -562,7 +565,6 @@ Public Class DataOTBHandler
                 ' Approved Date
                 sb.AppendFormat("<td class='date-cell'>{0}</td>",
                            If(row("ApprovedDate") IsNot DBNull.Value, Convert.ToDateTime(row("ApprovedDate")).ToString("dd/MM/yyyy HH:mm"), ""))
-
                 ' Create By
                 sb.AppendFormat("<td>{0}</td>", HttpUtility.HtmlEncode(If(row("CreateBy") IsNot DBNull.Value, row("CreateBy").ToString(), "")))
                 ' Action By
@@ -797,7 +799,7 @@ Public Class DataOTBHandler
         Dim approvedBy As String = If(String.IsNullOrWhiteSpace(context.Request.Form("approvedBy")), "System", context.Request.Form("approvedBy").Trim())
         Dim remark As String = If(String.IsNullOrWhiteSpace(context.Request.Form("remark")), Nothing, context.Request.Form("remark").Trim())
         Dim responseJson As New Dictionary(Of String, Object)
-
+        Dim masterinstance As New MasterDataUtil
         Try
             Dim budgetCalculator As New OTBBudgetCalculator()
             ' 1. Get selected IDs (Same as original code)
@@ -946,8 +948,8 @@ Public Class DataOTBHandler
                 If runNoToFind <> -1 AndAlso runNoToDataRowMap.ContainsKey(runNoToFind) Then
                     ' Found matching Draft data
                     Dim draftRow As DataRow = runNoToDataRowMap(runNoToFind)
-                    resultRow.Add("RunNo", draftRow("RunNo"))
-                    resultRow.Add("OTBType", draftRow("OTBType"))
+                    'resultRow.Add("RunNo", draftRow("RunNo"))
+                    'resultRow.Add("OTBType", draftRow("OTBType"))
                     resultRow.Add("OTBYear", draftRow("OTBYear"))
                     resultRow.Add("OTBMonth", draftRow("OTBMonth"))
                     resultRow.Add("OTBCategory", draftRow("OTBCategory"))
@@ -963,21 +965,21 @@ Public Class DataOTBHandler
                     resultRow.Add("Remark", draftRow("Remark"))
                 Else
                     ' Data mismatch - should not happen, but good to handle
-                    resultRow.Add("RunNo", "N/A")
-                    resultRow.Add("OTBType", "N/A")
+                    'resultRow.Add("RunNo", "N/A")
+                    'resultRow.Add("OTBType", "N/A")
                     resultRow.Add("OTBYear", sapResult.Year)
                     resultRow.Add("OTBMonth", sapResult.Month)
                     resultRow.Add("OTBCategory", sapResult.Category)
-                    resultRow.Add("CateName", "N/A")
-                    resultRow.Add("CompanyName", "N/A")
+                    resultRow.Add("CateName", masterinstance.GetCategoryName(sapResult.Category))
+                    resultRow.Add("CompanyName", masterinstance.GetCompanyName(sapResult.CompCode))
                     resultRow.Add("OTBSegment", sapResult.SegmentCode)
-                    resultRow.Add("SegmentName", "N/A")
+                    resultRow.Add("SegmentName", masterinstance.GetSegmentName(sapResult.SegmentCode))
                     resultRow.Add("OTBBrand", sapResult.BrandCode)
-                    resultRow.Add("BrandName", "N/A")
+                    resultRow.Add("BrandName", masterinstance.GetBrandName(sapResult.BrandCode))
                     resultRow.Add("OTBVendor", sapResult.VendorCode)
-                    resultRow.Add("Vendor", "N/A")
+                    resultRow.Add("Vendor", masterinstance.GetVendorName(sapResult.VendorCode))
                     resultRow.Add("Amount", sapResult.Amount)
-                    resultRow.Add("Remark", "N/A")
+                    resultRow.Add("Remark", sapResult.Remark)
                 End If
 
                 ' Add SAP Results
@@ -1323,6 +1325,473 @@ Public Class DataOTBHandler
     ' ===================================================================
     ' ===== END: MODIFIED FUNCTION ======================================
     ' ===================================================================
+
+    Private Sub HandleExportOTBMovement(context As HttpContext)
+        ' 1. รับ Parameters
+        Dim year As String = context.Request.QueryString("OTByear")
+        Dim month As String = context.Request.QueryString("OTBmonth")
+        Dim company As String = context.Request.QueryString("OTBCompany")
+        Dim category As String = context.Request.QueryString("OTBCategory")
+        Dim segment As String = context.Request.QueryString("OTBSegment")
+        Dim brand As String = context.Request.QueryString("OTBBrand")
+        Dim vendor As String = context.Request.QueryString("OTBVendor")
+        Dim masterinstance As New MasterDataUtil
+        If String.IsNullOrEmpty(year) Then Throw New Exception("Year is required.")
+
+        ' 2. เตรียมข้อมูล
+        ' 2.1 เรียก Calculator (ซึ่งจะโหลด Approved Transaction ทั้งหมดเข้า Memory)
+        Dim budgetCalc As New OTBBudgetCalculator()
+
+        ' 2.2 โหลด Draft PO และ Actual PO เข้า Memory เพื่อความเร็วในการ Lookup
+        Dim dtDraftPO As DataTable = LoadDraftPOForReport(year, month, company, category, segment, brand, vendor)
+        Dim dtActualPO As DataTable = LoadActualPOForReport(year, month, company, category, segment, brand, vendor)
+
+        ' 2.3 หา Distinct Keys ทั้งหมดที่มีการเคลื่อนไหว (จาก OTB Transaction, Draft PO, Actual PO)
+        ' เพื่อให้มั่นใจว่าแสดงครบทุกบรรทัดที่มีข้อมูล แม้จะไม่มี Budget แต่มี PO
+        Dim dtKeys As DataTable = GetDistinctKeysForReport(year, month, company, category, segment, brand, vendor)
+
+        ' 3. สร้าง DataTable ผลลัพธ์
+        Dim dtExport As New DataTable("OTBMovement")
+        dtExport.Columns.Add("Year")
+        dtExport.Columns.Add("Month")
+        dtExport.Columns.Add("Cate")
+        dtExport.Columns.Add("CateName")
+        dtExport.Columns.Add("Company")
+        dtExport.Columns.Add("CompanyName")
+        dtExport.Columns.Add("Segment")
+        dtExport.Columns.Add("SegmentName")
+        dtExport.Columns.Add("Brand")
+        dtExport.Columns.Add("BrandName")
+        dtExport.Columns.Add("Vendor")
+        dtExport.Columns.Add("VendorName")
+
+        dtExport.Columns.Add("Budget Approved", GetType(Decimal))
+        dtExport.Columns.Add("Revised Diff", GetType(Decimal))
+        dtExport.Columns.Add("Extra", GetType(Decimal))
+
+        dtExport.Columns.Add("Switch in", GetType(Decimal))
+        dtExport.Columns.Add("Balance in", GetType(Decimal))
+        dtExport.Columns.Add("Carry in", GetType(Decimal))
+
+        dtExport.Columns.Add("Switch out", GetType(Decimal))
+        dtExport.Columns.Add("Balance out", GetType(Decimal))
+        dtExport.Columns.Add("Carry out", GetType(Decimal))
+
+        dtExport.Columns.Add("Total Budget Approved", GetType(Decimal))
+        dtExport.Columns.Add("Actual PO", GetType(Decimal))
+        dtExport.Columns.Add("Draft PO", GetType(Decimal))
+        dtExport.Columns.Add("Total Actual + Draft PO", GetType(Decimal))
+        dtExport.Columns.Add("Remaining", GetType(Decimal))
+
+        ' 4. Loop คำนวณ
+        For Each rowKey As DataRow In dtKeys.Rows
+            Dim kYear As String = rowKey("Year").ToString()
+            Dim kMonth As String = rowKey("Month").ToString() ' เป็นตัวเลข
+            Dim kCate As String = rowKey("Category").ToString()
+            Dim kCateName As String = masterinstance.GetCategoryName(rowKey("Category").ToString())
+            Dim kComp As String = rowKey("Company").ToString()
+            Dim kCompName As String = masterinstance.GetCompanyName(rowKey("Company").ToString())
+            Dim kSeg As String = rowKey("Segment").ToString()
+            Dim kSegName As String = masterinstance.GetSegmentName(rowKey("Segment").ToString())
+            Dim kBrand As String = rowKey("Brand").ToString()
+            Dim kBrandName As String = masterinstance.GetBrandName(rowKey("Brand").ToString())
+            Dim kVendor As String = rowKey("Vendor").ToString()
+            Dim kVendorName As String = masterinstance.GetVendorName(rowKey("Vendor").ToString())
+            Dim kMonthName As String = GetMonthName(kMonth)
+
+            ' 4.1 คำนวณ Budget (ใช้ Logic ของ OTBBudgetCalculator ที่มีอยู่แล้ว)
+            Dim budgetBreakdown = budgetCalc.GetBudgetBreakdown(kYear, kMonth, kCate, kComp, kSeg, kBrand, kVendor)
+
+            ' 4.2 คำนวณ PO (ใช้ Compute จาก DataTable ใน Memory)
+            Dim filterPO As String = $"Year = '{kYear}' AND Month = '{kMonth}' AND Category = '{kCate}' AND Company = '{kComp}' AND Segment = '{kSeg}' AND Brand = '{kBrand}' AND Vendor = '{kVendor}'"
+
+            Dim sumDraftObj As Object = dtDraftPO.Compute("SUM(Amount)", filterPO)
+            Dim sumActualObj As Object = dtActualPO.Compute("SUM(Amount)", filterPO)
+
+            Dim sumDraft As Decimal = If(IsDBNull(sumDraftObj), 0, Convert.ToDecimal(sumDraftObj))
+            Dim sumActual As Decimal = If(IsDBNull(sumActualObj), 0, Convert.ToDecimal(sumActualObj))
+
+            Dim totalBudget As Decimal = budgetBreakdown("Total")
+            Dim totalUsage As Decimal = sumDraft + sumActual
+            Dim remaining As Decimal = totalBudget - totalUsage
+
+            ' 4.3 Add Row (เฉพาะแถวที่มีค่าอย่างน้อย 1 อย่าง)
+            If totalBudget <> 0 OrElse totalUsage <> 0 Then
+                dtExport.Rows.Add(
+                    kYear,
+                    kMonthName,
+                    kCate,
+                    kCateName,
+                    kComp,
+                    kCompName,
+                    kSeg,
+                    kSegName,
+                    kBrand,
+                    kBrandName,
+                    kVendor,
+                    kVendorName,
+                    budgetBreakdown("Original"),
+                    budgetBreakdown("RevDiff"),
+                    budgetBreakdown("Extra"),
+                    budgetBreakdown("SwitchIn"),
+                    budgetBreakdown("BalanceIn"),
+                    budgetBreakdown("CarryIn"),
+                    budgetBreakdown("SwitchOut"),
+                    budgetBreakdown("BalanceOut"),
+                    budgetBreakdown("CarryOut"),
+                    totalBudget,
+                    sumActual,
+                    sumDraft,
+                    totalUsage,
+                    remaining
+                )
+            End If
+        Next
+
+        ' 5. สร้าง Excel File
+        GenerateExcelOTBMovement(context, dtExport, $"OTB_Movement_{DateTime.Now:yyyyMMdd_HHmmss}.xlsx")
+    End Sub
+
+    ' --- Helper Methods for Data Loading ---
+    Private Function LoadDraftPOForReport(year As String, month As String, company As String, category As String, segment As String, brand As String, vendor As String) As DataTable
+        Dim dt As New DataTable()
+        Using conn As New SqlConnection(connectionString)
+            conn.Open()
+            ' ดึง Draft PO ทั้งหมดที่ยังไม่ Cancelled และยังไม่ Match กับ Actual (หรือจะรวมหมดแล้วแต่ Business Rule)
+            ' ปกติถ้า Match แล้ว มูลค่าจะไปอยู่ที่ Actual PO, ถ้ายังไม่ Match อยู่ที่ Draft
+            ' กรณีนี้เราจะดึงเฉพาะ Draft ที่ Status != 'Cancelled' และ Actual_PO_Ref IS NULL
+            Dim query As String = "
+                SELECT PO_Year AS Year, PO_Month AS Month, Company_Code AS Company, Category_Code AS Category, 
+                       Segment_Code AS Segment, Brand_Code AS Brand, Vendor_Code AS Vendor, Amount_THB AS Amount
+                FROM [BMS].[dbo].[Draft_PO_Transaction]
+                WHERE ISNULL(Status, '') <> 'Cancelled' AND ISNULL(Actual_PO_Ref, '') = '' 
+                AND (@Year IS NULL OR PO_Year = @Year)
+                "
+            ' (Add filters parameters as needed logic similar to other functions)
+            Using cmd As New SqlCommand(query, conn)
+                cmd.Parameters.AddWithValue("@Year", If(String.IsNullOrEmpty(year), DBNull.Value, year))
+                Using da As New SqlDataAdapter(cmd)
+                    da.Fill(dt)
+                End Using
+            End Using
+        End Using
+        Return dt
+    End Function
+
+    Private Function LoadActualPOForReport(year As String, month As String, company As String, category As String, segment As String, brand As String, vendor As String) As DataTable
+        Dim dt As New DataTable()
+        Using conn As New SqlConnection(connectionString)
+            conn.Open()
+            ' ดึง Actual PO (จาก Staging หรือ View)
+            Dim query As String = "
+                SELECT Otb_Year AS Year, Otb_Month AS Month, Company_Code AS Company, Category, 
+                       Fund AS Segment, Brand, Supplier AS Vendor, PO_Local_Amount AS Amount
+                FROM [BMS].[dbo].[Actual_PO_Staging]
+                WHERE ISNULL(Deletion_Flag, '') <> 'L'
+                AND (@Year IS NULL OR Otb_Year = @Year)
+                "
+            Using cmd As New SqlCommand(query, conn)
+                cmd.Parameters.AddWithValue("@Year", If(String.IsNullOrEmpty(year), DBNull.Value, year))
+                Using da As New SqlDataAdapter(cmd)
+                    da.Fill(dt)
+                End Using
+            End Using
+        End Using
+        Return dt
+    End Function
+
+    Private Function GetDistinctKeysForReport(year As String, month As String, company As String, category As String, segment As String, brand As String, vendor As String) As DataTable
+        ' รวม Key จากทุกตารางเพื่อให้ได้รายการครบถ้วน
+        Dim dt As New DataTable()
+        Using conn As New SqlConnection(connectionString)
+            conn.Open()
+            Dim query As String = "
+                SELECT DISTINCT Year, Month, Category, Company, Segment, Brand, Vendor FROM [dbo].[OTB_Transaction] WHERE OTBStatus='Approved' AND (@Year IS NULL OR Year = @Year)
+                UNION
+                SELECT DISTINCT Year, Month, Category, Company, Segment, Brand, Vendor FROM [dbo].[OTB_Switching_Transaction] WHERE OTBStatus='Approved' AND (@Year IS NULL OR Year = @Year)
+                UNION
+                SELECT DISTINCT PO_Year, PO_Month, Category_Code, Company_Code, Segment_Code, Brand_Code, Vendor_Code FROM [dbo].[Draft_PO_Transaction] WHERE ISNULL(Status,'')<>'Cancelled' AND (@Year IS NULL OR PO_Year = @Year)
+                UNION
+                SELECT DISTINCT Otb_Year, Otb_Month, Category, Company_Code, Fund, Brand, Supplier FROM [dbo].[Actual_PO_Staging] WHERE ISNULL(Deletion_Flag,'')<>'L' AND (@Year IS NULL OR Otb_Year = @Year)
+            "
+            Using cmd As New SqlCommand(query, conn)
+                cmd.Parameters.AddWithValue("@Year", If(String.IsNullOrEmpty(year), DBNull.Value, year))
+                Using da As New SqlDataAdapter(cmd)
+                    da.Fill(dt)
+                End Using
+            End Using
+        End Using
+        Return dt
+    End Function
+
+    ' --- Excel Generation ---
+    Private Sub GenerateExcelOTBMovement(context As HttpContext, dt As DataTable, filename As String)
+        ExcelPackage.License.SetNonCommercialOrganization("KingPower")
+
+        Using package As New ExcelPackage()
+            Dim ws = package.Workbook.Worksheets.Add("OTB Movement")
+
+            ' Load Data starting from Row 3 (เผื่อ Header 2 บรรทัดตามภาพ)
+            ws.Cells("A3").LoadFromDataTable(dt, False)
+
+            ' --- สร้าง Headers ตามภาพ Template ---
+            ' Row 1: Group Headers (เช่น ค่า + เท่านั้น, ค่า - เท่านั้น)
+            ' Note: Column Index เริ่มที่ 1
+            ' Columns: 
+            ' 1-7: Keys (Year..Vendor)
+            ' 8: Budget Approved
+            ' 9: Revised Diff
+            ' 10: Extra
+            ' 11: Switch In
+            ' 12: Balance In
+            ' 13: Carry In
+            ' 14: Switch Out
+            ' 15: Balance Out
+            ' 16: Carry Out
+            ' 17: Total Budget Approved
+            ' 18: Actual PO
+            ' 19: Draft PO
+            ' 20: Total Actual+Draft
+            ' 21: Remaining
+
+            Dim headers() As String = {"Year", "Month", "Cate", "Category", "Company", "CompanyName", "Segment", "SegmentName", "Brand", "BrandName", "Vendor", "VendorName",
+                                       "Budget Approved", "Revised Diff", "Extra",
+                                       "Switch in", "Balance in", "Carry in",
+                                       "Switch out", "Balance out", "Carry out",
+                                       "Total Budget Approved", "Actual PO", "Draft PO", "Total Actual + Draft PO", "Remaining"}
+
+            ' Set Row 2 Headers
+            For i As Integer = 0 To headers.Length - 1
+                ws.Cells(2, i + 1).Value = headers(i)
+            Next
+
+            ' Set Row 1 Group Headers (Label สีแดงๆ ในภาพ)
+            ws.Cells(1, 13).Value = "ค่า + เท่านั้น" ' Budget Approved (จริงๆ อันนี้อาจเป็นค่าตั้งต้น)
+            ws.Cells(1, 14).Value = "ค่ามีได้ทั้ง +,-" ' Revised
+            ws.Cells(1, 15).Value = "ค่า + เท่านั้น" ' Extra
+            ws.Cells(1, 16).Value = "ค่า + เท่านั้น" ' Switch In
+            ws.Cells(1, 17).Value = "ค่า + เท่านั้น" ' Balance In
+            ws.Cells(1, 18).Value = "ค่า + เท่านั้น" ' Carry In
+            ws.Cells(1, 19).Value = "ค่า - เท่านั้น" ' Switch Out
+            ws.Cells(1, 20).Value = "ค่า - เท่านั้น" ' Balance Out
+            ws.Cells(1, 21).Value = "ค่า - เท่านั้น" ' Carry Out
+
+            ' --- Styling ---
+            ' Header Row 2 (Blue Background)
+            Using rng = ws.Cells(2, 1, 2, 26)
+                rng.Style.Font.Bold = True
+                rng.Style.Fill.PatternType = ExcelFillStyle.Solid
+                rng.Style.Fill.BackgroundColor.SetColor(Color.FromArgb(0, 90, 160)) ' KPG Blue
+                rng.Style.Font.Color.SetColor(Color.White)
+                rng.Style.HorizontalAlignment = ExcelHorizontalAlignment.Center
+            End Using
+
+            ' Total Budget Column (Green)
+            Using rng = ws.Cells(2, 22, dt.Rows.Count + 2, 22)
+                rng.Style.Fill.PatternType = ExcelFillStyle.Solid
+                rng.Style.Fill.BackgroundColor.SetColor(Color.FromArgb(146, 208, 80)) ' Light Green
+            End Using
+
+            ' Total Usage Column (Green)
+            Using rng = ws.Cells(2, 25, dt.Rows.Count + 2, 25)
+                rng.Style.Fill.PatternType = ExcelFillStyle.Solid
+                rng.Style.Fill.BackgroundColor.SetColor(Color.FromArgb(146, 208, 80))
+            End Using
+
+            ' PO Columns (Blue Header background for Actual/Draft/Remaining based on image)
+            ws.Cells(2, 23, 2, 24).Style.Fill.BackgroundColor.SetColor(Color.FromArgb(0, 90, 160))
+
+            ' Number Format
+            ws.Cells(3, 13, dt.Rows.Count + 2, 26).Style.Numberformat.Format = "#,##0.00"
+
+            ' AutoFit
+            ws.Cells.AutoFitColumns()
+
+            ' Response
+            context.Response.Clear()
+            context.Response.ContentType = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+            context.Response.AddHeader("content-disposition", $"attachment; filename={filename}")
+            context.Response.BinaryWrite(package.GetAsByteArray())
+            context.Response.Flush()
+            context.ApplicationInstance.CompleteRequest()
+        End Using
+    End Sub
+
+    ' ==================================================================
+    ' ===== NEW: SUMMARY OTB BY CATEGORY REPORT ========================
+    ' ==================================================================
+    Private Sub HandleExportSummaryCategory(context As HttpContext)
+        ' 1. รับ Parameters
+        Dim year As String = context.Request.QueryString("OTByear")
+        Dim month As String = context.Request.QueryString("OTBmonth")
+        Dim company As String = context.Request.QueryString("OTBCompany")
+        Dim category As String = context.Request.QueryString("OTBCategory")
+        Dim segment As String = context.Request.QueryString("OTBSegment")
+        Dim masterinstance As New MasterDataUtil
+        ' *สำคัญ* เราต้องดึงข้อมูลระดับ Brand/Vendor ทั้งหมดภายใต้ Filter นี้มาคำนวณก่อน แล้วค่อย Group รวม
+        Dim brand As String = ""
+        Dim vendor As String = ""
+
+
+        If String.IsNullOrEmpty(year) Then Throw New Exception("Year is required.")
+
+        ' 2. เตรียม Calculator และโหลดข้อมูลดิบ
+        Dim budgetCalc As New OTBBudgetCalculator()
+        Dim dtDraftPO As DataTable = LoadDraftPOForReport(year, month, company, category, segment, brand, vendor)
+        Dim dtActualPO As DataTable = LoadActualPOForReport(year, month, company, category, segment, brand, vendor)
+
+        ' ดึง Key ทั้งหมดที่มีข้อมูล (ระดับละเอียด)
+        Dim dtKeys As DataTable = GetDistinctKeysForReport(year, month, company, category, segment, brand, vendor)
+
+        ' 3. สร้าง List ชั่วคราวเพื่อเก็บข้อมูลระดับละเอียดก่อน Group
+        Dim rawList As New List(Of Object)
+
+        For Each rowKey As DataRow In dtKeys.Rows
+            Dim kYear As String = rowKey("Year").ToString()
+            Dim kMonth As String = rowKey("Month").ToString()
+            Dim kCate As String = rowKey("Category").ToString()
+            Dim kCateName As String = rowKey("Category").ToString()
+            Dim kComp As String = rowKey("Company").ToString()
+            Dim kCompName As String = rowKey("Company").ToString()
+            Dim kSeg As String = rowKey("Segment").ToString()
+            Dim kSegName As String = rowKey("Segment").ToString()
+            Dim kBrand As String = rowKey("Brand").ToString()
+            Dim kBrandName As String = rowKey("Brand").ToString()
+            Dim kVendor As String = rowKey("Vendor").ToString()
+            Dim kVendorName As String = rowKey("Vendor").ToString()
+            Dim kMonthName As String = GetMonthName(kMonth)
+
+            ' 3.1 คำนวณ Budget (ระดับละเอียด)
+            Dim budgetBreakdown = budgetCalc.GetBudgetBreakdown(kYear, kMonth, kCate, kComp, kSeg, kBrand, kVendor)
+            Dim totalBudgetApproved As Decimal = budgetBreakdown("Total")
+
+            ' 3.2 คำนวณ PO (ระดับละเอียด)
+            Dim filterPO As String = $"Year = '{kYear}' AND Month = '{kMonth}' AND Category = '{kCate}' AND Company = '{kComp}' AND Segment = '{kSeg}' AND Brand = '{kBrand}' AND Vendor = '{kVendor}'"
+            Dim sumDraft As Decimal = If(IsDBNull(dtDraftPO.Compute("SUM(Amount)", filterPO)), 0, Convert.ToDecimal(dtDraftPO.Compute("SUM(Amount)", filterPO)))
+            Dim sumActual As Decimal = If(IsDBNull(dtActualPO.Compute("SUM(Amount)", filterPO)), 0, Convert.ToDecimal(dtActualPO.Compute("SUM(Amount)", filterPO)))
+
+            ' เก็บลง List
+            rawList.Add(New With {
+                .Year = kYear,
+                .Month = kMonth,
+                .MonthName = kMonthName,
+                .Category = kCate,
+                .CategoryName = kCateName,
+                .Company = kComp,
+                .CompanyName = kCompName,
+                .Segment = kSeg,
+                .SegmentName = kSegName,
+                .TotalBudget = totalBudgetApproved,
+                .TotalActualDraft = sumDraft + sumActual
+            })
+        Next
+
+        ' 4. (สำคัญ) Group By Category & Segment ด้วย LINQ
+        ' ตามโจทย์: "กรณีที่ Cate นั้นมีมากกว่า 1 segment type ให้แตกบรรทัดด้วย ตามจำนวน Segment"
+        Dim groupedQuery = From item In rawList
+                           Group item By Key = New With {
+                               Key .Company = item.Company,
+                               Key .Year = item.Year,
+                               Key .MonthName = item.MonthName,
+                               Key .Category = item.Category,
+                               Key .Segment = item.Segment
+                           } Into Group
+                           Select New With {
+                               .Company = Key.Company,
+                               .Year = Key.Year,
+                               .Month = Key.MonthName,
+                               .Category = Key.Category,
+                               .Segment = Key.Segment,
+                               .TotalBudgetApproved = Group.Sum(Function(x) x.TotalBudget),
+                               .TotalActualDraft = Group.Sum(Function(x) x.TotalActualDraft),
+                               .Remaining = Group.Sum(Function(x) x.TotalBudget) - Group.Sum(Function(x) x.TotalActualDraft)
+                           }
+
+        ' 5. สร้าง DataTable สำหรับ Export
+        Dim dtExport As New DataTable("SummaryOTB")
+        dtExport.Columns.Add("Company")
+        dtExport.Columns.Add("CompanyName")
+        dtExport.Columns.Add("Year")
+        dtExport.Columns.Add("Month")
+        dtExport.Columns.Add("Cate")
+        dtExport.Columns.Add("Category")
+        dtExport.Columns.Add("Segment")
+        dtExport.Columns.Add("SegmentName")
+        dtExport.Columns.Add("Total Budget Approved", GetType(Decimal))
+        dtExport.Columns.Add("Total Actual + Draft PO", GetType(Decimal))
+        dtExport.Columns.Add("Remaining", GetType(Decimal))
+
+        For Each row In groupedQuery
+            ' Filter out rows with zero values everywhere if desired, or keep all
+            If row.TotalBudgetApproved <> 0 OrElse row.TotalActualDraft <> 0 Then
+                dtExport.Rows.Add(
+                    row.Company,
+                    masterinstance.GetCompanyName(row.Company),
+                    row.Year,
+                    row.Month,
+                    row.Category,
+                    masterinstance.GetCategoryName(row.Category),
+                    row.Segment,
+                    masterinstance.GetSegmentName(row.Segment),
+                    row.TotalBudgetApproved,
+                    row.TotalActualDraft,
+                    row.Remaining
+                )
+            End If
+        Next
+
+        ' 6. Generate Excel
+        GenerateExcelSummaryCategory(context, dtExport, $"Summary_OTB_Category_{DateTime.Now:yyyyMMdd_HHmmss}.xlsx")
+    End Sub
+
+    Private Sub GenerateExcelSummaryCategory(context As HttpContext, dt As DataTable, filename As String)
+        ExcelPackage.License.SetNonCommercialOrganization("KingPower")
+
+        Using package As New ExcelPackage()
+            Dim ws = package.Workbook.Worksheets.Add("Summary OTB")
+
+            ' ใส่ Header แบบ Custom ตามภาพ
+            ws.Cells("A1").Value = "Summary OTB by category"
+            ws.Cells("A1").Style.Font.Bold = True
+            ws.Cells("A1").Style.Font.Size = 14
+
+            ' Load Data starting from Row 3
+            ws.Cells("A3").LoadFromDataTable(dt, True)
+
+            ' Style Header Row (Row 3)
+            Using rng = ws.Cells(3, 1, 3, dt.Columns.Count)
+                rng.Style.Font.Bold = True
+                rng.Style.Fill.PatternType = ExcelFillStyle.Solid
+                rng.Style.Fill.BackgroundColor.SetColor(Color.FromArgb(0, 90, 160)) ' Blue
+                rng.Style.Font.Color.SetColor(Color.White)
+                rng.Style.HorizontalAlignment = ExcelHorizontalAlignment.Center
+            End Using
+
+            ' Style Specific Headers (Budget, Actual, Remaining) - Green Header based on image
+            Using rng = ws.Cells(3, 9, 3, 10) ' Total Budget, Total Actual
+                rng.Style.Fill.BackgroundColor.SetColor(Color.FromArgb(146, 208, 80)) ' Light Green
+                rng.Style.Font.Color.SetColor(Color.White)
+            End Using
+            Using rng = ws.Cells(3, 11, 3, 11) ' Remaining
+                rng.Style.Fill.BackgroundColor.SetColor(Color.FromArgb(0, 90, 160)) ' Blue
+                rng.Style.Font.Color.SetColor(Color.White)
+            End Using
+
+            ' Format Numbers
+            Using rng = ws.Cells(4, 9, dt.Rows.Count + 3, 11)
+                rng.Style.Numberformat.Format = "#,##0.00"
+            End Using
+
+            ws.Cells.AutoFitColumns()
+
+            context.Response.Clear()
+            context.Response.ContentType = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+            context.Response.AddHeader("content-disposition", $"attachment; filename={filename}")
+            context.Response.BinaryWrite(package.GetAsByteArray())
+            context.Response.Flush()
+            context.ApplicationInstance.CompleteRequest()
+        End Using
+    End Sub
 
     ReadOnly Property IsReusable() As Boolean Implements IHttpHandler.IsReusable
         Get

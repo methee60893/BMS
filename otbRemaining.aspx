@@ -168,8 +168,11 @@
                         <button type="button" id="btnView" class="btn btn-view btn-custom me-2">
                             <i class="bi bi-eye"></i> View
                         </button>
-                        <button type="button" id="btnTxtSum" class="btn btn-view btn-custom me-2">
+                        <button type="button" id="btnTxnSum" class="btn btn-view btn-custom me-2">
                             <i class="bi bi-eye"></i> Export Summary
+                        </button>
+                        <button type="button" id="btnTxnMovement" class="btn btn-export btn-custom">
+                            <i class="bi bi-file-earmark-excel"></i> Export TXN
                         </button>
                     </div>
                 </div>
@@ -253,45 +256,6 @@
                         <div class="detail-value"><strong id="detail_Remaining">0.00 THB</strong></div>
                     </div>
                 </div>
-
-            <!-- Export Button -->
-            <div class="export-section">
-                <button class="btn btn-export btn-custom">
-                    <i class="bi bi-file-earmark-excel"></i> Export TXN
-                </button>
-            </div>
-
-            <!-- Other Remaining Table -->
-            <div class="table-container">
-                <div class="section-title">Other Remaining</div>
-                <div class="table-responsive">
-                    <table class="table table-hover mb-0">
-                        <thead>
-                            <tr>
-                                <th>Year</th>
-                                <th>Month</th>
-                                <th>Category</th>
-                                <th>Category name</th>
-                                <th>Company</th>
-                                <th>Segment</th>
-                                <th>Segment name</th>
-                                <th>Brand</th>
-                                <th>Brand name</th>
-                                <th>Vendor</th>
-                                <th>Vendor name</th>
-                                <th>Total Budget Approved (THB)</th>
-                                <th>Draft/Actual PO (THB)</th>
-                                <th>Remaining (THB)</th>
-                            </tr>
-                        </thead>
-                        <tbody id="tableViewBody">
-                                <tr>
-                                    <td colspan="14" class="text-center text-muted p-4">Please select all filters and click "View" to see data.</td>
-                                </tr>
-                            </tbody>
-                    </table>
-                </div>
-            </div>
         </div>
     </div>
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
@@ -361,7 +325,8 @@
         let vendorDropdown = document.getElementById("DDVendor");
         let btnClearFilter = document.getElementById("btnClearFilter");
         let btnView = document.getElementById("btnView");
-        let tableViewBody = document.getElementById("tableViewBody");
+        
+        
 
         // Initialize
         let initial = function () {
@@ -431,9 +396,11 @@
                 // Re-initialize vendor dropdown (to show all)
                 InitVendor(vendorDropdown);
                 // Clear table
-                tableViewBody.innerHTML = "<tr><td colspan='14' class='text-center text-muted p-4'>Please use the filters and click 'View' to see data.</td></tr>";
+               
             });
             btnView.addEventListener('click', search);
+            $('#btnTxnMovement').on('click', exportOTBMovement);
+            $('#btnTxnSum').on('click', exportCategorySum);
         }
 
         // Main function to load all master data
@@ -474,7 +441,7 @@
 
             console.log("Searching with filters...", Object.fromEntries(formData));
             // Show loading state
-            tableViewBody.innerHTML = "<tr><td colspan='14' class='text-center text-muted p-4'><div class='spinner-border spinner-border-sm' role='status'></div> Loading data...</td></tr>";
+          
             // Clear detail box
             populateDetailBox(null); // Clear detail box
 
@@ -494,12 +461,7 @@
                         populateDetailBox(null);
                     }
 
-                    if (response.otherRemaining) {
-                        populateOtherRemainingTable(response.otherRemaining);
-                    } else {
-                        // This case shouldn't happen if the SP returns 2 tables, but good to have
-                        tableViewBody.innerHTML = "<tr><td colspan='14' class='text-center text-muted p-4'>Error processing response data.</td></tr>";
-                    }
+                 
                 },
                 error: function (xhr, status, error) {
                     console.log('Error getlist data: ' + error, xhr.responseText);
@@ -510,7 +472,7 @@
                         if (errResponse.message) errorMsg = errResponse.message;
                     } catch (e) { }
 
-                    tableViewBody.innerHTML = "<tr><td colspan='14' class='text-center text-danger p-4'>" + errorMsg + "</td></tr>";
+                 
                     populateDetailBox(null); // Clear detail on error
                 }
             });
@@ -566,36 +528,7 @@
         }
 
         // ===== NEW: Helper function to populate 'Other Remaining' table =====
-        function populateOtherRemainingTable(data) {
-            if (!data || data.length === 0) {
-                tableViewBody.innerHTML = "<tr><td colspan='14' class='text-center text-muted p-4'>No other remaining data found for this period.</td></tr>";
-                return;
-            }
-
-            let html = "";
-            data.forEach(row => {
-                // Use .replace(' THB', '') to remove currency symbol for table view
-                html += `
-                    <tr>
-                        <td>${row.Year || ''}</td>
-                        <td>${row.MonthName || ''}</td>
-                        <td>${row.Category || ''}</td>
-                        <td>${row.CategoryName || ''}</td>
-                        <td>${row.CompanyName || ''}</td>
-                        <td>${row.Segment || ''}</td>
-                        <td>${row.SegmentName || ''}</td>
-                        <td>${row.Brand || ''}</td>
-                        <td>${row.BrandName || ''}</td>
-                        <td>${row.Vendor || ''}</td>
-                        <td>${row.VendorName || ''}</td>
-                        <td class="text-end">${formatTHB(row.TotalBudgetApproved).replace(' THB', '')}</td>
-                        <td class="text-end">${formatTHB(row.Draft_Actual_PO_THB).replace(' THB', '')}</td>
-                        <td class="text-end">${formatTHB(row.Remaining).replace(' THB', '')}</td>
-                    </tr>
-                `;
-            });
-            tableViewBody.innerHTML = html;
-        }
+      
 
         // --- Master Data Loaders (using '...MSList' actions) ---
 
@@ -723,6 +656,67 @@
                     console.log('Error getlist data: ' + error);
                 }
             });
+        }
+
+        let exportOTBMovement = function () {
+            console.log("Export OTB Movement clicked");
+
+            // รับค่า Filter
+            let OTByear = yearDropdown.value;
+            let OTBmonth = monthDropdown.value;
+            let OTBcompany = companyDropdown.value;
+            let OTBCategory = categoryDropdown.value;
+            let OTBSegment = segmentDropdown.value;
+            let OTBBrand = brandDropdown.value;
+            let OTBVendor = vendorDropdown.value;
+
+            if (!OTByear) {
+                alert("Please select a Year to export the report.");
+                return;
+            }
+
+            var params = new URLSearchParams();
+            params.append('action', 'exportOTBMovement'); // <--- Action ใหม่
+            params.append('OTByear', OTByear);
+
+            if (OTBmonth) params.append('OTBmonth', OTBmonth);
+            if (OTBcompany) params.append('OTBCompany', OTBcompany);
+            if (OTBCategory) params.append('OTBCategory', OTBCategory);
+            if (OTBSegment) params.append('OTBSegment', OTBSegment);
+            if (OTBBrand) params.append('OTBBrand', OTBBrand);
+            if (OTBVendor) params.append('OTBVendor', OTBVendor);
+
+            // Trigger Download
+            window.location.href = 'Handler/DataOTBHandler.ashx?' + params.toString();
+        }
+
+        let exportCategorySum = function () {
+            console.log("Export Category Summary clicked");
+
+            // รับค่า Filter
+            let OTByear = yearDropdown.value;
+            let OTBmonth = monthDropdown.value;
+            let OTBcompany = companyDropdown.value;
+            let OTBCategory = categoryDropdown.value;
+            let OTBSegment = segmentDropdown.value;
+            // Brand และ Vendor ไม่จำเป็นต้องส่งไปกรอง เพราะ Report นี้ดูภาพรวม แต่ถ้าส่งไปก็ไม่เสียหาย
+
+            if (!OTByear) {
+                alert("Please select a Year to export the report.");
+                return;
+            }
+
+            var params = new URLSearchParams();
+            params.append('action', 'exportsummarycategory'); // <--- Action ใหม่
+            params.append('OTByear', OTByear);
+
+            if (OTBmonth) params.append('OTBmonth', OTBmonth);
+            if (OTBcompany) params.append('OTBCompany', OTBcompany);
+            if (OTBCategory) params.append('OTBCategory', OTBCategory);
+            if (OTBSegment) params.append('OTBSegment', OTBSegment);
+
+            // Trigger Download
+            window.location.href = 'Handler/DataOTBHandler.ashx?' + params.toString();
         }
 
         // Initialize on page load
