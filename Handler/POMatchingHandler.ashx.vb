@@ -32,8 +32,86 @@ Public Class POMatchingHandler
 
         ElseIf action = "submitmatches" Then
             SubmitMatches(context)
+        ElseIf action = "manualmatch" Then
+            HandleManualMatch(context)
         End If
 
+    End Sub
+
+    Private Sub HandleManualMatch(context As HttpContext)
+        context.Response.ContentType = "application/json"
+        Dim actualPO_ID As String = context.Request.Form("actualPO_ID") ' <-- รับ ID
+        Dim actualPONo As String = context.Request.Form("actualPONo")   ' <-- รับ No ไว้ใช้ update Draft (ถ้าจำเป็น)
+        Dim draftPONo As String = context.Request.Form("draftPONo")
+        Dim updateBy As String = "User Manual Match"
+
+        Try
+            ' 1. Validate Input
+            If String.IsNullOrEmpty(actualPO_ID) OrElse String.IsNullOrEmpty(draftPONo) Then
+                Throw New Exception("Actual PO ID and Draft PO No are required.")
+            End If
+
+            Dim draftData As DataRow = Nothing
+
+            Using conn As New SqlConnection(connectionString)
+                conn.Open()
+
+                ' 2. Check Draft PO (เหมือนเดิม)
+                Dim checkQuery As String = "SELECT * FROM [BMS].[dbo].[Draft_PO_Transaction] WHERE [DraftPO_No] = @DraftPONo AND ISNULL(Status, '') <> 'Cancelled'"
+                Using cmdCheck As New SqlCommand(checkQuery, conn)
+                    cmdCheck.Parameters.AddWithValue("@DraftPONo", draftPONo)
+                    Dim dt As New DataTable()
+                    Using da As New SqlDataAdapter(cmdCheck)
+                        da.Fill(dt)
+                    End Using
+                    If dt.Rows.Count = 0 Then
+                        Throw New Exception($"Draft PO No. '{draftPONo}' not found or is cancelled.")
+                    End If
+                    draftData = dt.Rows(0)
+                End Using
+
+                ' 3. Perform Match (Update DB)
+                Using transaction As SqlTransaction = conn.BeginTransaction()
+                    Try
+                        ' [BMS Gem]: Update Actual PO Summary โดยใช้ ID
+                        Dim updateActual As String = "UPDATE [BMS].[dbo].[Actual_PO_Summary] SET [Draft_PO_Ref] = @DraftPONo, [Status] = 'Matched', [Matching_Date] = GETDATE(), [Changed_By] = @UpdateBy, [Changed_date] = GETDATE() WHERE [ActualPO_ID] = @ActualPOID"
+                        Using cmd As New SqlCommand(updateActual, conn, transaction)
+                            cmd.Parameters.AddWithValue("@DraftPONo", draftPONo)
+                            cmd.Parameters.AddWithValue("@ActualPOID", actualPO_ID) ' <-- ใช้ ID
+                            cmd.Parameters.AddWithValue("@UpdateBy", updateBy)
+                            cmd.ExecuteNonQuery()
+                        End Using
+
+                        ' Update Draft PO Transaction (Sync back)
+                        Dim updateDraft As String = "UPDATE [BMS].[dbo].[Draft_PO_Transaction] SET [Actual_PO_Ref] = @ActualPONo, [Status] = 'Matched', [Status_Date] = GETDATE(), [Status_By] = @UpdateBy WHERE [DraftPO_No] = @DraftPONo"
+                        Using cmd As New SqlCommand(updateDraft, conn, transaction)
+                            cmd.Parameters.AddWithValue("@DraftPONo", draftPONo)
+                            cmd.Parameters.AddWithValue("@ActualPONo", actualPONo) ' ใช้ No เพื่อ Link กลับ (Ref เป็น String)
+                            cmd.Parameters.AddWithValue("@UpdateBy", updateBy)
+                            cmd.ExecuteNonQuery()
+                        End Using
+
+                        transaction.Commit()
+                    Catch ex As Exception
+                        transaction.Rollback()
+                        Throw
+                    End Try
+                End Using
+            End Using
+
+            ' 4. Return Success Data (เหมือนเดิม)
+            Dim responseData As New With {
+                .DraftPONo = draftData("DraftPO_No").ToString(),
+                .DraftPODate = Convert.ToDateTime(draftData("Created_Date")).ToString("dd/MM/yyyy"),
+                .DraftAmountTHB = If(draftData("Amount_THB") Is DBNull.Value, 0D, Convert.ToDecimal(draftData("Amount_THB"))),
+                .DraftAmountCCY = If(draftData("Amount_CCY") Is DBNull.Value, 0D, Convert.ToDecimal(draftData("Amount_CCY")))
+            }
+            context.Response.Write(JsonConvert.SerializeObject(New With {.success = True, .message = "Matched successfully!", .data = responseData}))
+
+        Catch ex As Exception
+            context.Response.StatusCode = 500
+            context.Response.Write(JsonConvert.SerializeObject(New With {.success = False, .message = ex.Message}))
+        End Try
     End Sub
 
     Private Sub SyncAndGetPOData(context As HttpContext)
@@ -291,6 +369,7 @@ Public Class POMatchingHandler
         ' ข้อมูล Draft จะถูกดึงมาแสดงถ้ามีการ Match กัน (ผ่าน Draft_PO_Ref)
         Dim query As String = "
            SELECT 
+                A.ActualPO_ID,
                 A.OTB_Year,
                 A.OTB_Month, 
                 A.Company_Code,
@@ -343,6 +422,7 @@ Public Class POMatchingHandler
 
                         ' 2. Map Actual Data (มีค่าเสมอเพราะดึงจาก Summary)
                         item.Actual = New GroupedActualPO With {
+                            .ActualPO_ID = Convert.ToInt32(r("ActualPO_ID")),
                             .ActualPONo = r("ActualPONo").ToString(),
                             .ActualPODate = If(r("Actual_PO_Date") Is DBNull.Value, "", Convert.ToDateTime(r("Actual_PO_Date")).ToString("dd/MM/yyyy")),
                             .ActualAmountTHB = Convert.ToDecimal(r("ActualAmountTHB")),

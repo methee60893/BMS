@@ -1103,9 +1103,9 @@
             formData.append('brand', brandDropdown.value);
             formData.append('vendor', vendorDropdown.value);
             formData.append('pono', document.getElementById("tsPONO").value);
-            formData.append('amtCCY', document.getElementById("tsAmtCCY").value);
+            formData.append('amtCCY', parseFloat(document.getElementById("tsAmtCCY").value || 0).toFixed(2));
             formData.append('ccy', ccyDropdown.value); // Send value
-            formData.append('exRate', document.getElementById("tsExRate").value);
+            formData.append('exRate', parseFloat(document.getElementById("tsExRate").value || 0).toFixed(4));
             formData.append('amtTHB', document.getElementById("tsAmtTHB").value);
             formData.append('remark', document.getElementById("tsRemark").value);
             // createdBy will be handled by the server using Session

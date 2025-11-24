@@ -168,6 +168,45 @@
             </div>
         </div>
     </div>
+
+    <div class="modal fade" id="manualMatchModal" tabindex="-1" aria-labelledby="manualMatchModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header bg-primary text-white">
+                    <h5 class="modal-title" id="manualMatchModalLabel">
+                        <i class="bi bi-link-45deg"></i> Manual Match Draft PO
+                    </h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <input type="hidden" id="hdnMatchActualPOID"> 
+                    <input type="hidden" id="hdnMatchActualPONo">
+                    <input type="hidden" id="hdnMatchRowIndex">
+
+                    
+                    <div class="mb-3">
+                        <label for="txtManualDraftPONo" class="form-label">Actual PO No.</label>
+                        <input type="text" class="form-control" id="lblMatchActualPONo" readonly style="background-color: #e9ecef;">
+                    </div>
+                    <div class="mb-3">
+                        <label for="txtManualDraftPONo" class="form-label">Enter Draft PO No. <span class="text-danger">*</span></label>
+                        <div class="input-group">
+                            <span class="input-group-text"><i class="bi bi-file-earmark-text"></i></span>
+                            <input type="text" class="form-control" id="txtManualDraftPONo" placeholder="e.g. DPO-2025-XXXX" autocomplete="off">
+                        </div>
+                        <div class="form-text text-muted">System will validate if this Draft PO exists.</div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                    <button type="button" class="btn btn-success" onclick="saveManualMatch()">
+                        <i class="bi bi-save"></i> Save & Match
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script>
@@ -177,6 +216,7 @@
         let btnViewNoSync = document.getElementById("btnViewNoSync");
         let tableBody = document.getElementById("matchTableBody");
         let loadingOverlay = document.getElementById("loadingOverlay");
+        var manualMatchModal;
 
 
         // Toggle Sidebar
@@ -260,22 +300,32 @@
                 const draft = item.Draft || item.draft;
                 const actual = item.Actual || item.actual;
                 const matchStatus = item.MatchStatus || item.matchStatus;
+                const actualPONo = getVal(actual, 'ActualPONo');
+                const actualPOID = getVal(actual, 'ActualPO_ID');
 
                 let rowClass = '';
                 if (matchStatus === 'Matched') {
                     rowClass = 'highlight-matched';
                 }
+                const rowId = `row-${actualPOID}`;
 
-                html += `<tr class="${rowClass}">`;
+                html += `<tr class="${rowClass}" id="${rowId}">`;
 
                 // Checkbox
-                html += `<td>
-                            <input type="checkbox" 
-                                   class="form-check-input match-checkbox" 
-                                   ${matchStatus === 'Matched' ? 'checked' : ''}
-                                   data-draft-pos="${draft ? (draft.DraftPONo || draft.draftPONo) : ''}"
-                                   data-actual-po="${actual ? (actual.ActualPONo || actual.actualPONo) : ''}"
-                            >
+                html += `<td class="text-center" style="white-space: nowrap;">
+                            <div class="d-flex align-items-center gap-2 justify-content-center">
+                                <input type="checkbox" 
+                                       class="form-check-input match-checkbox" 
+                                       ${matchStatus === 'Matched' ? 'checked' : ''}
+                                       data-draft-pos="${draft ? (draft.DraftPONo || draft.draftPONo) : ''}"
+                                       data-actual-po="${actualPONo}"
+                                >
+                                <button type="button" class="btn btn-sm btn-outline-secondary" 
+                                        onclick="openManualMatchModal('${actualPOID}', '${actualPONo}', ${index})"
+                                        title="Change Draft PO No.">
+                                    <i class="bi bi-pencil-square"></i>
+                                </button>
+                            </div>
                          </td>`;
 
                 // --- Group Keys (จาก Actual Summary) ---
@@ -287,12 +337,11 @@
                 html += `<td>${getVal(key, 'Brand')}</td>`;
                 html += `<td>${getVal(key, 'Vendor')}</td>`;
 
-                // --- Draft PO Data ---
-                // ถ้า draft เป็น null จะแสดงว่างๆ
-                html += `<td>${draft ? getVal(draft, 'DraftPODate') : '-'}</td>`;
-                html += `<td>${draft ? getVal(draft, 'DraftPONo') : '-'}</td>`;
-                html += `<td class="text-end">${draft ? formatNumber(getNum(draft, 'DraftAmountTHB')) : '-'}</td>`;
-                html += `<td class="text-end">${draft ? formatNumber(getNum(draft, 'DraftAmountCCY')) : '-'}</td>`;
+                // --- Draft PO Data (ใช้ ID อ้างอิง Element) ---
+                html += `<td id="td-date-${actualPOID}">${draft ? getVal(draft, 'DraftPODate') : '-'}</td>`;
+                html += `<td id="td-no-${actualPOID}">${draft ? getVal(draft, 'DraftPONo') : '-'}</td>`;
+                html += `<td id="td-thb-${actualPOID}" class="text-end">${draft ? formatNumber(getNum(draft, 'DraftAmountTHB')) : '-'}</td>`;
+                html += `<td id="td-ccy-${actualPOID}" class="text-end">${draft ? formatNumber(getNum(draft, 'DraftAmountCCY')) : '-'}</td>`;
 
                 // --- Actual PO Data (ต้องมีค่าเสมอ) ---
                 html += `<td class="text-end"><strong>${formatNumber(getNum(actual, 'ActualAmountTHB'))}</strong></td>`;
@@ -454,9 +503,84 @@
                 }
             });
         }
+        function openManualMatchModal(actualPOID, actualPONo, rowIndex) {
+            document.getElementById('hdnMatchActualPOID').value = actualPOID; // Store ID
+            document.getElementById('hdnMatchActualPONo').value = actualPONo;
+            document.getElementById('lblMatchActualPONo').value = actualPONo;
+            document.getElementById('hdnMatchRowIndex').value = rowIndex;
+            document.getElementById('txtManualDraftPONo').value = '';
+            manualMatchModal.show();
+
+            setTimeout(() => document.getElementById('txtManualDraftPONo').focus(), 500);
+        }
+
+        // บันทึกข้อมูล
+        function saveManualMatch() {
+            var actualPOID = document.getElementById('hdnMatchActualPOID').value;
+            var actualPONo = document.getElementById('hdnMatchActualPONo').value;
+            var draftPONo = document.getElementById('txtManualDraftPONo').value.trim();
+
+            if (!draftPONo) {
+                alert("Please enter Draft PO No.");
+                return;
+            }
+
+            showLoading(true, "Validating & Matching...");
+
+            var formData = new FormData();
+            formData.append('actualPO_ID', actualPOID); // ส่ง ID ไป Backend
+            formData.append('actualPONo', actualPONo);
+            formData.append('draftPONo', draftPONo);
+
+            $.ajax({
+                url: 'Handler/POMatchingHandler.ashx?action=manualMatch',
+                type: 'POST',
+                data: formData,
+                processData: false,
+                contentType: false,
+                dataType: 'json',
+                success: function (response) {
+                    showLoading(false);
+                    if (response.success) {
+                        manualMatchModal.hide();
+                        alert(response.message);
+
+                        // --- Update UI by ID ---
+                        updateRowUI(actualPOID, response.data);
+
+                    } else {
+                        alert(response.message);
+                    }
+                },
+                error: function (xhr, status, error) {
+                    showLoading(false);
+                    alert('Error: ' + (xhr.responseJSON ? xhr.responseJSON.message : error));
+                }
+            });
+        }
+
+        // ฟังก์ชันอัปเดตแถว (ใช้ ID)
+        function updateRowUI(actualPOID, newData) {
+            var row = document.getElementById('row-' + actualPOID);
+            if (row) {
+                document.getElementById('td-date-' + actualPOID).textContent = newData.DraftPODate;
+                document.getElementById('td-no-' + actualPOID).textContent = newData.DraftPONo;
+                document.getElementById('td-thb-' + actualPOID).textContent = formatNumber(newData.DraftAmountTHB);
+                document.getElementById('td-ccy-' + actualPOID).textContent = formatNumber(newData.DraftAmountCCY);
+
+                row.classList.add('highlight-matched');
+
+                var checkbox = row.querySelector('.match-checkbox');
+                if (checkbox) {
+                    checkbox.dataset.draftPos = newData.DraftPONo;
+                    checkbox.checked = true;
+                }
+            }
+        }
 
         let initial = function () {
             // (MODIFIED: Call the refactored sync function)
+            manualMatchModal = new bootstrap.Modal(document.getElementById('manualMatchModal'));
 
             btnSyncSAP.addEventListener('click', function () { loadMatchData('sync_and_get'); });
 

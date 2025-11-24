@@ -6,4 +6,5 @@
     Public Property ActualPODate As String
     Public Property ActualCCY As String
     Public Property ActualExRate As Decimal
+    Public Property ActualPO_ID As Integer
 End Class
