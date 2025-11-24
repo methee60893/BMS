@@ -22,14 +22,114 @@ Public Class POMatchingHandler
     Sub ProcessRequest(ByVal context As HttpContext) Implements IHttpHandler.ProcessRequest
         Dim action As String = If(context.Request("action"), "").ToLower().Trim()
 
-        If action = "getpo" Then
-            GetPOData(context)
+        If action = "sync_and_get" Then
+            ' 1. ปุ่ม Sync SAP: ทำการ Sync ก่อน แล้วค่อยดึงข้อมูล
+            SyncAndGetPOData(context)
+
+        ElseIf action = "get_only" Then
+            ' 2. ปุ่ม View (ใหม่): ดึงข้อมูลอย่างเดียว ไม่ Sync
+            GetMatchingReportData(context)
+
         ElseIf action = "submitmatches" Then
             SubmitMatches(context)
         End If
 
     End Sub
 
+    Private Sub SyncAndGetPOData(context As HttpContext)
+        Try
+            ' 1. Sync ข้อมูล (ดึงย้อนหลังตามความเหมาะสม เช่น 60 วัน)
+            Dim syncDateStart As Date = Date.Today.AddDays(-60)
+
+            ' ใช้ Task.Run เพื่อเรียก Async Method ใน Handler
+            Dim poList As List(Of SapPOResultItem) = Task.Run(Async Function()
+                                                                  Return Await SapApiHelper.GetPOsAsync(syncDateStart, 5000, 0)
+                                                              End Function).Result
+
+            If poList IsNot Nothing AndAlso poList.Count > 0 Then
+                Dim syncMsg As String = SyncPOsToStaging(poList)
+                ' (อาจจะเก็บ syncMsg ไว้ส่งกลับถ้าต้องการ)
+            End If
+
+            ' 2. เรียกฟังก์ชันดึงข้อมูลต่อเลย
+            GetMatchingReportData(context)
+
+        Catch ex As Exception
+            context.Response.StatusCode = 500
+            context.Response.Write(JsonConvert.SerializeObject(New With {.success = False, .message = "Sync Error: " & ex.Message}))
+        End Try
+    End Sub
+
+    ' ฟังก์ชันกลางสำหรับดึงข้อมูล Matching (ไม่รับ Parameter)
+    Private Sub GetMatchingReportData(context As HttpContext)
+        Try
+            Dim dt As New DataTable()
+
+            Using conn As New SqlConnection(connectionString)
+                conn.Open()
+                Using cmd As New SqlCommand("SP_Get_Actual_PO_Matching_Report", conn)
+                    cmd.CommandType = CommandType.StoredProcedure
+
+                    ' *** KEY POINT: ส่ง DBNull ไปทุกตัว เพื่อดึงข้อมูลทั้งหมด ***
+                    cmd.Parameters.AddWithValue("@Year", DBNull.Value)
+                    cmd.Parameters.AddWithValue("@Month", DBNull.Value)
+                    cmd.Parameters.AddWithValue("@Company", DBNull.Value)
+                    cmd.Parameters.AddWithValue("@Category", DBNull.Value)
+                    cmd.Parameters.AddWithValue("@Segment", DBNull.Value)
+                    cmd.Parameters.AddWithValue("@Brand", DBNull.Value)
+                    cmd.Parameters.AddWithValue("@Vendor", DBNull.Value)
+
+                    Using adapter As New SqlDataAdapter(cmd)
+                        adapter.Fill(dt)
+                    End Using
+                End Using
+            End Using
+
+            ' แปลง DataTable เป็น JSON Response
+            Dim results As New List(Of Dictionary(Of String, Object))
+            For Each row As DataRow In dt.Rows
+                Dim item As New Dictionary(Of String, Object)
+
+                ' 1. Key Columns
+                item("Year") = row("Year")
+                item("Month") = row("Month")
+                item("Company") = row("Company")
+                item("Category") = row("Category")
+                item("Segment") = row("Segment")
+                item("Brand") = row("Brand")
+                item("Vendor") = row("Vendor")
+
+                ' 2. Actual Data
+                item("Actual_PO_List") = row("Actual_PO_List")
+                item("Actual_Amount_THB") = row("Actual_Amount_THB")
+                item("Actual_Amount_CCY") = row("Actual_Amount_CCY")
+                ' เพิ่ม 2 ตัวนี้ เพื่อให้แสดงในหน้าจอได้
+                item("Actual_CCY") = row("Actual_CCY")
+                item("Actual_ExRate") = row("Actual_ExRate")
+
+                ' 3. Draft Data
+                item("Draft_PO_List") = row("Draft_PO_List")
+                item("Draft_Amount_THB") = row("Draft_Amount_THB")
+                ' เพิ่มตัวนี้ (ถ้าใน SP มีการ Select มา)
+                item("Draft_Amount_CCY") = row("Draft_Amount_CCY")
+
+                ' 4. Matching Status
+                item("Match_Status") = row("Match_Status")
+
+                results.Add(item)
+            Next
+
+            context.Response.ContentType = "application/json"
+            context.Response.Write(JsonConvert.SerializeObject(New With {
+            .success = True,
+            .data = results
+        }))
+
+        Catch ex As Exception
+            context.Response.StatusCode = 500
+            context.Response.Write(JsonConvert.SerializeObject(New With {.success = False, .message = "Data Error: " & ex.Message}))
+        End Try
+    End Sub
 
     ' (เพิ่ม) Sub ใหม่สำหรับ Submit
     Private Sub SubmitMatches(context As HttpContext)

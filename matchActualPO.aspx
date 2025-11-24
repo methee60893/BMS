@@ -113,10 +113,14 @@
             </div>
             <!-- Submit Section -->
             <div class="submit-section">
-                <button type="button" id="btnSyncSAP" class="btn-submit me-3" style="background-color: var(--primary-blue);">
-                    <i class="bi bi-arrow-repeat"></i> Sync SAP
+                <button type="button" id="btnViewNoSync" class="btn-submit me-3" style="background-color: #17a2b8;">
+                    <i class="bi bi-table"></i> View Data
                 </button>
-                <!-- (MODIFIED: Added 'disabled' by default) -->
+
+                <button type="button" id="btnSyncSAP" class="btn-submit me-3" style="background-color: var(--primary-blue);">
+                    <i class="bi bi-arrow-repeat"></i> Sync SAP & View
+                </button>
+
                 <button type="button" id="btnSubmit" class="btn-submit" disabled>
                     <i class="bi bi-check-circle"></i> Submit
                 </button>
@@ -170,6 +174,7 @@
         // (MODIFIED: Cache all buttons)
         let btnSyncSAP = document.getElementById("btnSyncSAP");
         let btnSubmit = document.getElementById("btnSubmit");
+        let btnViewNoSync = document.getElementById("btnViewNoSync");
         let tableBody = document.getElementById("matchTableBody");
         let loadingOverlay = document.getElementById("loadingOverlay");
 
@@ -233,68 +238,106 @@
             return names[monthInt] || month;
         }
 
-        // (MODIFIED) Function สร้างตาราง
+        // แก้ไขฟังก์ชัน buildTable ใน matchActualPO.aspx
+
         function buildTable(data) {
-            tableBody.innerHTML = ''; // Clear table
+            let tableBody = document.getElementById("matchTableBody");
+            tableBody.innerHTML = '';
+
             if (!data || data.length === 0) {
+                // ปรับ colspan ให้เท่ากับจำนวนหัวตาราง (18 ช่อง)
                 tableBody.innerHTML = '<tr><td colspan="18" class="text-center p-4 text-muted">No data found.</td></tr>';
-                btnSubmit.disabled = true; // (MODIFIED: Disable submit if no data)
                 return;
             }
 
             let html = '';
-            data.forEach((item, index) => {
-                const key = item.Key;
-                const draft = item.Draft;
-                const actual = item.Actual;
-
-                // (MODIFIED: Set class based on MatchStatus)
+            data.forEach((item) => {
+                // กำหนดสีของแถว (Row Color) ตาม Match Status
                 let rowClass = '';
-                if (item.MatchStatus === 'Matched') {
-                    rowClass = 'highlight-matched'; // Green highlight
+                let isMatched = false;
+
+                if (item.Match_Status === 'Matched') {
+                    rowClass = 'table-success'; // สีเขียว
+                    isMatched = true;
+                } else if (item.Match_Status === 'Unmatched_Amount') {
+                    rowClass = 'table-warning'; // สีเหลือง
+                } else if (item.Match_Status === 'Actual_Only') {
+                    rowClass = ''; // ขาวปกติ
+                } else {
+                    rowClass = 'table-light text-muted'; // สีเทา (Draft Only)
                 }
 
                 html += `<tr class="${rowClass}">`;
 
-                // (MODIFIED: Add data attributes to checkbox for submission)
-                html += `<td>
-                            <input type="checkbox" 
-                                   class="form-check-input match-checkbox" 
-                                   ${item.MatchStatus === 'Matched' ? 'checked' : ''}
-                                   data-draft-pos="${draft ? HttpUtility.HtmlAttributeEncode(draft.DraftPONo) : ''}"
-                                   data-actual-po="${actual ? HttpUtility.HtmlAttributeEncode(actual.ActualPONo) : ''}"
-                            >
-                         </td>`;
+                // -----------------------------------------------------------
+                // เรียงลำดับ Column ตามรูปภาพเป๊ะๆ
+                // -----------------------------------------------------------
 
-                // --- Group Keys ---
-                html += `<td>${key.Year || ''}</td>`;
-                html += `<td>${getMonthName(key.Month) || ''}</td>`;
-                html += `<td>${key.Category || ''}</td>`;
-                html += `<td>${key.Company || ''}</td>`;
-                html += `<td>${key.Segment || ''}</td>`;
-                html += `<td>${key.Brand || ''}</td>`;
-                html += `<td>${key.Vendor || ''}</td>`;
+                // 1. Select (Checkbox)
+                // ให้ติ๊กได้เฉพาะรายการที่ Match กันแล้ว หรือ ตาม Business logic ที่ต้องการ
+                html += `<td><input type="checkbox" class="form-check-input match-checkbox"></td>`;
 
-                // --- Draft PO Data ---
-                html += `<td>${draft ? (draft.DraftPODate || '') : ''}</td>`;
-                html += `<td style="max-width: 150px; overflow: hidden; text-overflow: ellipsis;" title="${draft ? HttpUtility.HtmlAttributeEncode(draft.DraftPONo) : ''}">${draft ? (draft.DraftPONo || '') : ''}</td>`;
-                html += `<td class="text-end">${draft ? formatNumber(draft.DraftAmountTHB) : ''}</td>`;
-                html += `<td class="text-end">${draft ? formatNumber(draft.DraftAmountCCY) : ''}</td>`; // (MODIFIED: Re-ordered)
+                // 2. Year
+                html += `<td>${item.Year || ''}</td>`;
 
-                // --- Actual PO Data ---
-                html += `<td class="text-end">${actual ? formatNumber(actual.ActualAmountTHB) : ''}</td>`;
-                html += `<td class="text-end">${actual ? formatNumber(actual.ActualAmountCCY) : ''}</td>`; // (MODIFIED: Re-ordered)
-                html += `<td>${actual ? (actual.ActualCCY || '') : ''}</td>`;
-                html += `<td class="text-end">${actual ? formatNumber(actual.ActualExRate) : ''}</td>`;
-                html += `<td>${actual ? (actual.ActualPODate || '') : ''}</td>`;
-                html += `<td style="max-width: 150px; overflow: hidden; text-overflow: ellipsis;" title="${actual ? HttpUtility.HtmlAttributeEncode(actual.ActualPONo) : ''}">${actual ? (actual.ActualPONo || '') : ''}</td>`;
+                // 3. Month
+                html += `<td>${item.Month || ''}</td>`;
+
+                // 4. Cate
+                html += `<td>${item.Category || ''}</td>`;
+
+                // 5. Company
+                html += `<td>${item.Company || ''}</td>`;
+
+                // 6. Segment
+                html += `<td>${item.Segment || ''}</td>`;
+
+                // 7. Brand
+                html += `<td>${item.Brand || ''}</td>`;
+
+                // 8. Vendor
+                html += `<td>${item.Vendor || ''}</td>`;
+
+                // 9. Draft PO Date (ใน Grouped Query ไม่มีวันที่ที่แน่นอน ให้ขีดละไว้)
+                html += `<td class="text-center">-</td>`;
+
+                // 10. Draft PO/PO no.
+                html += `<td class="text-truncate-custom" title="${item.Draft_PO_List || ''}">${item.Draft_PO_List || '-'}</td>`;
+
+                // 11. Draft PO Amount (THB)
+                html += `<td class="text-end">${formatNumber(item.Draft_Amount_THB)}</td>`;
+
+                // 12. Draft PO Amount (CCY)
+                html += `<td class="text-end">${formatNumber(item.Draft_Amount_CCY)}</td>`;
+
+                // 13. Actual PO Amount (THB)
+                html += `<td class="text-end fw-bold">${formatNumber(item.Actual_Amount_THB)}</td>`;
+
+                // 14. Actual Amount (CCY)
+                html += `<td class="text-end">${formatNumber(item.Actual_Amount_CCY)}</td>`;
+
+                // 15. CCY
+                html += `<td>${item.Actual_CCY || ''}</td>`;
+
+                // 16. Actual Ex. Rate
+                html += `<td class="text-end">${formatNumber(item.Actual_ExRate, 4)}</td>`;
+
+                // 17. Actual PO Date (Grouped ไม่มีวันที่เดียว)
+                html += `<td class="text-center">-</td>`;
+
+                // 18. Actual PO no.
+                html += `<td class="text-truncate-custom" title="${item.Actual_PO_List || ''}">${item.Actual_PO_List || '-'}</td>`;
 
                 html += '</tr>';
             });
-            tableBody.innerHTML = html;
 
-            // (MODIFIED: Enable submit button after loading data)
-            btnSubmit.disabled = false;
+            tableBody.innerHTML = html;
+        }
+
+        // Helper Format Number (ปรับปรุงให้รองรับทศนิยมตามที่ส่งมา)
+        function formatNumber(num, decimals = 2) {
+            if (num === null || num === undefined || num === '') return '0.00';
+            return parseFloat(num).toLocaleString('en-US', { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
         }
 
         // (MODIFIED: Helper for encoding attributes)
@@ -397,14 +440,56 @@
             });
         }
 
-        let initial = function () {
-            // (MODIFIED: Call the refactored sync function)
-            btnSyncSAP.addEventListener('click', syncAndLoadData);
+        function loadMatchData(actionType) {
+            let loadingMsg = actionType === 'sync_and_get' ? 'Syncing SAP & Loading...' : 'Loading Data...';
+            showLoading(true, loadingMsg);
 
-            // (MODIFIED: Add click listener for submit)
-            btnSubmit.addEventListener('click', handleSubmit);
+            // ปิดปุ่มกันกดซ้ำ
+            if (btnSyncSAP) btnSyncSAP.disabled = true;
+            if (btnViewNoSync) btnViewNoSync.disabled = true;
+            if (btnSubmit) btnSubmit.disabled = true;
+
+            // *** KEY POINT: ไม่ต้องสร้าง FormData จาก Filter แล้ว ***
+
+            $.ajax({
+                url: 'Handler/POMatchingHandler.ashx?action=' + actionType, // ส่ง Action ตามปุ่มที่กด
+                type: 'POST',
+                // data: formData,  <-- เอาออกเลย เพราะ GetPOData ไม่รับค่าแล้ว
+                processData: false,
+                contentType: false,
+                dataType: 'json',
+                success: function (response) {
+                    showLoading(false);
+                    if (btnSyncSAP) btnSyncSAP.disabled = false;
+                    if (btnViewNoSync) btnViewNoSync.disabled = false;
+
+                    if (response.success) {
+                        buildTable(response.data);
+                    } else {
+                        alert('Error: ' + response.message);
+                        tableBody.innerHTML = `<tr><td colspan="15" class="text-center p-4 text-danger">${response.message}</td></tr>`;
+                    }
+                },
+                error: function (xhr, status, error) {
+                    showLoading(false);
+                    if (btnSyncSAP) btnSyncSAP.disabled = false;
+                    if (btnViewNoSync) btnViewNoSync.disabled = false;
+                    console.error(error);
+                    alert('Fatal error: ' + xhr.responseText);
+                }
+            });
         }
 
+        let initial = function () {
+            // (MODIFIED: Call the refactored sync function)
+
+            btnSyncSAP.addEventListener('click', function () { loadMatchData('sync_and_get'); });
+
+            // (MODIFIED: Add click listener for submit)
+            btnViewNoSync.addEventListener('click', function () { loadMatchData('get_only'); });
+
+            btnSubmit.addEventListener('click', handleSubmit);
+        }
         // Close sidebar when clicking outside
         document.addEventListener('click', function (event) {
             const sidebar = document.getElementById('sidebar');
