@@ -559,7 +559,7 @@
             const tabContents = document.querySelectorAll('.tab-content');
             tabContents.forEach(tc => tc.classList.remove('active'));
 
-            event.target.closest('.tab-button').classList.add('active');
+            tab.target.closest('.tab-button').classList.add('active');
 
             if (tab === 'txn') {
                 document.getElementById('txnTab').classList.add('active');

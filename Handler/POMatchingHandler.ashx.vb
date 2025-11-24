@@ -28,7 +28,7 @@ Public Class POMatchingHandler
 
         ElseIf action = "get_only" Then
             ' 2. ปุ่ม View (ใหม่): ดึงข้อมูลอย่างเดียว ไม่ Sync
-            GetMatchingReportData(context)
+            GetPOData(context)
 
         ElseIf action = "submitmatches" Then
             SubmitMatches(context)
@@ -38,25 +38,55 @@ Public Class POMatchingHandler
 
     Private Sub SyncAndGetPOData(context As HttpContext)
         Try
-            ' 1. Sync ข้อมูล (ดึงย้อนหลังตามความเหมาะสม เช่น 60 วัน)
-            Dim syncDateStart As Date = Date.Today.AddDays(-60)
+            Dim combinedPoList As New List(Of SapPOResultItem)()
 
-            ' ใช้ Task.Run เพื่อเรียก Async Method ใน Handler
+            Dim filterDate As Date = Date.Today.AddDays(-30) 'New DateTime(2025, 11, 20)
+
             Dim poList As List(Of SapPOResultItem) = Task.Run(Async Function()
-                                                                  Return Await SapApiHelper.GetPOsAsync(syncDateStart, 5000, 0)
+                                                                  Return Await SapApiHelper.GetPOsAsync(filterDate)
                                                               End Function).Result
-
-            If poList IsNot Nothing AndAlso poList.Count > 0 Then
-                Dim syncMsg As String = SyncPOsToStaging(poList)
-                ' (อาจจะเก็บ syncMsg ไว้ส่งกลับถ้าต้องการ)
+            If poList IsNot Nothing Then
+                combinedPoList.AddRange(poList)
             End If
 
-            ' 2. เรียกฟังก์ชันดึงข้อมูลต่อเลย
-            GetMatchingReportData(context)
+            If combinedPoList.Count = 0 AndAlso poList Is Nothing Then
+                Throw New Exception("Failed to get any PO data from SAP (All requests returned Nothing).")
+            End If
+
+
+            Dim upsertStats As String = SyncPOsToStaging(combinedPoList)
+
+            ' 4. เรียก SP จับคู่อัตโนมัติ (Auto Match) เพื่อ Update สถานะในตาราง
+            Using conn As New SqlConnection(connectionString)
+                conn.Open()
+                Using cmdMatch As New SqlCommand("SP_Auto_Match_Actual_Draft", conn)
+                    cmdMatch.CommandType = CommandType.StoredProcedure
+                    cmdMatch.Parameters.AddWithValue("@UpdateBy", "System AutoMatch")
+                    cmdMatch.ExecuteNonQuery()
+                End Using
+            End Using
+
+            ' 5. [จุดสำคัญ] ดึงข้อมูลผลลัพธ์จากตาราง Actual_PO_Summary โดยตรง
+            Dim results As List(Of MatchedPOItem) = GetMatchedDataFromDB()
+
+            ' 6. ส่ง JSON กลับไปที่หน้าจอ
+            context.Response.ContentType = "application/json"
+            Dim successResponse = New With {
+                .success = True,
+                .count = results.Count,
+                .data = results,
+                .syncStats = upsertStats
+            }
+            context.Response.Write(JsonConvert.SerializeObject(successResponse))
 
         Catch ex As Exception
+            context.Response.ContentType = "application/json"
             context.Response.StatusCode = 500
-            context.Response.Write(JsonConvert.SerializeObject(New With {.success = False, .message = "Sync Error: " & ex.Message}))
+            Dim errorResponse As New With {
+                .success = False,
+                .message = ex.Message & If(ex.InnerException IsNot Nothing, " | Inner: " & ex.InnerException.Message, "")
+            }
+            context.Response.Write(JsonConvert.SerializeObject(errorResponse))
         End Try
     End Sub
 
@@ -217,69 +247,28 @@ Public Class POMatchingHandler
     ' (เปลี่ยน) แยก GetPO ออกมาเป็น Sub
     Private Sub GetPOData(context As HttpContext)
         Try
-            ' 1. รับค่า Parameters (ตัวอย่าง)
-            Dim top As Integer = 5000 ' (เพิ่มจำนวนดึงข้อมูล)
-            Dim skip As Integer = 0
 
-            ' --- 2. (อัปเดต) ดึงข้อมูล SAP POs  ---
-            Dim combinedPoList As New List(Of SapPOResultItem)()
+            Dim upsertStats As String = ""
+            ' 4. เรียก SP จับคู่อัตโนมัติ (Auto Match) เพื่อ Update สถานะในตาราง
+            Using conn As New SqlConnection(connectionString)
+                conn.Open()
+                Using cmdMatch As New SqlCommand("SP_Auto_Match_Actual_Draft", conn)
+                    cmdMatch.CommandType = CommandType.StoredProcedure
+                    cmdMatch.Parameters.AddWithValue("@UpdateBy", "System AutoMatch")
+                    cmdMatch.ExecuteNonQuery()
+                End Using
+            End Using
 
-            ' 2.3 ดึงข้อมูล "สองวันก่อน"
-            Dim filterDate As Date = Date.Today.AddDays(-30) 'New DateTime(2025, 11, 20)
+            ' 5. [จุดสำคัญ] ดึงข้อมูลผลลัพธ์จากตาราง Actual_PO_Summary โดยตรง
+            Dim results As List(Of MatchedPOItem) = GetMatchedDataFromDB()
 
-            Dim poListTwoDaysAgo As List(Of SapPOResultItem) = Task.Run(Async Function()
-                                                                            Return Await SapApiHelper.GetPOsAsync(filterDate, top, skip)
-                                                                        End Function).Result
-            If poListTwoDaysAgo IsNot Nothing Then
-                combinedPoList.AddRange(poListTwoDaysAgo)
-            End If
-
-            If combinedPoList.Count = 0 AndAlso poListTwoDaysAgo Is Nothing Then
-                Throw New Exception("Failed to get any PO data from SAP (All requests returned Nothing).")
-            End If
-
-            ' --- 3. (ใหม่) บันทึก SAP POs ลง Staging DB ---
-            Dim upsertStats As String = SyncPOsToStaging(combinedPoList)
-
-            ' --- 4. ดึงและ Group Draft POs (Local DB) ---
-            ' (GetGroupedDraftPOs ถูกแก้ไขให้ใช้ Key ที่ตรงกัน)
-            Dim groupedDraftPOs As Dictionary(Of POMatchKey, GroupedDraftPO) = GetGroupedDraftPOs()
-
-            ' --- 5. (ใหม่) ดึงและ Group Actual POs (จาก Staging DB) ---
-            Dim groupedActualPOs As Dictionary(Of POMatchKey, GroupedActualPO) = GetGroupedActualPOsFromStaging()
-
-            ' --- 6. Join ข้อมูล (แก้ไขเป็น INNER JOIN ตามที่ผู้ใช้ขอ) ---
-            Dim results As New List(Of MatchedPOItem)()
-
-            ' (วนลูปจาก Draft POs ซึ่งเป็นฝั่งหลัก)
-            For Each draftKVP In groupedDraftPOs
-                Dim key = draftKVP.Key
-                Dim draftPO = draftKVP.Value
-
-                Dim actualPO As GroupedActualPO = Nothing
-
-                ' (ตรวจสอบว่า Key นี้มีใน Actual POs หรือไม่)
-                If groupedActualPOs.TryGetValue(key, actualPO) Then
-                    ' *** ถ้า Match เท่านั้น (INNER JOIN) ***
-
-                    Dim item As New MatchedPOItem With {
-                        .Key = key,
-                        .Draft = draftPO,
-                        .Actual = actualPO,
-                        .MatchStatus = "Matched" ' (สถานะเป็น Matched เสมอ)
-                    }
-                    results.Add(item)
-                End If
-                ' (ถ้า Key จาก Draft PO ไม่มีใน Actual POs ก็จะไม่ทำอะไรเลย -> ข้ามไป)
-            Next
-
-            ' --- 7. ส่งข้อมูลที่ Match แล้วกลับไป ---
+            ' 6. ส่ง JSON กลับไปที่หน้าจอ
             context.Response.ContentType = "application/json"
             Dim successResponse = New With {
                 .success = True,
                 .count = results.Count,
-                .data = results, ' (ส่ง List ที่ Match แล้วกลับไป)
-                .syncStats = upsertStats ' (เพิ่มข้อความสถานะการ Sync)
+                .data = results,
+                .syncStats = upsertStats
             }
             context.Response.Write(JsonConvert.SerializeObject(successResponse))
 
@@ -294,6 +283,97 @@ Public Class POMatchingHandler
         End Try
     End Sub
 
+    Private Function GetMatchedDataFromDB() As List(Of MatchedPOItem)
+        Dim list As New List(Of MatchedPOItem)()
+
+        ' Query นี้ยึด Actual_PO_Summary เป็นหลัก (Main Driver)
+        ' ข้อมูล Key ต่างๆ (Year, Month, Category...) จะถูกดึงจาก Actual
+        ' ข้อมูล Draft จะถูกดึงมาแสดงถ้ามีการ Match กัน (ผ่าน Draft_PO_Ref)
+        Dim query As String = "
+           SELECT 
+                A.OTB_Year,
+                A.OTB_Month, 
+                A.Company_Code,
+                A.Category_Code, 
+                CASE 
+                    WHEN LEN(A.Segment_Code) > 2 THEN SUBSTRING(A.Segment_Code, 2, LEN(A.Segment_Code) - 2) 
+                    ELSE A.Segment_Code 
+                END AS Segment_Code,
+                A.Brand_Code,
+                A.Vendor_Code,
+                A.PO_No AS ActualPONo,
+                A.Actual_PO_Date,
+                ISNULL(A.Amount_THB, 0) AS ActualAmountTHB,
+                ISNULL(A.Amount_CCY, 0) AS ActualAmountCCY,
+                A.CCY AS ActualCCY,
+                ISNULL(A.Exchange_Rate, 0) AS ActualExRate,
+                A.Status AS ActualStatus,
+                D.DraftPO_No,
+                D.Created_Date AS DraftPODate,
+                ISNULL(D.Amount_THB, 0) AS DraftAmountTHB,
+                ISNULL(D.Amount_CCY, 0) AS DraftAmountCCY
+            FROM [dbo].[Actual_PO_Summary] A
+            LEFT JOIN [dbo].[Draft_PO_Transaction] D ON A.Draft_PO_Ref = D.DraftPO_No
+            
+            WHERE ISNULL(A.Status, '') <> 'Cancelled'
+              -- เงื่อนไขใหม่: ต้องมีทั้ง Segment และ Brand เท่านั้นถึงจะแสดง
+              AND ISNULL(A.Segment_Code, '') <> '' 
+              AND ISNULL(A.Brand_Code, '') <> ''
+            
+            ORDER BY A.OTB_Year DESC, A.OTB_Month DESC, A.PO_No
+        "
+
+        Using conn As New SqlConnection(connectionString)
+            Using cmd As New SqlCommand(query, conn)
+                conn.Open()
+                Using r As SqlDataReader = cmd.ExecuteReader()
+                    While r.Read()
+                        Dim item As New MatchedPOItem()
+
+                        ' 1. Map Key (ใช้ข้อมูลจาก Actual เป็นหลัก เพื่อให้ Grid แสดงครบถ้วน)
+                        item.Key = New POMatchKey With {
+                            .Year = r("OTB_Year").ToString(),
+                            .Month = r("OTB_Month").ToString(),
+                            .Company = r("Company_Code").ToString(),
+                            .Category = r("Category_Code").ToString(),
+                            .Segment = r("Segment_Code").ToString(),
+                            .Brand = r("Brand_Code").ToString(),
+                            .Vendor = r("Vendor_Code").ToString()
+                        }
+
+                        ' 2. Map Actual Data (มีค่าเสมอเพราะดึงจาก Summary)
+                        item.Actual = New GroupedActualPO With {
+                            .ActualPONo = r("ActualPONo").ToString(),
+                            .ActualPODate = If(r("Actual_PO_Date") Is DBNull.Value, "", Convert.ToDateTime(r("Actual_PO_Date")).ToString("dd/MM/yyyy")),
+                            .ActualAmountTHB = Convert.ToDecimal(r("ActualAmountTHB")),
+                            .ActualAmountCCY = Convert.ToDecimal(r("ActualAmountCCY")),
+                            .ActualCCY = r("ActualCCY").ToString(),
+                            .ActualExRate = Convert.ToDecimal(r("ActualExRate"))
+                        }
+
+                        ' 3. Map Draft Data (ถ้ามีคู่ Match)
+                        If Not r.IsDBNull(r.GetOrdinal("DraftPO_No")) Then
+                            item.Draft = New GroupedDraftPO With {
+                                .DraftPONo = r("DraftPO_No").ToString(),
+                                .DraftPODate = If(r("DraftPODate") Is DBNull.Value, "", Convert.ToDateTime(r("DraftPODate")).ToString("dd/MM/yyyy")),
+                                .DraftAmountTHB = Convert.ToDecimal(r("DraftAmountTHB")),
+                                .DraftAmountCCY = Convert.ToDecimal(r("DraftAmountCCY"))
+                            }
+                            item.MatchStatus = "Matched" ' สถานะสีเขียวใน Grid
+                        Else
+                            ' ถ้าไม่มีคู่ ให้เป็น Nothing (หน้าจอจะแสดงเป็นช่องว่าง)
+                            item.Draft = Nothing
+                            item.MatchStatus = "Unmatched"
+                        End If
+
+                        list.Add(item)
+                    End While
+                End Using
+            End Using
+        End Using
+
+        Return list
+    End Function
     ' --- (อัปเดต Function) ---
     ' Function สำหรับ Sync ข้อมูล SAP List ไปยัง Staging Table (Upsert)
     Private Function SyncPOsToStaging(poList As List(Of SapPOResultItem)) As String
@@ -332,14 +412,14 @@ Public Class POMatchingHandler
 
         Dim syncTime As DateTime = DateTime.Now
 
-        'ตรงส่วนนี้ ให้ เพิ่มเงื่อนไข การตรวจสอบ เอา เฉพาะข้อมูล ที่ OTBYear ตั้งแต่ 2025 OTBMonth ตั้งแต่ เดือน 12 เป็นต้นไป
+        'ตรงส่วนนี้ ให้ เพิ่มเงื่อนไข การตรวจสอบ เอา เฉพาะข้อมูล ที่ OTBYear ตั้งแต่ 2025 OTBMonth ตั้งแต่ เดือน 12 เป็นต้นไป และ ไม่เอาข้อมูลที่ไม่มี ค่า Fund และ ไม่มีค่า Brand
+        ' กรอง poList ตามเงื่อนไขที่กำหนด
         poList = poList.Where(Function(po)
-                                  Dim year As Integer
-                                  Dim month As Integer
-                                  If Integer.TryParse(po.OtbYear, year) AndAlso Integer.TryParse(po.OtbMonth, month) Then
-                                      Return (year > 2025) OrElse (year = 2025 AndAlso month >= 12)
-                                  End If
-                                  Return False
+                                  Dim yearValid As Boolean = Integer.TryParse(po.OtbYear, Nothing) AndAlso Integer.Parse(po.OtbYear) >= 2025
+                                  Dim monthValid As Boolean = Integer.TryParse(po.OtbMonth, Nothing) AndAlso Integer.Parse(po.OtbMonth) >= 12
+                                  Dim fundValid As Boolean = Not String.IsNullOrEmpty(po.Fund)
+                                  Dim brandValid As Boolean = Not String.IsNullOrEmpty(po.Brand)
+                                  Return yearValid AndAlso monthValid AndAlso fundValid AndAlso brandValid
                               End Function).ToList()
 
         ' 2. วนลูป List จาก SAP มาใส่ DataTable
@@ -459,7 +539,24 @@ Public Class POMatchingHandler
                         End Using
                     End Using
 
+
+
+                    'หลังจากนั้นให้ Run Stored Procedure ที่ใช้ในการ Summary ข้อมูล Actual PO เพื่ออัปเดตข้อมูลในตารางหลัก ด้วย SP_Sync_Actual_PO_Summary
+                    Using cmdSummary As New SqlCommand("SP_Sync_Actual_PO_Summary", conn, transaction)
+                        cmdSummary.CommandType = CommandType.StoredProcedure
+                        cmdSummary.CommandTimeout = 300 ' 5 นาที
+                        cmdSummary.ExecuteNonQuery()
+                    End Using
+
+                    '[เพิ่ม] เรียก SP จับคู่อัตโนมัติ
+                    Using cmdMatch As New SqlCommand("SP_Auto_Match_Actual_Draft", conn, transaction)
+                        cmdMatch.CommandType = CommandType.StoredProcedure
+                        cmdMatch.Parameters.AddWithValue("@UpdateBy", "System AutoMatch")
+                        cmdMatch.ExecuteNonQuery()
+                    End Using
+
                     transaction.Commit()
+
                     Return $"Sync completed. Total SAP (2 days): {poList.Count} | Inserted: {insertedCount} | Updated: {updatedCount}"
 
                 Catch ex As Exception
@@ -635,6 +732,8 @@ Public Class POMatchingHandler
 
         Return results
     End Function
+
+
 
     ' --- (เพิ่ม Helper) ---
     Private Function ParseODataDate(odataDate As String) As DateTime?

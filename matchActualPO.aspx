@@ -241,97 +241,72 @@
         // แก้ไขฟังก์ชัน buildTable ใน matchActualPO.aspx
 
         function buildTable(data) {
-            let tableBody = document.getElementById("matchTableBody");
-            tableBody.innerHTML = '';
+            tableBody.innerHTML = ''; // Clear table
 
             if (!data || data.length === 0) {
-                // ปรับ colspan ให้เท่ากับจำนวนหัวตาราง (18 ช่อง)
                 tableBody.innerHTML = '<tr><td colspan="18" class="text-center p-4 text-muted">No data found.</td></tr>';
+                btnSubmit.disabled = true;
                 return;
             }
 
-            let html = '';
-            data.forEach((item) => {
-                // กำหนดสีของแถว (Row Color) ตาม Match Status
-                let rowClass = '';
-                let isMatched = false;
+            // Helper สำหรับดึงค่าอย่างปลอดภัย (รองรับทั้งตัวเล็ก/ตัวใหญ่)
+            const getVal = (obj, prop) => obj ? (obj[prop] || obj[prop.toLowerCase()] || '') : '';
+            const getNum = (obj, prop) => obj ? (obj[prop] || obj[prop.toLowerCase()] || 0) : 0;
 
-                if (item.Match_Status === 'Matched') {
-                    rowClass = 'table-success'; // สีเขียว
-                    isMatched = true;
-                } else if (item.Match_Status === 'Unmatched_Amount') {
-                    rowClass = 'table-warning'; // สีเหลือง
-                } else if (item.Match_Status === 'Actual_Only') {
-                    rowClass = ''; // ขาวปกติ
-                } else {
-                    rowClass = 'table-light text-muted'; // สีเทา (Draft Only)
+            let html = '';
+            data.forEach((item, index) => {
+                // รองรับทั้ง Key/key, Actual/actual, Draft/draft
+                const key = item.Key || item.key;
+                const draft = item.Draft || item.draft;
+                const actual = item.Actual || item.actual;
+                const matchStatus = item.MatchStatus || item.matchStatus;
+
+                let rowClass = '';
+                if (matchStatus === 'Matched') {
+                    rowClass = 'highlight-matched';
                 }
 
                 html += `<tr class="${rowClass}">`;
 
-                // -----------------------------------------------------------
-                // เรียงลำดับ Column ตามรูปภาพเป๊ะๆ
-                // -----------------------------------------------------------
+                // Checkbox
+                html += `<td>
+                            <input type="checkbox" 
+                                   class="form-check-input match-checkbox" 
+                                   ${matchStatus === 'Matched' ? 'checked' : ''}
+                                   data-draft-pos="${draft ? (draft.DraftPONo || draft.draftPONo) : ''}"
+                                   data-actual-po="${actual ? (actual.ActualPONo || actual.actualPONo) : ''}"
+                            >
+                         </td>`;
 
-                // 1. Select (Checkbox)
-                // ให้ติ๊กได้เฉพาะรายการที่ Match กันแล้ว หรือ ตาม Business logic ที่ต้องการ
-                html += `<td><input type="checkbox" class="form-check-input match-checkbox"></td>`;
+                // --- Group Keys (จาก Actual Summary) ---
+                html += `<td>${getVal(key, 'Year')}</td>`;
+                html += `<td>${getMonthName(getVal(key, 'Month'))}</td>`;
+                html += `<td>${getVal(key, 'Category')}</td>`;
+                html += `<td>${getVal(key, 'Company')}</td>`;
+                html += `<td>${getVal(key, 'Segment')}</td>`;
+                html += `<td>${getVal(key, 'Brand')}</td>`;
+                html += `<td>${getVal(key, 'Vendor')}</td>`;
 
-                // 2. Year
-                html += `<td>${item.Year || ''}</td>`;
+                // --- Draft PO Data ---
+                // ถ้า draft เป็น null จะแสดงว่างๆ
+                html += `<td>${draft ? getVal(draft, 'DraftPODate') : '-'}</td>`;
+                html += `<td>${draft ? getVal(draft, 'DraftPONo') : '-'}</td>`;
+                html += `<td class="text-end">${draft ? formatNumber(getNum(draft, 'DraftAmountTHB')) : '-'}</td>`;
+                html += `<td class="text-end">${draft ? formatNumber(getNum(draft, 'DraftAmountCCY')) : '-'}</td>`;
 
-                // 3. Month
-                html += `<td>${item.Month || ''}</td>`;
-
-                // 4. Cate
-                html += `<td>${item.Category || ''}</td>`;
-
-                // 5. Company
-                html += `<td>${item.Company || ''}</td>`;
-
-                // 6. Segment
-                html += `<td>${item.Segment || ''}</td>`;
-
-                // 7. Brand
-                html += `<td>${item.Brand || ''}</td>`;
-
-                // 8. Vendor
-                html += `<td>${item.Vendor || ''}</td>`;
-
-                // 9. Draft PO Date (ใน Grouped Query ไม่มีวันที่ที่แน่นอน ให้ขีดละไว้)
-                html += `<td class="text-center">-</td>`;
-
-                // 10. Draft PO/PO no.
-                html += `<td class="text-truncate-custom" title="${item.Draft_PO_List || ''}">${item.Draft_PO_List || '-'}</td>`;
-
-                // 11. Draft PO Amount (THB)
-                html += `<td class="text-end">${formatNumber(item.Draft_Amount_THB)}</td>`;
-
-                // 12. Draft PO Amount (CCY)
-                html += `<td class="text-end">${formatNumber(item.Draft_Amount_CCY)}</td>`;
-
-                // 13. Actual PO Amount (THB)
-                html += `<td class="text-end fw-bold">${formatNumber(item.Actual_Amount_THB)}</td>`;
-
-                // 14. Actual Amount (CCY)
-                html += `<td class="text-end">${formatNumber(item.Actual_Amount_CCY)}</td>`;
-
-                // 15. CCY
-                html += `<td>${item.Actual_CCY || ''}</td>`;
-
-                // 16. Actual Ex. Rate
-                html += `<td class="text-end">${formatNumber(item.Actual_ExRate, 4)}</td>`;
-
-                // 17. Actual PO Date (Grouped ไม่มีวันที่เดียว)
-                html += `<td class="text-center">-</td>`;
-
-                // 18. Actual PO no.
-                html += `<td class="text-truncate-custom" title="${item.Actual_PO_List || ''}">${item.Actual_PO_List || '-'}</td>`;
+                // --- Actual PO Data (ต้องมีค่าเสมอ) ---
+                html += `<td class="text-end"><strong>${formatNumber(getNum(actual, 'ActualAmountTHB'))}</strong></td>`;
+                html += `<td class="text-end">${formatNumber(getNum(actual, 'ActualAmountCCY'))}</td>`;
+                html += `<td>${getVal(actual, 'ActualCCY')}</td>`;
+                html += `<td class="text-end">${formatNumber(getNum(actual, 'ActualExRate'), 4)}</td>`; // 4 decimal places for Rate
+                html += `<td>${getVal(actual, 'ActualPODate')}</td>`;
+                html += `<td>${getVal(actual, 'ActualPONo')}</td>`;
 
                 html += '</tr>';
             });
 
             tableBody.innerHTML = html;
+            btnSubmit.disabled = false;
         }
 
         // Helper Format Number (ปรับปรุงให้รองรับทศนิยมตามที่ส่งมา)

@@ -104,14 +104,12 @@ Public Module SapApiHelper
     ''' [Get PO] - ดึงข้อมูล PO ตามเงื่อนไข OData
     ''' </summary>
     ''' <param name="startDate">วันที่เริ่มต้นที่ต้องการกรอง (ModifiedDate)</param>
-    ''' <param name="top">จำนวนสูงสุดที่ต้องการ</param>
-    ''' <param name="skip">จำนวนที่ต้องการข้าม (สำหรับ Paging)</param>
     ''' <returns>JSON String ของผลลัพธ์ (OData)</returns>
-    Public Async Function GetPOsAsync(startDate As Date, top As Integer, skip As Integer) As Task(Of List(Of SapPOResultItem))
+    Public Async Function GetPOsAsync(startDate As Date) As Task(Of List(Of SapPOResultItem))
 
         Dim filterDate As String = startDate.ToString("yyyy-MM-ddTHH:mm:ss")
 
-        Dim endpoint As String = $"/sap/opu/odata/SAP/ZBBIK_API_2_SRV/PoSet?$filter=ModifiedDate ge datetime'{filterDate}'&$top={top}&$skip={skip}"
+        Dim endpoint As String = $"/sap/opu/odata/SAP/ZBBIK_API_2_SRV/PoSet?$filter=ModifiedDate eq datetime'{filterDate}'"
 
         ' 1. ยิง API (ได้เป็น String)
         Dim jsonResponse As String = Await GetAsync(endpoint)
