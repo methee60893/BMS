@@ -682,14 +682,14 @@
                                 <input type="hidden" id="hdnDraftPOID">
 
                                 <!-- Row 1 -->
-                                <div class="form-row-display form-row-item">
-                                    <div class="form-group">
+                                <div class="row g-3 mb-3">
+                                    <div class="col-12 col-md-6">
                                         <label for="ddYearEdit">Year</label>
                                         <select id="ddYearEdit" class="form-select">
                                         </select>
                                         <div class="validation-message" data-field="year"></div>
                                     </div>
-                                    <div class="form-group">
+                                    <div class="col-12 col-md-6">
                                         <label for="ddCategoryEdit">Category</label>
                                         <select id="ddCategoryEdit" class="form-select">
                                         </select>
@@ -698,14 +698,14 @@
                                 </div>
 
                                 <!-- Row 2 -->
-                                <div class="form-row-display form-row-item">
-                                    <div class="form-group">
+                                <div class="row g-3 mb-3">
+                                    <div class="col-12 col-md-6">
                                         <label for="ddMonthEdit">Month</label>
                                         <select id="ddMonthEdit" class="form-select">
                                         </select>
                                         <div class="validation-message" data-field="month"></div>
                                     </div>
-                                    <div class="form-group">
+                                    <div class="col-12 col-md-6">
                                         <label for="ddSegmentEdit">Segment</label>
                                         <select id="ddSegmentEdit" class="form-select">
                                         </select>
@@ -714,14 +714,14 @@
                                 </div>
 
                                 <!-- Row 3 -->
-                                <div class="form-row-display form-row-item">
-                                    <div class="form-group">
+                                <div class="row g-3 mb-3">
+                                    <div class="col-12 col-md-6">
                                         <label for="ddCompanyEdit">Company</label>
                                         <select id="ddCompanyEdit" class="form-select">
                                         </select>
                                         <div class="validation-message" data-field="company"></div>
                                     </div>
-                                    <div class="form-group">
+                                    <div class="col-12 col-md-6">
                                         <label for="ddBrandEdit">Brand</label>
                                         <select id="ddBrandEdit" class="form-select">
                                         </select>
@@ -730,13 +730,13 @@
                                 </div>
 
                                 <!-- Row 4 -->
-                                <div class="form-row-display form-row-item">
-                                    <div class="form-group">
+                                <div class="row g-3 mb-3">
+                                    <div class="col-12 col-md-6">
                                         <label for="txtPONOEdit">Draft PO no. (Readonly)</label>
                                         <input id="txtPONOEdit" type="text" class="form-control" readonly style="background: #e9ecef;" autocomplete="off">
                                         <div class="validation-message" data-field="pono"></div>
                                     </div>
-                                    <div class="form-group">
+                                    <div class="col-12 col-md-6">
                                         <label for="ddVendorEdit">Vendor</label>
                                         <select id="ddVendorEdit" class="form-select">
                                         </select>
@@ -745,13 +745,13 @@
                                 </div>
 
                                 <!-- Row 5 -->
-                                <div class="form-row-display form-row-item">
-                                    <div class="form-group">
+                                <div class="row g-3 mb-3">
+                                    <div class="col-12 col-md-6">
                                         <label for="txtAmtCCYEdit">Amount (CCY)</label>
                                         <input id="txtAmtCCYEdit" type="text" class="form-control" placeholder="0.00" autocomplete="off">
                                         <div class="validation-message" data-field="amtCCY"></div>
                                     </div>
-                                    <div class="form-group">
+                                    <div class="col-12 col-md-6">
                                         <label for="ddCCYEdit">CCY</label>
                                         <select id="ddCCYEdit" class="form-select">
                                             <option value="">-- Select CCY --</option>
@@ -766,21 +766,21 @@
                                 </div>
 
                                 <!-- Row 6 -->
-                                <div class="form-row-display form-row-item">
-                                    <div class="form-group">
+                                <div class="row g-3 mb-3">
+                                    <div class="col-12 col-md-6">
                                         <label for="txtExRateEdit">Exchange rate</label>
                                         <input id="txtExRateEdit" type="text" class="form-control" placeholder="0.00" autocomplete="off">
                                         <div class="validation-message" data-field="exRate"></div>
                                     </div>
-                                    <div class="form-group">
+                                    <div class="col-12 col-md-6">
                                         <label for="txtAmtTHBEdit">Amount (THB)</label>
                                         <input id="txtAmtTHBEdit" type="text" class="form-control" readonly style="background: #e9ecef;" autocomplete="off">
                                     </div>
                                 </div>
                                 
                                 <!-- Row 7 -->
-                                <div class="form-row-display form-row-item">
-                                    <div class="form-group" style="flex: 1;">
+                                <div class="row g-3 mb-3">
+                                    <div class="col-12 col-md-6" style="flex: 1;">
                                         <label for="txtRemarkEdit">Remark</label>
                                         <input id="txtRemarkEdit" type="text" class="form-control" placeholder="Enter remark" autocomplete="off">
                                     </div>
@@ -892,9 +892,11 @@
             ddSegmentEdit = document.getElementById('ddSegmentEdit');
             ddBrandEdit = document.getElementById('ddBrandEdit');
             ddVendorEdit = document.getElementById('ddVendorEdit');
+            ddCCYEdit = document.getElementById('ddCCYEdit');
+
             txtPONOEdit = document.getElementById('txtPONOEdit');
             txtAmtCCYEdit = document.getElementById('txtAmtCCYEdit');
-            ddCCYEdit = document.getElementById('ddCCYEdit');
+            
             txtExRateEdit = document.getElementById('txtExRateEdit');
             txtAmtTHBEdit = document.getElementById('txtAmtTHBEdit');
             txtRemarkEdit = document.getElementById('txtRemarkEdit');
@@ -1257,16 +1259,18 @@
 
         function populateEditModal(data) {
             hdnDraftPOID.value = data.DraftPO_ID;
-            ddYearEdit.value = data.PO_Year;
-            ddMonthEdit.value = data.PO_Month;
-            ddCompanyEdit.value = data.Company_Code;
-            ddCategoryEdit.value = data.Category_Code;
-            ddSegmentEdit.value = data.Segment_Code;
-            ddBrandEdit.value = data.Brand_Code;
-            ddVendorEdit.value = data.Vendor_Code;
+
+            $('#ddYearEdit').val(data.PO_Year).trigger('change');
+            $('#ddMonthEdit').val(data.PO_Month).trigger('change');
+            $('#ddCompanyEdit').val(data.Company_Code).trigger('change');
+            $('#ddCategoryEdit').val(data.Category_Code).trigger('change');
+            $('#ddSegmentEdit').val(data.Segment_Code).trigger('change');
+            $('#ddBrandEdit').val(data.Brand_Code).trigger('change');
+            $('#ddVendorEdit').val(data.Vendor_Code).trigger('change');
+            $('#ddCCYEdit').val(data.CCY).trigger('change');
+
             txtPONOEdit.value = data.DraftPO_No;
             txtAmtCCYEdit.value = parseFloat(data.Amount_CCY || 0).toFixed(2);
-            ddCCYEdit.value = data.CCY;
             txtExRateEdit.value = parseFloat(data.Exchange_Rate || 0).toFixed(4);
             txtAmtTHBEdit.value = parseFloat(data.Amount_THB || 0).toFixed(2);
             txtRemarkEdit.value = data.Remark || '';
@@ -1305,7 +1309,7 @@
             formData.append('segment', ddSegmentEdit.value);
             formData.append('brand', ddBrandEdit.value);
             formData.append('vendor', ddVendorEdit.value);
-            formData.append('pono', txtPONOEdit.value); // (Readonly)
+            formData.append('pono', txtPONOEdit.value); 
             formData.append('amtCCY', txtAmtCCYEdit.value);
             formData.append('ccy', ddCCYEdit.value);
             formData.append('exRate', txtExRateEdit.value);
