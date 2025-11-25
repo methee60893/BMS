@@ -900,6 +900,7 @@
             txtExRateEdit = document.getElementById('txtExRateEdit');
             txtAmtTHBEdit = document.getElementById('txtAmtTHBEdit');
             txtRemarkEdit = document.getElementById('txtRemarkEdit');
+            btnExport = document.getElementById('btnExport');
             btnSaveChanges = document.getElementById('btnSaveChanges');
 
             // Init Modals
@@ -1016,7 +1017,7 @@
             btnView.addEventListener('click', handleViewData);
             btnClearFilter.addEventListener('click', clearFilters);
             btnSaveChanges.addEventListener('click', handleSaveChanges);
-
+            btnExport.addEventListener('click', exportTXN);
             // Add Listeners for Edit Modal Calculations
             txtAmtCCYEdit.addEventListener('input', currencyCalEdit);
             txtExRateEdit.addEventListener('input', currencyCalEdit);
@@ -1522,6 +1523,29 @@
             if (window.innerWidth <= 768) {
                 toggleSidebar();
             }
+        }
+
+        // ฟังก์ชันสำหรับ Export Excel
+        let exportTXN = function () {
+            console.log("Export TXN clicked");
+
+            // รวบรวมค่าจาก Dropdown Filter ทั้งหมด
+            var params = new URLSearchParams();
+            params.append('action', 'exportdraftpo'); // Action ที่ Handler รอรับ
+
+            // Map ID ของ Dropdown ให้ตรงกับ Parameter ที่ Handler ต้องการ
+            params.append('year', ddYearFilter.value);
+            params.append('month', ddMonthFilter.value);
+            params.append('company', ddCompanyFilter.value);
+            params.append('category', ddCategoryFilter.value);
+            params.append('segment', ddSegmentFilter.value);
+            params.append('brand', ddBrandFilter.value);
+            params.append('vendor', ddVendorFilter.value);
+
+           
+
+            // ใช้ window.location เพื่อเรียก Download ไฟล์ (GET Request)
+            window.location.href = 'Handler/DataPOHandler.ashx?' + params.toString();
         }
 
         // Close sidebar when clicking outside

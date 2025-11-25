@@ -19,7 +19,9 @@ Public Class DataPOHandler
         Dim action As String = If(context.Request("action"), "").ToLower().Trim()
 
         ' --- NEW: Export Action ---
-        If action = "exportactualpo" Then
+        If action = "exportdraftpo" Then
+            ExportDraftPOToExcel(context)
+        ElseIf action = "exportactualpo" Then
             ExportActualPOToExcel(context)
 
             ' --- NEW: Get List Action ---
@@ -90,6 +92,96 @@ Public Class DataPOHandler
             Dim draftRemark As String = If(String.IsNullOrWhiteSpace(context.Request.QueryString("draftRemark")), "", context.Request.QueryString("draftRemark").Trim())
         End If
     End Sub
+
+    Private Function GetDraftPODataTable(context As HttpContext, isExport As Boolean) As DataTable
+        ' รับค่า Parameter (รองรับทั้ง Form สำหรับ View และ QueryString สำหรับ Export)
+        Dim req = context.Request
+        Dim year As String = If(isExport, req.QueryString("year"), req.Form("year"))
+        Dim month As String = If(isExport, req.QueryString("month"), req.Form("month"))
+        Dim company As String = If(isExport, req.QueryString("company"), req.Form("company"))
+        Dim category As String = If(isExport, req.QueryString("category"), req.Form("category"))
+        Dim segment As String = If(isExport, req.QueryString("segment"), req.Form("segment"))
+        Dim brand As String = If(isExport, req.QueryString("brand"), req.Form("brand"))
+        Dim vendor As String = If(isExport, req.QueryString("vendor"), req.Form("vendor"))
+
+        Dim dt As New DataTable()
+        Using conn As New SqlConnection(connectionString)
+            conn.Open()
+            Dim query As New StringBuilder()
+            query.Append("SELECT DISTINCT ")
+            query.Append("   po.Created_Date, ")
+            query.Append("   po.DraftPO_No, ")
+            query.Append("   po.PO_Type, ")
+            query.Append("   po.PO_Year, ")
+            query.Append("   m.month_name_sh AS PO_Month_Name, ")
+            query.Append("   po.Category_Code, ")
+            query.Append("   c.Category AS Category_Name, ")
+            query.Append("   po.Company_Code, ")
+            query.Append("   po.Segment_Code, ")
+            query.Append("   s.SegmentName AS Segment_Name, ")
+            query.Append("   po.Brand_Code, ")
+            query.Append("   b.[Brand Name] AS Brand_Name, ")
+            query.Append("   po.Vendor_Code, ")
+            query.Append("   v.Vendor AS Vendor_Name, ")
+            query.Append("   po.Amount_THB, ")
+            query.Append("   po.Amount_CCY, ")
+            query.Append("   po.CCY, ")
+            query.Append("   po.Exchange_Rate, ")
+            query.Append("   po.Actual_PO_Ref, ")
+            query.Append("   po.Status, ")
+            query.Append("   po.Status_Date, ")
+            query.Append("   po.Remark, ")
+            query.Append("   po.Status_By ")
+            query.Append("FROM [BMS].[dbo].[Draft_PO_Transaction] po ")
+            query.Append("LEFT JOIN [BMS].[dbo].[MS_Month] m ON po.PO_Month = m.month_code ")
+            query.Append("LEFT JOIN [BMS].[dbo].[MS_Category] c ON po.Category_Code = c.Cate ")
+            query.Append("LEFT JOIN [BMS].[dbo].[MS_Segment] s ON po.Segment_Code = s.SegmentCode ")
+            query.Append("LEFT JOIN [BMS].[dbo].[MS_Brand] b ON po.Brand_Code = b.[Brand Code] ")
+            query.Append("LEFT JOIN [BMS].[dbo].[MS_Vendor] v ON po.Vendor_Code = v.VendorCode AND po.Segment_Code = v.SegmentCode ")
+            query.Append("WHERE 1=1 ")
+
+            Using cmd As New SqlCommand()
+                If Not String.IsNullOrEmpty(year) Then
+                    query.Append("AND po.PO_Year = @Year ")
+                    cmd.Parameters.AddWithValue("@Year", year)
+                End If
+                If Not String.IsNullOrEmpty(month) Then
+                    query.Append("AND po.PO_Month = @Month ")
+                    cmd.Parameters.AddWithValue("@Month", month)
+                End If
+                If Not String.IsNullOrEmpty(company) Then
+                    query.Append("AND po.Company_Code = @Company ")
+                    cmd.Parameters.AddWithValue("@Company", company)
+                End If
+                If Not String.IsNullOrEmpty(category) Then
+                    query.Append("AND po.Category_Code = @Category ")
+                    cmd.Parameters.AddWithValue("@Category", category)
+                End If
+                If Not String.IsNullOrEmpty(segment) Then
+                    query.Append("AND po.Segment_Code = @Segment ")
+                    cmd.Parameters.AddWithValue("@Segment", segment)
+                End If
+                If Not String.IsNullOrEmpty(brand) Then
+                    query.Append("AND po.Brand_Code = @Brand ")
+                    cmd.Parameters.AddWithValue("@Brand", brand)
+                End If
+                If Not String.IsNullOrEmpty(vendor) Then
+                    query.Append("AND po.Vendor_Code = @Vendor ")
+                    cmd.Parameters.AddWithValue("@Vendor", vendor)
+                End If
+
+                query.Append("ORDER BY po.Created_Date DESC ")
+
+                cmd.CommandText = query.ToString()
+                cmd.Connection = conn
+
+                Using reader As SqlDataReader = cmd.ExecuteReader()
+                    dt.Load(reader)
+                End Using
+            End Using
+        End Using
+        Return dt
+    End Function
 
     ' =================================================
     ' ===== NEW: GetActualPOList FUNCTION =====
@@ -315,104 +407,80 @@ Public Class DataPOHandler
     ' =================================================
     Private Sub GetDraftPOList(context As HttpContext)
         Try
-            Dim year As String = If(String.IsNullOrWhiteSpace(context.Request.Form("year")), "", context.Request.Form("year").Trim())
-            Dim month As String = If(String.IsNullOrWhiteSpace(context.Request.Form("month")), "", context.Request.Form("month").Trim())
-            Dim company As String = If(String.IsNullOrWhiteSpace(context.Request.Form("company")), "", context.Request.Form("company").Trim())
-            Dim category As String = If(String.IsNullOrWhiteSpace(context.Request.Form("category")), "", context.Request.Form("category").Trim())
-            Dim segment As String = If(String.IsNullOrWhiteSpace(context.Request.Form("segment")), "", context.Request.Form("segment").Trim())
-            Dim brand As String = If(String.IsNullOrWhiteSpace(context.Request.Form("brand")), "", context.Request.Form("brand").Trim())
-            Dim vendor As String = If(String.IsNullOrWhiteSpace(context.Request.Form("vendor")), "", context.Request.Form("vendor").Trim())
-
-            Dim dt As New DataTable()
-            Using conn As New SqlConnection(connectionString)
-                conn.Open()
-                ' --- Query จาก View (ถ้ามี) หรือ Join ตาราง Master ---
-                ' --- (ตัวอย่างนี้ใช้ Join) ---
-                Dim query As New StringBuilder()
-                query.Append("SELECT DISTINCT")
-                query.Append("   po.DraftPO_ID, ")
-                query.Append("   po.Created_Date, ") ' (หรือ Status_Date ถ้าต้องการ)
-                query.Append("   po.DraftPO_No, ")
-                query.Append("   po.PO_Type, ")
-                query.Append("   po.PO_Year, ")
-                query.Append("   m.month_name_sh AS PO_Month_Name, ") ' (Join MS_Month)
-                query.Append("   po.Category_Code, ")
-                query.Append("   c.Category AS Category_Name, ") ' (Join MS_Category)
-                query.Append("   po.Company_Code, ")
-                query.Append("   po.Segment_Code, ")
-                query.Append("   s.SegmentName AS Segment_Name, ") ' (Join MS_Segment)
-                query.Append("   po.Brand_Code, ")
-                query.Append("   b.[Brand Name] AS Brand_Name, ") ' (Join MS_Brand)
-                query.Append("   po.Vendor_Code, ")
-                query.Append("   v.Vendor AS Vendor_Name, ") ' (Join MS_Vendor)
-                query.Append("   po.Amount_THB, ")
-                query.Append("   po.Amount_CCY, ")
-                query.Append("   po.CCY, ")
-                query.Append("   po.Exchange_Rate, ")
-                query.Append("   po.Actual_PO_Ref, ")
-                query.Append("   po.Status, ")
-                query.Append("   po.Status_Date, ")
-                query.Append("   po.Remark, ")
-                query.Append("   po.Status_By ") ' (หรือ Created_By)
-                query.Append("FROM [BMS].[dbo].[Draft_PO_Transaction] po ")
-                query.Append("LEFT JOIN [BMS].[dbo].[MS_Month] m ON po.PO_Month = m.month_code ")
-                query.Append("LEFT JOIN [BMS].[dbo].[MS_Category] c ON po.Category_Code = c.Cate ")
-                query.Append("LEFT JOIN [BMS].[dbo].[MS_Segment] s ON po.Segment_Code = s.SegmentCode ")
-                query.Append("LEFT JOIN [BMS].[dbo].[MS_Brand] b ON po.Brand_Code = b.[Brand Code] ")
-                query.Append("LEFT JOIN [BMS].[dbo].[MS_Vendor] v ON po.Vendor_Code = v.VendorCode AND po.Segment_Code = v.SegmentCode ")
-                query.Append("WHERE 1=1 ")
-
-                Using cmd As New SqlCommand()
-                    If Not String.IsNullOrEmpty(year) Then
-                        query.Append("AND po.PO_Year = @Year ")
-                        cmd.Parameters.AddWithValue("@Year", year)
-                    End If
-                    If Not String.IsNullOrEmpty(month) Then
-                        query.Append("AND po.PO_Month = @Month ")
-                        cmd.Parameters.AddWithValue("@Month", month)
-                    End If
-                    If Not String.IsNullOrEmpty(company) Then
-                        query.Append("AND po.Company_Code = @Company ")
-                        cmd.Parameters.AddWithValue("@Company", company)
-                    End If
-                    If Not String.IsNullOrEmpty(category) Then
-                        query.Append("AND po.Category_Code = @Category ")
-                        cmd.Parameters.AddWithValue("@Category", category)
-                    End If
-                    If Not String.IsNullOrEmpty(segment) Then
-                        query.Append("AND po.Segment_Code = @Segment ")
-                        cmd.Parameters.AddWithValue("@Segment", segment)
-                    End If
-                    If Not String.IsNullOrEmpty(brand) Then
-                        query.Append("AND po.Brand_Code = @Brand ")
-                        cmd.Parameters.AddWithValue("@Brand", brand)
-                    End If
-                    If Not String.IsNullOrEmpty(vendor) Then
-                        query.Append("AND po.Vendor_Code = @Vendor ")
-                        cmd.Parameters.AddWithValue("@Vendor", vendor)
-                    End If
-
-                    query.Append("ORDER BY po.Created_Date DESC ")
-
-                    cmd.CommandText = query.ToString()
-                    cmd.Connection = conn
-
-                    Using reader As SqlDataReader = cmd.ExecuteReader()
-                        dt.Load(reader)
-                    End Using
-                End Using
-            End Using
-
-            ' แปลง DataTable เป็น JSON
+            ' เรียกใช้ฟังก์ชันกลาง (isExport = False เพราะรับค่าจาก Form)
+            Dim dt As DataTable = GetDraftPODataTable(context, False)
             Dim jsonResult As String = JsonConvert.SerializeObject(dt, Formatting.None)
             context.Response.Write(jsonResult)
-
         Catch ex As Exception
             context.Response.StatusCode = 500
-            context.Response.Write(JsonConvert.SerializeObject(New With {
-                .success = False,
-                .message = "Error fetching list: " & ex.Message
-            }))
+            context.Response.Write(JsonConvert.SerializeObject(New With {.success = False, .message = ex.Message}))
+        End Try
+    End Sub
+
+    Private Sub ExportDraftPOToExcel(context As HttpContext)
+        Try
+            ' 1. ดึงข้อมูลโดยใช้ Logic เดียวกับ View (isExport = True รับค่าจาก QueryString)
+            Dim dtRaw As DataTable = GetDraftPODataTable(context, True)
+
+            ' 2. สร้าง DataTable สำหรับ Export (จัด Format Column)
+            Dim dtExport As New DataTable("DraftPO")
+            dtExport.Columns.Add("Draft PO Date", GetType(String))
+            dtExport.Columns.Add("Draft PO no.", GetType(String))
+            dtExport.Columns.Add("Type", GetType(String))
+            dtExport.Columns.Add("Year", GetType(String))
+            dtExport.Columns.Add("Month", GetType(String))
+            dtExport.Columns.Add("Category", GetType(String))
+            dtExport.Columns.Add("Category name", GetType(String))
+            dtExport.Columns.Add("Company", GetType(String))
+            dtExport.Columns.Add("Segment", GetType(String))
+            dtExport.Columns.Add("Segment name", GetType(String))
+            dtExport.Columns.Add("Brand", GetType(String))
+            dtExport.Columns.Add("Brand name", GetType(String))
+            dtExport.Columns.Add("Vendor", GetType(String))
+            dtExport.Columns.Add("Vendor name", GetType(String))
+            dtExport.Columns.Add("Amount (THB)", GetType(Decimal))
+            dtExport.Columns.Add("Amount (CCY)", GetType(Decimal))
+            dtExport.Columns.Add("CCY", GetType(String))
+            dtExport.Columns.Add("Ex. Rate", GetType(Decimal))
+            dtExport.Columns.Add("Actual PO Ref", GetType(String))
+            dtExport.Columns.Add("Status", GetType(String))
+            dtExport.Columns.Add("Status date", GetType(String))
+            dtExport.Columns.Add("Remark", GetType(String))
+            dtExport.Columns.Add("Action by", GetType(String))
+
+            For Each row As DataRow In dtRaw.Rows
+                dtExport.Rows.Add(
+                    GetDbDate(row, "Created_Date"),
+                    GetDbString(row, "DraftPO_No"),
+                    GetDbString(row, "PO_Type"),
+                    GetDbString(row, "PO_Year"),
+                    GetDbString(row, "PO_Month_Name"),
+                    GetDbString(row, "Category_Code"),
+                    GetDbString(row, "Category_Name"),
+                    GetDbString(row, "Company_Code"),
+                    GetDbString(row, "Segment_Code"),
+                    GetDbString(row, "Segment_Name"),
+                    GetDbString(row, "Brand_Code"),
+                    GetDbString(row, "Brand_Name"),
+                    GetDbString(row, "Vendor_Code"),
+                    GetDbString(row, "Vendor_Name"),
+                    GetDbDecimal(row, "Amount_THB"),
+                    GetDbDecimal(row, "Amount_CCY"),
+                    GetDbString(row, "CCY"),
+                    GetDbDecimal(row, "Exchange_Rate"),
+                    GetDbString(row, "Actual_PO_Ref"),
+                    GetDbString(row, "Status"),
+                    GetDbDate(row, "Status_Date"),
+                    GetDbString(row, "Remark"),
+                    GetDbString(row, "Status_By")
+                )
+            Next
+
+            ' 3. ใช้ฟังก์ชัน ExportToExcel (ที่มีอยู่แล้ว หรือสร้างใหม่ถ้ายังไม่มีในไฟล์นี้)
+            ExportToExcel(context, dtExport, "Draft_PO_" & DateTime.Now.ToString("yyyyMMdd_HHmmss") & ".xlsx")
+
+        Catch ex As Exception
+            context.Response.Write("Error exporting data: " & ex.Message)
         End Try
     End Sub
 
