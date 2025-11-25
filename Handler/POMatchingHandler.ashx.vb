@@ -74,7 +74,7 @@ Public Class POMatchingHandler
                 Using transaction As SqlTransaction = conn.BeginTransaction()
                     Try
                         ' [BMS Gem]: Update Actual PO Summary โดยใช้ ID
-                        Dim updateActual As String = "UPDATE [BMS].[dbo].[Actual_PO_Summary] SET [Draft_PO_Ref] = @DraftPONo, [Status] = 'Matched', [Matching_Date] = GETDATE(), [Changed_By] = @UpdateBy, [Changed_date] = GETDATE() WHERE [ActualPO_ID] = @ActualPOID"
+                        Dim updateActual As String = "UPDATE [BMS].[dbo].[Actual_PO_Summary] SET [Draft_PO_Ref] = @DraftPONo, [Status] = 'Matching', [Matching_Date] = GETDATE(), [Changed_By] = @UpdateBy, [Changed_date] = GETDATE() WHERE [ActualPO_ID] = @ActualPOID"
                         Using cmd As New SqlCommand(updateActual, conn, transaction)
                             cmd.Parameters.AddWithValue("@DraftPONo", draftPONo)
                             cmd.Parameters.AddWithValue("@ActualPOID", actualPO_ID) ' <-- ใช้ ID
@@ -83,7 +83,7 @@ Public Class POMatchingHandler
                         End Using
 
                         ' Update Draft PO Transaction (Sync back)
-                        Dim updateDraft As String = "UPDATE [BMS].[dbo].[Draft_PO_Transaction] SET [Actual_PO_Ref] = @ActualPONo, [Status] = 'Matched', [Status_Date] = GETDATE(), [Status_By] = @UpdateBy WHERE [DraftPO_No] = @DraftPONo"
+                        Dim updateDraft As String = "UPDATE [BMS].[dbo].[Draft_PO_Transaction] SET [Actual_PO_Ref] = @ActualPONo, [Status] = 'Matching', [Status_Date] = GETDATE(), [Status_By] = @UpdateBy WHERE [DraftPO_No] = @DraftPONo"
                         Using cmd As New SqlCommand(updateDraft, conn, transaction)
                             cmd.Parameters.AddWithValue("@DraftPONo", draftPONo)
                             cmd.Parameters.AddWithValue("@ActualPONo", actualPONo) ' ใช้ No เพื่อ Link กลับ (Ref เป็น String)
@@ -134,13 +134,39 @@ Public Class POMatchingHandler
 
             Dim upsertStats As String = SyncPOsToStaging(combinedPoList)
 
-            ' 4. เรียก SP จับคู่อัตโนมัติ (Auto Match) เพื่อ Update สถานะในตาราง
             Using conn As New SqlConnection(connectionString)
                 conn.Open()
+
+                ' 4.1 เรียก SP Auto Match (เพื่อจับคู่ Reference)
                 Using cmdMatch As New SqlCommand("SP_Auto_Match_Actual_Draft", conn)
                     cmdMatch.CommandType = CommandType.StoredProcedure
                     cmdMatch.Parameters.AddWithValue("@UpdateBy", "System AutoMatch")
                     cmdMatch.ExecuteNonQuery()
+                End Using
+
+                ' 4.2 [NEW LOGIC] อัปเดตสถานะเป็น 'Matching' (เฉพาะที่ยังไม่ Matched)
+                ' อัปเดตตาราง Draft_PO_Transaction
+                Dim sqlUpdateDraft As String = "
+                    UPDATE D
+                    SET D.Status = 'Matching', D.Status_Date = GETDATE(), D.Status_By = 'System AutoMatch'
+                    FROM [BMS].[dbo].[Draft_PO_Transaction] D
+                    WHERE D.Actual_PO_Ref IS NOT NULL 
+                      AND ISNULL(D.Status, '') NOT IN ('Matched', 'Cancelled')
+                "
+                Using cmd As New SqlCommand(sqlUpdateDraft, conn)
+                    cmd.ExecuteNonQuery()
+                End Using
+
+                ' อัปเดตตาราง Actual_PO_Summary
+                Dim sqlUpdateActual As String = "
+                    UPDATE A
+                    SET A.Status = 'Matching', A.Matching_Date = GETDATE(), A.Changed_By = 'System AutoMatch'
+                    FROM [BMS].[dbo].[Actual_PO_Summary] A
+                    WHERE A.Draft_PO_Ref IS NOT NULL
+                      AND ISNULL(A.Status, '') NOT IN ('Matched', 'Cancelled')
+                "
+                Using cmd As New SqlCommand(sqlUpdateActual, conn)
+                    cmd.ExecuteNonQuery()
                 End Using
             End Using
 
@@ -263,19 +289,16 @@ Public Class POMatchingHandler
             conn.Open()
             Using transaction As SqlTransaction = conn.BeginTransaction()
                 Try
-                    ' วนลูปทุก Group ที่ถูกส่งมา
                     For Each match As MatchPayload In matches
                         Dim actualPoRef As String = match.ActualPO.Trim()
-
-                        ' แยก Draft POs (อาจมีหลายใบ)
                         Dim draftPoList As String() = match.DraftPOs.Split(New Char() {","c}, StringSplitOptions.RemoveEmptyEntries)
 
-                        ' วนลูปทุก Draft PO ใน Group นี้
                         For Each po As String In draftPoList
                             Dim draftPoNo As String = po.Trim()
                             If String.IsNullOrEmpty(draftPoNo) Then Continue For
 
-                            Dim updateQuery As String = "
+                            ' 1. Update Draft PO (Matching -> Matched)
+                            Dim updateDraftQuery As String = "
                                 UPDATE [BMS].[dbo].[Draft_PO_Transaction]
                                 SET 
                                     [Actual_PO_Ref] = @ActualPO,
@@ -284,32 +307,46 @@ Public Class POMatchingHandler
                                     [Status_By] = @StatusBy
                                 WHERE 
                                     [DraftPO_No] = @DraftPONo
-                                    AND ISNULL([Actual_PO_Ref], '') = '' 
                                     AND ISNULL([Status], '') <> 'Cancelled'
+                                    -- อัปเดตได้ทั้ง Matching และ Draft (กรณี Manual) แต่ถ้า Matched แล้วจะไม่กระทบ
                             "
-
-                            Using cmd As New SqlCommand(updateQuery, conn, transaction)
+                            Using cmd As New SqlCommand(updateDraftQuery, conn, transaction)
                                 cmd.Parameters.AddWithValue("@ActualPO", actualPoRef)
                                 cmd.Parameters.AddWithValue("@StatusBy", statusBy)
                                 cmd.Parameters.AddWithValue("@DraftPONo", draftPoNo)
-
                                 totalRowsAffected += cmd.ExecuteNonQuery()
                             End Using
                         Next
+
+                        ' 2. Update Actual PO (Matching -> Matched) [NEW Logic]
+                        Dim updateActualQuery As String = "
+                            UPDATE [BMS].[dbo].[Actual_PO_Summary]
+                            SET 
+                                [Status] = 'Matched',
+                                [Matching_Date] = GETDATE(),
+                                [Changed_By] = @StatusBy,
+                                [Changed_date] = GETDATE()
+                            WHERE 
+                                [PO_No] = @ActualPONo
+                                AND ISNULL([Status], '') <> 'Cancelled'
+                        "
+                        Using cmdAct As New SqlCommand(updateActualQuery, conn, transaction)
+                            cmdAct.Parameters.AddWithValue("@ActualPONo", actualPoRef)
+                            cmdAct.Parameters.AddWithValue("@StatusBy", statusBy)
+                            cmdAct.ExecuteNonQuery()
+                        End Using
                     Next
 
                     transaction.Commit()
 
-                    ' ส่งผลลัพธ์กลับ
                     Dim successResponse = New With {
                         .success = True,
-                        .message = $"Successfully updated {totalRowsAffected} draft PO record(s) to 'Matched'."
+                        .message = $"Successfully confirmed {totalRowsAffected} Draft PO(s) and updated related Actual PO(s) to 'Matched'."
                     }
                     context.Response.Write(JsonConvert.SerializeObject(successResponse))
 
                 Catch ex As Exception
                     transaction.Rollback()
-                    ' ส่ง Error กลับ
                     context.Response.StatusCode = 500
                     Dim errorResponse As New With {
                         .success = False,
@@ -327,15 +364,6 @@ Public Class POMatchingHandler
         Try
 
             Dim upsertStats As String = ""
-            ' 4. เรียก SP จับคู่อัตโนมัติ (Auto Match) เพื่อ Update สถานะในตาราง
-            Using conn As New SqlConnection(connectionString)
-                conn.Open()
-                Using cmdMatch As New SqlCommand("SP_Auto_Match_Actual_Draft", conn)
-                    cmdMatch.CommandType = CommandType.StoredProcedure
-                    cmdMatch.Parameters.AddWithValue("@UpdateBy", "System AutoMatch")
-                    cmdMatch.ExecuteNonQuery()
-                End Using
-            End Using
 
             ' 5. [จุดสำคัญ] ดึงข้อมูลผลลัพธ์จากตาราง Actual_PO_Summary โดยตรง
             Dim results As List(Of MatchedPOItem) = GetMatchedDataFromDB()
@@ -368,36 +396,21 @@ Public Class POMatchingHandler
         ' ข้อมูล Key ต่างๆ (Year, Month, Category...) จะถูกดึงจาก Actual
         ' ข้อมูล Draft จะถูกดึงมาแสดงถ้ามีการ Match กัน (ผ่าน Draft_PO_Ref)
         Dim query As String = "
-           SELECT 
-                A.ActualPO_ID,
-                A.OTB_Year,
-                A.OTB_Month, 
-                A.Company_Code,
-                A.Category_Code, 
-                CASE 
-                    WHEN LEN(A.Segment_Code) > 2 THEN SUBSTRING(A.Segment_Code, 2, LEN(A.Segment_Code) - 2) 
-                    ELSE A.Segment_Code 
-                END AS Segment_Code,
-                A.Brand_Code,
-                A.Vendor_Code,
-                A.PO_No AS ActualPONo,
-                A.Actual_PO_Date,
-                ISNULL(A.Amount_THB, 0) AS ActualAmountTHB,
-                ISNULL(A.Amount_CCY, 0) AS ActualAmountCCY,
-                A.CCY AS ActualCCY,
-                ISNULL(A.Exchange_Rate, 0) AS ActualExRate,
-                A.Status AS ActualStatus,
-                D.DraftPO_No,
-                D.Created_Date AS DraftPODate,
-                ISNULL(D.Amount_THB, 0) AS DraftAmountTHB,
-                ISNULL(D.Amount_CCY, 0) AS DraftAmountCCY
+          SELECT 
+                A.ActualPO_ID, A.OTB_Year, A.OTB_Month, A.Company_Code, A.Category_Code, 
+                CASE WHEN LEN(A.Segment_Code) > 2 THEN SUBSTRING(A.Segment_Code, 2, LEN(A.Segment_Code) - 2) ELSE A.Segment_Code END AS Segment_Code,
+                A.Brand_Code, A.Vendor_Code, A.PO_No AS ActualPONo, A.Actual_PO_Date,
+                ISNULL(A.Amount_THB, 0) AS ActualAmountTHB, ISNULL(A.Amount_CCY, 0) AS ActualAmountCCY,
+                A.CCY AS ActualCCY, ISNULL(A.Exchange_Rate, 0) AS ActualExRate,
+                A.Status AS ActualStatus, -- สถานะของ Actual PO
+                D.DraftPO_No, D.Created_Date AS DraftPODate,
+                ISNULL(D.Amount_THB, 0) AS DraftAmountTHB, ISNULL(D.Amount_CCY, 0) AS DraftAmountCCY,
+                D.Status AS DraftStatus -- สถานะของ Draft PO
             FROM [dbo].[Actual_PO_Summary] A
             LEFT JOIN [dbo].[Draft_PO_Transaction] D ON A.Draft_PO_Ref = D.DraftPO_No
-            WHERE ISNULL(A.Status, '') <> 'Cancelled'
-              -- เงื่อนไขใหม่: ต้องมีทั้ง Segment และ Brand หรือ ทั้งสองค่า ต้องไม่เป็น 000 เท่านั้นถึงจะแสดง
+            WHERE ISNULL(A.Status, '') <> 'Cancelled' AND ISNULL(D.Status, '') <> 'Matched'
               AND (ISNULL(A.Segment_Code, '') <> '' AND A.Segment_Code <> '000')
               AND (ISNULL(A.Brand_Code, '') <> '' AND A.Brand_Code <> '000')
-            
             ORDER BY A.OTB_Year DESC, A.OTB_Month DESC, A.PO_No
         "
 
@@ -438,7 +451,8 @@ Public Class POMatchingHandler
                                 .DraftAmountTHB = Convert.ToDecimal(r("DraftAmountTHB")),
                                 .DraftAmountCCY = Convert.ToDecimal(r("DraftAmountCCY"))
                             }
-                            item.MatchStatus = "Matched" ' สถานะสีเขียวใน Grid
+                            Dim dbStatus As String = If(r("ActualStatus") IsNot DBNull.Value, r("ActualStatus").ToString(), "")
+                            item.MatchStatus = dbStatus ' ค่าจะเป็น "Matching" หรือ "Matched"
                         Else
                             ' ถ้าไม่มีคู่ ให้เป็น Nothing (หน้าจอจะแสดงเป็นช่องว่าง)
                             item.Draft = Nothing

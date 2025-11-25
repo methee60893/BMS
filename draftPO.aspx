@@ -449,6 +449,16 @@
             background: #888;
             border-radius: 4px;
         }
+
+        .status-matched {
+            color: #198754; /* Green */
+            font-weight: 600;
+        }
+        .status-cancelled {
+            color: #dc3545; /* Red */
+            font-weight: 600;
+        }
+
     </style>
 </head>
 <body>
@@ -1174,7 +1184,25 @@
             const rowsHtml = data.map(row => {
                 const createdDate = row.Created_Date ? new Date(row.Created_Date).toLocaleString('en-GB') : '';
                 const statusDate = row.Status_Date ? new Date(row.Status_Date).toLocaleString('en-GB') : '';
-                const statusClass = row.Status?.toLowerCase() === 'cancelled' ? 'status-cancelled' : '';
+
+
+                // [BMS Gem Fix]: ตรวจสอบสถานะเพื่อจัดการปุ่ม Edit
+                const status = (row.Status || '').trim(); // ตัดช่องว่างเผื่อมี
+                const isMatched = status.toLowerCase() === 'matched';
+                const isCancelled = status.toLowerCase() === 'cancelled';
+
+                // กำหนด Class สีสถานะ
+                let statusClass = '';
+                if (isMatched) statusClass = 'status-matched';
+                else if (isCancelled) statusClass = 'status-cancelled';
+
+                // กำหนดสถานะปุ่ม Edit
+                // ปิดปุ่มถ้าเป็น Matched หรือ Cancelled
+                const isEditDisabled = isMatched || isCancelled;
+                const editBtnClass = isEditDisabled ? 'btn-secondary' : 'btn-action'; // สีเทาถ้า disabled, สีเหลืองถ้าปกติ
+                const editBtnAttr = isEditDisabled ? 'disabled' : '';
+                const editBtnTitle = isEditDisabled ? 'Cannot edit because status is ' + status : 'Edit ' + (row.DraftPO_No || '');
+
 
                 // Helper to format numbers
                 const formatNum = (num, decimals = 2) => (num != null ? parseFloat(num).toFixed(decimals) : '0.00');
@@ -1205,9 +1233,10 @@
                         <td>${row.Remark || ''}</td>
                         <td>${row.Status_By || ''}</td>
                         <td>
-                            <button class="btn btn-action btn-edit-po" 
+                            <button class="btn ${editBtnClass} btn-edit-po" 
                                     data-draftpoid="${row.DraftPO_ID}" 
-                                    title="Edit ${row.DraftPO_No}">
+                                    title="${editBtnTitle}"
+                                    ${editBtnAttr}>
                                 <i class="bi bi-pencil"></i> Edit
                             </button>
                         </td>

@@ -9,7 +9,16 @@
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="style/theme.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
-
+    <style>
+        /* Override styles specific to this page if needed */
+        /* Ensure highlight classes are working even if theme.css fails */
+        .highlight-matched {
+            background-color: #d4edda !important; /* Green for Matched */
+        }
+        .highlight-matching {
+            background-color: #fff3cd !important; /* Yellow for Matching */
+        }
+    </style>
 </head>
 <body>
      <!-- (เพิ่ม) Loading Overlay -->
@@ -303,26 +312,43 @@
                 const actualPONo = getVal(actual, 'ActualPONo');
                 const actualPOID = getVal(actual, 'ActualPO_ID');
 
+                // [BMS Gem Logic Fix]: กำหนดสีตามสถานะ และ ตรวจสอบว่า Lock หรือไม่
                 let rowClass = '';
-                if (matchStatus === 'Matched') {
-                    rowClass = 'highlight-matched';
+                const isMatched = matchStatus.toLowerCase() === 'matched';
+                const isMatching = matchStatus.toLowerCase() === 'matching';
+
+                if (isMatched) {
+                    rowClass = 'table-success';
+                } else if (isMatching) {
+                    rowClass = 'table-warning'; // สีเหลืองสำหรับรายการรอ Submit
                 }
+
                 const rowId = `row-${actualPOID}`;
 
                 html += `<tr class="${rowClass}" id="${rowId}">`;
 
-                // Checkbox
+                // Checkbox logic:
+                // - ถ้า Matched -> Checked + Disabled (แก้ไขไม่ได้)
+                // - ถ้า Matching -> Checked + Enabled (รอ Submit, ผู้ใช้เลือกไม่ส่งได้)
+                // - อื่นๆ -> Unchecked + Enabled
+                let isChecked = (isMatched || isMatching) ? 'checked' : '';
+                let isDisabled = isMatched ? 'disabled' : ''; // [BMS Gem Fix] ปิดการใช้งานถ้า Matched แล้ว
+
+
                 html += `<td class="text-center" style="white-space: nowrap;">
                             <div class="d-flex align-items-center gap-2 justify-content-center">
                                 <input type="checkbox" 
                                        class="form-check-input match-checkbox" 
-                                       ${matchStatus === 'Matched' ? 'checked' : ''}
+                                       ${isChecked}
+                                       ${isDisabled}
                                        data-draft-pos="${draft ? (draft.DraftPONo || draft.draftPONo) : ''}"
                                        data-actual-po="${actualPONo}"
+                                       data-status="${matchStatus}"
                                 >
                                 <button type="button" class="btn btn-sm btn-outline-secondary" 
                                         onclick="openManualMatchModal('${actualPOID}', '${actualPONo}', ${index})"
-                                        title="Change Draft PO No.">
+                                        title="Change Draft PO No."
+                                        ${isDisabled}>
                                     <i class="bi bi-pencil-square"></i>
                                 </button>
                             </div>
@@ -383,7 +409,7 @@
             btnSyncSAP.disabled = true;
 
             $.ajax({
-                url: 'Handler/POMatchingHandler.ashx?action=getpo',
+                url: 'Handler/POMatchingHandler.ashx?action=get_only',
                 type: 'POST',
                 processData: false,
                 contentType: false,

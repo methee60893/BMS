@@ -211,7 +211,7 @@
                             <div class="form-row-display form-row-item">
                                 <div class="form-group">
                                     <label>Exchange rate</label>
-                                    <input id="txtExRate" type="text" class="form-control" placeholder="0.00" pattern="^\d+(\.\d{1,2})?$" title="Enter a valid amount (e.g., 123 or 123.45)" autocomplete="off">
+                                    <input id="txtExRate" type="text" class="form-control" placeholder="0.0000" pattern="^\d+(\.\d{1,2})?$" title="Enter a valid amount (e.g., 123 or 123.4523)" autocomplete="off">
                                 </div>
                                 <div class="form-group">
                                     <label>Remark</label>
@@ -559,7 +559,7 @@
             const tabContents = document.querySelectorAll('.tab-content');
             tabContents.forEach(tc => tc.classList.remove('active'));
 
-            tab.target.closest('.tab-button').classList.add('active');
+            event.target.closest('.tab-button').classList.add('active');
 
             if (tab === 'txn') {
                 document.getElementById('txnTab').classList.add('active');
@@ -1145,6 +1145,7 @@
          */
         function clearPOForm() {
             document.getElementById('poTxnForm').reset();
+
             // Reset calculated fields
             txtAmtTHB.value = "0.00";
             // Manually trigger change on dropdowns to reset dependent fields if necessary

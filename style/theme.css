@@ -20,12 +20,16 @@
     --bms-gray: #6c757d;
     --table-header: #4A90E2;
     --green-highlight: #d4edda;
+    --yellow-highlight: #fff3cd;
     --pink-highlight: #FFB6C1;
 }
 .highlight-matched {
     background-color: var(--green-highlight);
 }
 
+.highlight-matching {
+    background-color: var(--yellow-highlight);
+}
 /* --- 2. Global & Body --- */
 * {
     margin: 0;

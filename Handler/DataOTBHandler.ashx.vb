@@ -18,7 +18,20 @@ Public Class DataOTBHandler
     Implements IHttpHandler
 
     Private Shared connectionString As String = ConfigurationManager.ConnectionStrings("BMSConnectionString")?.ConnectionString
-
+    ' *** NEW: Private Class for strong typing in Summary Report ***
+    Private Class SummaryRawItem
+        Public Property Company As String
+        Public Property CompanyName As String
+        Public Property Year As String
+        Public Property Month As String
+        Public Property MonthName As String
+        Public Property Category As String
+        Public Property CategoryName As String
+        Public Property Segment As String
+        Public Property SegmentName As String
+        Public Property TotalBudget As Decimal
+        Public Property TotalActualDraft As Decimal
+    End Class
     Sub ProcessRequest(ByVal context As HttpContext) Implements IHttpHandler.ProcessRequest
 
         Try
@@ -1473,10 +1486,22 @@ Public Class DataOTBHandler
                 FROM [BMS].[dbo].[Draft_PO_Transaction]
                 WHERE ISNULL(Status, '') <> 'Cancelled' AND ISNULL(Actual_PO_Ref, '') = '' 
                 AND (@Year IS NULL OR PO_Year = @Year)
+                AND (@Month IS NULL OR PO_Month = @Month)
+                AND (@Company IS NULL OR Company_Code = @Company)
+                AND (@Category IS NULL OR Category_Code = @Category)
+                AND (@Segment IS NULL OR Segment_Code = @Segment)
+                AND (@Brand IS NULL OR Brand_Code = @Brand)
+                AND (@Vendor IS NULL OR Vendor_Code = @Vendor)
                 "
             ' (Add filters parameters as needed logic similar to other functions)
             Using cmd As New SqlCommand(query, conn)
                 cmd.Parameters.AddWithValue("@Year", If(String.IsNullOrEmpty(year), DBNull.Value, year))
+                cmd.Parameters.AddWithValue("@Month", If(String.IsNullOrEmpty(month), DBNull.Value, month))
+                cmd.Parameters.AddWithValue("@Company", If(String.IsNullOrEmpty(company), DBNull.Value, company))
+                cmd.Parameters.AddWithValue("@Category", If(String.IsNullOrEmpty(category), DBNull.Value, category))
+                cmd.Parameters.AddWithValue("@Segment", If(String.IsNullOrEmpty(segment), DBNull.Value, segment))
+                cmd.Parameters.AddWithValue("@Brand", If(String.IsNullOrEmpty(brand), DBNull.Value, brand))
+                cmd.Parameters.AddWithValue("@Vendor", If(String.IsNullOrEmpty(vendor), DBNull.Value, vendor))
                 Using da As New SqlDataAdapter(cmd)
                     da.Fill(dt)
                 End Using
@@ -1496,9 +1521,21 @@ Public Class DataOTBHandler
                 FROM [BMS].[dbo].[Actual_PO_Staging]
                 WHERE ISNULL(Deletion_Flag, '') <> 'L'
                 AND (@Year IS NULL OR Otb_Year = @Year)
+                AND (@Month IS NULL OR Otb_Month = @Month)
+                AND (@Company IS NULL OR Company_Code = @Company)
+                AND (@Category IS NULL OR Category = @Category)
+                AND (@Segment IS NULL OR Fund = @Segment)
+                AND (@Brand IS NULL OR Brand = @Brand)
+                AND (@Vendor IS NULL OR Supplier = @Vendor)
                 "
             Using cmd As New SqlCommand(query, conn)
                 cmd.Parameters.AddWithValue("@Year", If(String.IsNullOrEmpty(year), DBNull.Value, year))
+                cmd.Parameters.AddWithValue("@Month", If(String.IsNullOrEmpty(month), DBNull.Value, month))
+                cmd.Parameters.AddWithValue("@Company", If(String.IsNullOrEmpty(company), DBNull.Value, company))
+                cmd.Parameters.AddWithValue("@Category", If(String.IsNullOrEmpty(category), DBNull.Value, category))
+                cmd.Parameters.AddWithValue("@Segment", If(String.IsNullOrEmpty(segment), DBNull.Value, segment))
+                cmd.Parameters.AddWithValue("@Brand", If(String.IsNullOrEmpty(brand), DBNull.Value, brand))
+                cmd.Parameters.AddWithValue("@Vendor", If(String.IsNullOrEmpty(vendor), DBNull.Value, vendor))
                 Using da As New SqlDataAdapter(cmd)
                     da.Fill(dt)
                 End Using
@@ -1513,16 +1550,75 @@ Public Class DataOTBHandler
         Using conn As New SqlConnection(connectionString)
             conn.Open()
             Dim query As String = "
-                SELECT DISTINCT Year, Month, Category, Company, Segment, Brand, Vendor FROM [dbo].[OTB_Transaction] WHERE OTBStatus='Approved' AND (@Year IS NULL OR Year = @Year)
+                SELECT DISTINCT Year, Month, Category, Company, Segment, Brand, Vendor 
+                FROM [dbo].[OTB_Transaction] 
+                WHERE OTBStatus='Approved' 
+                AND (@Year IS NULL OR Year = @Year)
+                AND (@Month IS NULL OR Month = @Month)
+                AND (@Company IS NULL OR Company = @Company)
+                AND (@Category IS NULL OR Category = @Category)
+                AND (@Segment IS NULL OR Segment = @Segment)
+                AND (@Brand IS NULL OR Brand = @Brand)
+                AND (@Vendor IS NULL OR Vendor = @Vendor)
+
                 UNION
-                SELECT DISTINCT Year, Month, Category, Company, Segment, Brand, Vendor FROM [dbo].[OTB_Switching_Transaction] WHERE OTBStatus='Approved' AND (@Year IS NULL OR Year = @Year)
+
+                SELECT DISTINCT Year, Month, Category, Company, Segment, Brand, Vendor 
+                FROM [dbo].[OTB_Switching_Transaction] 
+                WHERE OTBStatus='Approved' 
+                AND (@Year IS NULL OR Year = @Year)
+                AND (@Month IS NULL OR Month = @Month)
+                AND (@Company IS NULL OR Company = @Company)
+                AND (@Category IS NULL OR Category = @Category)
+                AND (@Segment IS NULL OR Segment = @Segment)
+                AND (@Brand IS NULL OR Brand = @Brand)
+                AND (@Vendor IS NULL OR Vendor = @Vendor)
+
                 UNION
-                SELECT DISTINCT PO_Year, PO_Month, Category_Code, Company_Code, Segment_Code, Brand_Code, Vendor_Code FROM [dbo].[Draft_PO_Transaction] WHERE ISNULL(Status,'')<>'Cancelled' AND (@Year IS NULL OR PO_Year = @Year)
+
+                SELECT DISTINCT SwitchYear AS Year, SwitchMonth AS Month, SwitchCategory AS Category, SwitchCompany AS Company, SwitchSegment AS Segment, SwitchBrand AS Brand, SwitchVendor AS Vendor 
+                FROM [dbo].[OTB_Switching_Transaction] 
+                WHERE OTBStatus='Approved' AND [To] IS NOT NULL 
+                AND (@Year IS NULL OR SwitchYear = @Year)
+                AND (@Month IS NULL OR SwitchMonth = @Month)
+                AND (@Company IS NULL OR SwitchCompany = @Company)
+                AND (@Category IS NULL OR SwitchCategory = @Category)
+                AND (@Segment IS NULL OR SwitchSegment = @Segment)
+                AND (@Brand IS NULL OR SwitchBrand = @Brand)
+                AND (@Vendor IS NULL OR SwitchVendor = @Vendor)
+
+                SELECT DISTINCT PO_Year, PO_Month, Category_Code, Company_Code, Segment_Code, Brand_Code, Vendor_Code 
+                FROM [dbo].[Draft_PO_Transaction] 
+                WHERE ISNULL(Status,'')<>'Cancelled' 
+                AND (@Year IS NULL OR PO_Year = @Year)
+                AND (@Month IS NULL OR PO_Month = @Month)
+                AND (@Company IS NULL OR Company_Code = @Company)
+                AND (@Category IS NULL OR Category_Code = @Category)
+                AND (@Segment IS NULL OR Segment_Code = @Segment)
+                AND (@Brand IS NULL OR Brand_Code = @Brand)
+                AND (@Vendor IS NULL OR Vendor_Code = @Vendor)
+
                 UNION
-                SELECT DISTINCT Otb_Year, Otb_Month, Category, Company_Code, Fund, Brand, Supplier FROM [dbo].[Actual_PO_Staging] WHERE ISNULL(Deletion_Flag,'')<>'L' AND (@Year IS NULL OR Otb_Year = @Year)
+
+                SELECT DISTINCT Otb_Year, Otb_Month, Category, Company_Code, Fund, Brand, Supplier 
+                FROM [dbo].[Actual_PO_Staging] 
+                WHERE ISNULL(Deletion_Flag,'')<>'L' 
+                AND (@Year IS NULL OR Otb_Year = @Year)
+                AND (@Month IS NULL OR Otb_Month = @Month)
+                AND (@Company IS NULL OR Company_Code = @Company)
+                AND (@Category IS NULL OR Category = @Category)
+                AND (@Segment IS NULL OR Fund = @Segment)
+                AND (@Brand IS NULL OR Brand = @Brand)
+                AND (@Vendor IS NULL OR Supplier = @Vendor)
             "
             Using cmd As New SqlCommand(query, conn)
                 cmd.Parameters.AddWithValue("@Year", If(String.IsNullOrEmpty(year), DBNull.Value, year))
+                cmd.Parameters.AddWithValue("@Month", If(String.IsNullOrEmpty(month), DBNull.Value, month))
+                cmd.Parameters.AddWithValue("@Company", If(String.IsNullOrEmpty(company), DBNull.Value, company))
+                cmd.Parameters.AddWithValue("@Category", If(String.IsNullOrEmpty(category), DBNull.Value, category))
+                cmd.Parameters.AddWithValue("@Segment", If(String.IsNullOrEmpty(segment), DBNull.Value, segment))
+                cmd.Parameters.AddWithValue("@Brand", If(String.IsNullOrEmpty(brand), DBNull.Value, brand))
+                cmd.Parameters.AddWithValue("@Vendor", If(String.IsNullOrEmpty(vendor), DBNull.Value, vendor))
                 Using da As New SqlDataAdapter(cmd)
                     da.Fill(dt)
                 End Using
@@ -1651,21 +1747,21 @@ Public Class DataOTBHandler
         Dim dtKeys As DataTable = GetDistinctKeysForReport(year, month, company, category, segment, brand, vendor)
 
         ' 3. สร้าง List ชั่วคราวเพื่อเก็บข้อมูลระดับละเอียดก่อน Group
-        Dim rawList As New List(Of Object)
+        Dim rawList As New List(Of SummaryRawItem)
 
         For Each rowKey As DataRow In dtKeys.Rows
             Dim kYear As String = rowKey("Year").ToString()
             Dim kMonth As String = rowKey("Month").ToString()
             Dim kCate As String = rowKey("Category").ToString()
-            Dim kCateName As String = rowKey("Category").ToString()
+            Dim kCateName As String = masterinstance.GetCategoryName(rowKey("Category").ToString())
             Dim kComp As String = rowKey("Company").ToString()
-            Dim kCompName As String = rowKey("Company").ToString()
+            Dim kCompName As String = masterinstance.GetCompanyName(rowKey("Company").ToString())
             Dim kSeg As String = rowKey("Segment").ToString()
-            Dim kSegName As String = rowKey("Segment").ToString()
+            Dim kSegName As String = masterinstance.GetSegmentName(rowKey("Segment").ToString())
             Dim kBrand As String = rowKey("Brand").ToString()
-            Dim kBrandName As String = rowKey("Brand").ToString()
+            Dim kBrandName As String = masterinstance.GetBrandName(rowKey("Brand").ToString())
             Dim kVendor As String = rowKey("Vendor").ToString()
-            Dim kVendorName As String = rowKey("Vendor").ToString()
+            Dim kVendorName As String = masterinstance.GetVendorName(rowKey("Vendor").ToString())
             Dim kMonthName As String = GetMonthName(kMonth)
 
             ' 3.1 คำนวณ Budget (ระดับละเอียด)
@@ -1678,7 +1774,7 @@ Public Class DataOTBHandler
             Dim sumActual As Decimal = If(IsDBNull(dtActualPO.Compute("SUM(Amount)", filterPO)), 0, Convert.ToDecimal(dtActualPO.Compute("SUM(Amount)", filterPO)))
 
             ' เก็บลง List
-            rawList.Add(New With {
+            rawList.Add(New SummaryRawItem With {
                 .Year = kYear,
                 .Month = kMonth,
                 .MonthName = kMonthName,
@@ -1694,7 +1790,7 @@ Public Class DataOTBHandler
         Next
 
         ' 4. (สำคัญ) Group By Category & Segment ด้วย LINQ
-        ' ตามโจทย์: "กรณีที่ Cate นั้นมีมากกว่า 1 segment type ให้แตกบรรทัดด้วย ตามจำนวน Segment"
+        ' *** FIXED: Group.Sum จะใช้ Decimal overload อัตโนมัติเพราะ rawList เป็น Strongly Typed ***
         Dim groupedQuery = From item In rawList
                            Group item By Key = New With {
                                Key .Company = item.Company,

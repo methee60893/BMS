@@ -221,7 +221,7 @@
                     </div>
 
                     <div class="detail-row">
-                        <div class="detail-label">Total Switch in</div>
+                        <div class="detail-label">Total Switch Out</div>
                         <div class="detail-value" id="detail_Budget_SwitchOut">
                             0.00 THB
                             <%-- <a href="#" class="detail-link ms-3">Click history</a> --%>
@@ -689,12 +689,12 @@
             params.append('action', 'exportOTBMovement'); // <--- Action ใหม่
             params.append('OTByear', OTByear);
 
-            if (OTBmonth) params.append('OTBmonth', OTBmonth);
-            if (OTBcompany) params.append('OTBCompany', OTBcompany);
-            if (OTBCategory) params.append('OTBCategory', OTBCategory);
-            if (OTBSegment) params.append('OTBSegment', OTBSegment);
-            if (OTBBrand) params.append('OTBBrand', OTBBrand);
-            if (OTBVendor) params.append('OTBVendor', OTBVendor);
+            params.append('OTBmonth', OTBmonth);
+            params.append('OTBCompany', OTBcompany);
+            params.append('OTBCategory', OTBCategory);
+            params.append('OTBSegment', OTBSegment);
+            params.append('OTBBrand', OTBBrand);
+            params.append('OTBVendor', OTBVendor);
 
             // Trigger Download
             window.location.href = 'Handler/DataOTBHandler.ashx?' + params.toString();
@@ -720,10 +720,10 @@
             params.append('action', 'exportsummarycategory'); // <--- Action ใหม่
             params.append('OTByear', OTByear);
 
-            if (OTBmonth) params.append('OTBmonth', OTBmonth);
-            if (OTBcompany) params.append('OTBCompany', OTBcompany);
-            if (OTBCategory) params.append('OTBCategory', OTBCategory);
-            if (OTBSegment) params.append('OTBSegment', OTBSegment);
+            params.append('OTBmonth', OTBmonth);
+            params.append('OTBCompany', OTBcompany);
+            params.append('OTBCategory', OTBCategory);
+            params.append('OTBSegment', OTBSegment);
 
             // Trigger Download
             window.location.href = 'Handler/DataOTBHandler.ashx?' + params.toString();
