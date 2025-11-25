@@ -425,7 +425,7 @@
                 <button class="menu-toggle" onclick="toggleSidebar()">
                     <i class="bi bi-list"></i>
                 </button>
-                <h1 class="page-title">BMS - Dashboard</h1>
+                <h1 class="page-title">KBMS - Dashboard</h1>
             </div>
             <div class="d-flex align-items-center gap-3">
                 <span class="d-none d-md-inline">Welcome, Admin</span>

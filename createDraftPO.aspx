@@ -1102,12 +1102,12 @@
             formData.append('segment', segmentDropdown.value);
             formData.append('brand', brandDropdown.value);
             formData.append('vendor', vendorDropdown.value);
-            formData.append('pono', document.getElementById("tsPONO").value);
-            formData.append('amtCCY', parseFloat(document.getElementById("tsAmtCCY").value || 0).toFixed(2));
+            formData.append('pono', txtPONO.value);
+            formData.append('amtCCY', txtAmtCCY.value);
             formData.append('ccy', ccyDropdown.value); // Send value
-            formData.append('exRate', parseFloat(document.getElementById("tsExRate").value || 0).toFixed(4));
-            formData.append('amtTHB', document.getElementById("tsAmtTHB").value);
-            formData.append('remark', document.getElementById("tsRemark").value);
+            formData.append('exRate', txtExRate.value);
+            formData.append('amtTHB', txtAmtTHB.value);
+            formData.append('remark', txtRemark.value);
             // createdBy will be handled by the server using Session
 
             try {

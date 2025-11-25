@@ -418,7 +418,7 @@
             // Find all *checked* checkboxes
             document.querySelectorAll('.match-checkbox:checked').forEach(cb => {
                 selectedMatches.push({
-                    DraftPOs: cb.dataset.draftPos, // "PO-001, PO-002"
+                    DraftPOs: cb.dataset.draftPos, // "PO-001"
                     ActualPO: cb.dataset.actualPo  // "SAP-12345"
                 });
             });

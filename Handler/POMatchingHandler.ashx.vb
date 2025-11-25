@@ -40,8 +40,8 @@ Public Class POMatchingHandler
 
     Private Sub HandleManualMatch(context As HttpContext)
         context.Response.ContentType = "application/json"
-        Dim actualPO_ID As String = context.Request.Form("actualPO_ID") ' <-- รับ ID
-        Dim actualPONo As String = context.Request.Form("actualPONo")   ' <-- รับ No ไว้ใช้ update Draft (ถ้าจำเป็น)
+        Dim actualPO_ID As String = context.Request.Form("actualPO_ID")
+        Dim actualPONo As String = context.Request.Form("actualPONo")
         Dim draftPONo As String = context.Request.Form("draftPONo")
         Dim updateBy As String = "User Manual Match"
 
@@ -243,9 +243,9 @@ Public Class POMatchingHandler
     Private Sub SubmitMatches(context As HttpContext)
         context.Response.ContentType = "application/json"
         Dim statusBy As String = "System_Matcher" ' (TODO: ควรดึงจาก Session ถ้ามี)
-        ' If context.Session("user") IsNot Nothing Then
-        '     statusBy = context.Session("user").ToString()
-        ' End If
+        If context.Session("user") IsNot Nothing Then
+            statusBy = context.Session("user").ToString()
+        End If
 
         Dim jsonPayload As String = context.Request.Form("matches")
         If String.IsNullOrEmpty(jsonPayload) Then
@@ -393,11 +393,10 @@ Public Class POMatchingHandler
                 ISNULL(D.Amount_CCY, 0) AS DraftAmountCCY
             FROM [dbo].[Actual_PO_Summary] A
             LEFT JOIN [dbo].[Draft_PO_Transaction] D ON A.Draft_PO_Ref = D.DraftPO_No
-            
             WHERE ISNULL(A.Status, '') <> 'Cancelled'
-              -- เงื่อนไขใหม่: ต้องมีทั้ง Segment และ Brand เท่านั้นถึงจะแสดง
-              AND ISNULL(A.Segment_Code, '') <> '' 
-              AND ISNULL(A.Brand_Code, '') <> ''
+              -- เงื่อนไขใหม่: ต้องมีทั้ง Segment และ Brand หรือ ทั้งสองค่า ต้องไม่เป็น 000 เท่านั้นถึงจะแสดง
+              AND (ISNULL(A.Segment_Code, '') <> '' AND A.Segment_Code <> '000')
+              AND (ISNULL(A.Brand_Code, '') <> '' AND A.Brand_Code <> '000')
             
             ORDER BY A.OTB_Year DESC, A.OTB_Month DESC, A.PO_No
         "
