@@ -233,12 +233,42 @@ Public Class POValidate
             errors.Add("txtExRate", "Exchange rate must be 1.00 when CCY is THB")
         End If
 
-        ' 5. ตรวจสอบ PO ซ้ำ (ถ้าถูกสั่งให้เช็ค)
-        'If checkDuplicate AndAlso Not String.IsNullOrEmpty(poNo) AndAlso errors.Count = 0 Then
-        '    If CheckPODuplicate(poNo) Then
-        '        errors.Add("txtPONO", $"Draft PO no. '{poNo}' already exists")
-        '    End If
-        'End If
+        If errors.Count = 0 Then ' เช็คเมือข้อมูลพื้นฐานผ่านแล้วเท่านั้น
+            Try
+                ' 1. คำนวณยอดเงิน THB ที่ต้องการขอ (Draft Amount)
+                Dim requestedTHB As Decimal = 0
+                If Not String.IsNullOrEmpty(amtTHB) Then
+                    Decimal.TryParse(amtTHB, requestedTHB)
+                Else
+                    requestedTHB = amountCCYValue * exRateValue
+                End If
+
+                ' 2. สร้าง Key สำหรับค้นหางบประมาณ
+                Dim key As New POMatchKey With {
+                    .Year = year,
+                    .Month = month,
+                    .Company = company,
+                    .Category = category,
+                    .Segment = segment,
+                    .Brand = brand,
+                    .Vendor = vendor
+                }
+
+                ' 3. ดึงงบประมาณคงเหลือ (Approved - DraftUsed)
+                ' ฟังก์ชัน GetRemainingBudget มีอยู่แล้วใน Class นี้
+                Dim remainingBudget As Decimal = GetRemainingBudget(key)
+
+                ' 4. เปรียบเทียบ
+                If requestedTHB > remainingBudget Then
+                    errors.Add("txtAmtCCY", $"Budget limit exceeded. Request: {requestedTHB:N2}, Remaining: {remainingBudget:N2}")
+                    ' หรือถ้าอยากแจ้งเตือนที่ General
+                    ' errors.Add("general", $"Insufficient budget for {brand}. Remaining: {remainingBudget:N2} THB")
+                End If
+
+            Catch ex As Exception
+                errors.Add("general", "Error checking budget: " & ex.Message)
+            End Try
+        End If
 
         Return errors
     End Function

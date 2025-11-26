@@ -1146,11 +1146,24 @@
         function clearPOForm() {
             document.getElementById('poTxnForm').reset();
 
-            // Reset calculated fields
-            txtAmtTHB.value = "0.00";
-            // Manually trigger change on dropdowns to reset dependent fields if necessary
+            document.getElementById('txtPONO').value = "";
+            document.getElementById('txtAmtCCY').value = "";
+            document.getElementById('txtExRate').value = "";
+            document.getElementById('txtAmtTHB').value = "0.00";
+            document.getElementById('txtRemark').value = "";
+
+            $('#DDYear').val(null).trigger('change');
+            $('#DDMonth').val(null).trigger('change');
+            $('#DDCompany').val(null).trigger('change');
+            $('#DDCategory').val(null).trigger('change');
+            $('#DDSegment').val(null).trigger('change');
+            $('#DDBrand').val(null).trigger('change');
+            $('#DDVendor').val(null).trigger('change');
+            $('#DDCCY').val(null).trigger('change');
+
             segmentDropdown.dispatchEvent(new Event('change'));
             ccyDropdown.dispatchEvent(new Event('change'));
+
             // Clear any lingering validation
             clearValidationErrors();
         }
@@ -1302,8 +1315,8 @@
                 return;
             }
 
-            // Allow Ctrl+A (Select All)
-            if (key === 'a' && event.ctrlKey) {
+            // [BMS Gem Fix] Allow Ctrl+A, Ctrl+C, Ctrl+V, Ctrl+X
+            if ((key === 'a' || key === 'c' || key === 'v' || key === 'x') && event.ctrlKey) {
                 return;
             }
 
@@ -1317,6 +1330,8 @@
                 event.preventDefault(); // Block the key press
             }
         }
+
+
 
 
         // Initialize

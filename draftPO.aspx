@@ -1193,7 +1193,7 @@
 
                 // กำหนด Class สีสถานะ
                 let statusClass = '';
-                if (isMatched) statusClass = 'status-matched';
+                if (isMatched) statusClass = 'table-secondary';
                 else if (isCancelled) statusClass = 'status-cancelled';
 
                 // กำหนดสถานะปุ่ม Edit
@@ -1208,8 +1208,8 @@
                 const formatNum = (num, decimals = 2) => (num != null ? parseFloat(num).toFixed(decimals) : '0.00');
 
                 return `
-                    <tr>
-                        <td>${createdDate}</td>
+                    <tr class="${statusClass}" >
+                        <td >${createdDate}</td>
                         <td>${row.DraftPO_No || ''}</td>
                         <td>${row.PO_Type || ''}</td>
                         <td>${row.PO_Year || ''}</td>
@@ -1228,7 +1228,7 @@
                         <td>${row.CCY || ''}</td>
                         <td class="text-end">${formatNum(row.Exchange_Rate, 4)}</td>
                         <td>${row.Actual_PO_Ref || ''}</td>
-                        <td class="${statusClass}">${row.Status || ''}</td>
+                        <td class="${statusClass}">${(row.Status === 'Matched' ? 'Actual' : (row.Status || '')) }</td>
                         <td>${statusDate}</td>
                         <td>${row.Remark || ''}</td>
                         <td>${row.Status_By || ''}</td>

@@ -154,7 +154,7 @@
                                 <th>Brand</th>
                                 <th>Vendor</th>
                                 <th>Draft PO Date</th>
-                                <th>Draft PO/PO no.</th>
+                                <th>Draft PO No.</th>
                                 <th>Draft PO Amount (THB)</th>
                                 <th>Draft PO Amount (CCY)</th>
                                 <th>Actual PO Amount (THB)</th>
