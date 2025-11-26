@@ -45,6 +45,11 @@ Public Class POMatchingHandler
         Dim draftPONo As String = context.Request.Form("draftPONo")
         Dim updateBy As String = "User Manual Match"
 
+        ' (TODO: ควรดึง User จริงจาก Session)
+        If context.Session IsNot Nothing AndAlso context.Session("user") IsNot Nothing Then
+            updateBy = context.Session("user").ToString()
+        End If
+
         Try
             ' 1. Validate Input
             If String.IsNullOrEmpty(actualPO_ID) OrElse String.IsNullOrEmpty(draftPONo) Then
@@ -52,11 +57,14 @@ Public Class POMatchingHandler
             End If
 
             Dim draftData As DataRow = Nothing
+            Dim actualData As DataRow = Nothing
 
             Using conn As New SqlConnection(connectionString)
                 conn.Open()
 
-                ' 2. Check Draft PO (เหมือนเดิม)
+                ' ---------------------------------------------------------
+                ' 2. Get Draft PO Data
+                ' ---------------------------------------------------------
                 Dim checkQuery As String = "SELECT * FROM [BMS].[dbo].[Draft_PO_Transaction] WHERE [DraftPO_No] = @DraftPONo AND ISNULL(Status, '') <> 'Cancelled'"
                 Using cmdCheck As New SqlCommand(checkQuery, conn)
                     cmdCheck.Parameters.AddWithValue("@DraftPONo", draftPONo)
@@ -70,23 +78,47 @@ Public Class POMatchingHandler
                     draftData = dt.Rows(0)
                 End Using
 
-                ' 3. Perform Match (Update DB)
+                ' ---------------------------------------------------------
+                ' 3. [NEW] Get Actual PO Data for Validation
+                ' ---------------------------------------------------------
+                Dim actualQuery As String = "SELECT OTB_Year, OTB_Month, Company_Code, Category_Code, Segment_Code, Brand_Code, Vendor_Code FROM [BMS].[dbo].[Actual_PO_Summary] WHERE [ActualPO_ID] = @ActualPOID"
+                Using cmdAct As New SqlCommand(actualQuery, conn)
+                    cmdAct.Parameters.AddWithValue("@ActualPOID", actualPO_ID)
+                    Dim dtAct As New DataTable()
+                    Using daAct As New SqlDataAdapter(cmdAct)
+                        daAct.Fill(dtAct)
+                    End Using
+                    If dtAct.Rows.Count = 0 Then
+                        Throw New Exception("Actual PO record not found for validation.")
+                    End If
+                    actualData = dtAct.Rows(0)
+                End Using
+
+                ' ---------------------------------------------------------
+                ' 4. [NEW] Validate Match Logic
+                ' ---------------------------------------------------------
+                ValidatePoMatching(draftData, actualData)
+
+
+                ' ---------------------------------------------------------
+                ' 5. Perform Match (Update DB) - Only if validation passed
+                ' ---------------------------------------------------------
                 Using transaction As SqlTransaction = conn.BeginTransaction()
                     Try
-                        ' [BMS Gem]: Update Actual PO Summary โดยใช้ ID
+                        ' Update Actual PO Summary
                         Dim updateActual As String = "UPDATE [BMS].[dbo].[Actual_PO_Summary] SET [Draft_PO_Ref] = @DraftPONo, [Status] = 'Matching', [Matching_Date] = GETDATE(), [Changed_By] = @UpdateBy, [Changed_date] = GETDATE() WHERE [ActualPO_ID] = @ActualPOID"
                         Using cmd As New SqlCommand(updateActual, conn, transaction)
                             cmd.Parameters.AddWithValue("@DraftPONo", draftPONo)
-                            cmd.Parameters.AddWithValue("@ActualPOID", actualPO_ID) ' <-- ใช้ ID
+                            cmd.Parameters.AddWithValue("@ActualPOID", actualPO_ID)
                             cmd.Parameters.AddWithValue("@UpdateBy", updateBy)
                             cmd.ExecuteNonQuery()
                         End Using
 
-                        ' Update Draft PO Transaction (Sync back)
+                        ' Update Draft PO Transaction
                         Dim updateDraft As String = "UPDATE [BMS].[dbo].[Draft_PO_Transaction] SET [Actual_PO_Ref] = @ActualPONo, [Status] = 'Matching', [Status_Date] = GETDATE(), [Status_By] = @UpdateBy WHERE [DraftPO_No] = @DraftPONo"
                         Using cmd As New SqlCommand(updateDraft, conn, transaction)
                             cmd.Parameters.AddWithValue("@DraftPONo", draftPONo)
-                            cmd.Parameters.AddWithValue("@ActualPONo", actualPONo) ' ใช้ No เพื่อ Link กลับ (Ref เป็น String)
+                            cmd.Parameters.AddWithValue("@ActualPONo", actualPONo)
                             cmd.Parameters.AddWithValue("@UpdateBy", updateBy)
                             cmd.ExecuteNonQuery()
                         End Using
@@ -99,7 +131,7 @@ Public Class POMatchingHandler
                 End Using
             End Using
 
-            ' 4. Return Success Data (เหมือนเดิม)
+            ' 6. Return Success Data
             Dim responseData As New With {
                 .DraftPONo = draftData("DraftPO_No").ToString(),
                 .DraftPODate = Convert.ToDateTime(draftData("Created_Date")).ToString("dd/MM/yyyy"),
@@ -112,6 +144,77 @@ Public Class POMatchingHandler
             context.Response.StatusCode = 500
             context.Response.Write(JsonConvert.SerializeObject(New With {.success = False, .message = ex.Message}))
         End Try
+    End Sub
+
+    ''' <summary>
+    ''' Helper Function ตรวจสอบความถูกต้องของข้อมูลก่อนจับคู่
+    ''' </summary>
+    Private Sub ValidatePoMatching(draft As DataRow, actual As DataRow)
+        Dim errors As New List(Of String)
+
+        ' Helper เพื่อดึงค่า String แบบปลอดภัย
+        Dim getStr = Function(row As DataRow, col As String) As String
+                         Return If(row(col) Is DBNull.Value, "", row(col).ToString().Trim())
+                     End Function
+
+        ' Helper เพื่อแปลงค่า Integer (สำหรับ Year/Month) ให้เป็น String เพื่อเปรียบเทียบ
+        Dim getIntStr = Function(row As DataRow, col As String) As String
+                            If row(col) Is DBNull.Value Then Return ""
+                            Dim val As Integer
+                            If Integer.TryParse(row(col).ToString(), val) Then Return val.ToString()
+                            Return row(col).ToString().Trim()
+                        End Function
+
+        ' 1. Year
+        If getIntStr(draft, "PO_Year") <> getIntStr(actual, "OTB_Year") Then
+            errors.Add($"Year mismatch (Draft: {getIntStr(draft, "PO_Year")}, Actual: {getIntStr(actual, "OTB_Year")})")
+        End If
+
+        ' 2. Month
+        If getIntStr(draft, "PO_Month") <> getIntStr(actual, "OTB_Month") Then
+            errors.Add($"Month mismatch (Draft: {getIntStr(draft, "PO_Month")}, Actual: {getIntStr(actual, "OTB_Month")})")
+        End If
+
+        ' 3. Company
+        If getStr(draft, "Company_Code") <> getStr(actual, "Company_Code") Then
+            errors.Add("Company mismatch")
+        End If
+
+        ' 4. Category
+        If getStr(draft, "Category_Code") <> getStr(actual, "Category_Code") Then
+            errors.Add("Category mismatch")
+        End If
+
+        ' 5. Brand
+        If getStr(draft, "Brand_Code") <> getStr(actual, "Brand_Code") Then
+            errors.Add("Brand mismatch")
+        End If
+
+        ' 6. Vendor
+        If getStr(draft, "Vendor_Code") <> getStr(actual, "Vendor_Code") Then
+            errors.Add("Vendor mismatch")
+        End If
+
+        ' 7. Segment (Special handling for wrapped codes like "(S01)")
+        Dim draftSeg As String = getStr(draft, "Segment_Code")
+        Dim actualSeg As String = getStr(actual, "Segment_Code")
+
+        ' Clean Actual Segment Logic (ตรงกับที่ใช้ในหน้าจอ Grid)
+        If actualSeg.Length > 2 Then
+            ' สมมติ format เป็น (XXX) หรือ /XXX/ ให้ตัดตัวหน้าและตัวท้าย
+            actualSeg = actualSeg.Substring(1, actualSeg.Length - 2)
+        End If
+
+        If draftSeg <> actualSeg Then
+            errors.Add($"Segment mismatch (Draft: {draftSeg}, Actual: {actualSeg})")
+        End If
+
+        ' สรุปผล
+        If errors.Count > 0 Then
+            Dim errorDetails As String = String.Join(", ", errors)
+            Throw New Exception($"ไม่สามารถ match ให้ได้ เนื่องจากข้อมูลไม่ตรงกัน: {errorDetails}")
+        End If
+
     End Sub
 
     Private Sub SyncAndGetPOData(context As HttpContext)

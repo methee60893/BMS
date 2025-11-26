@@ -742,8 +742,8 @@
                                 <!-- Row 4 -->
                                 <div class="row g-3 mb-3">
                                     <div class="col-12 col-md-6">
-                                        <label for="txtPONOEdit">Draft PO no. (Readonly)</label>
-                                        <input id="txtPONOEdit" type="text" class="form-control" readonly style="background: #e9ecef;" autocomplete="off">
+                                        <label for="txtPONOEdit">Draft PO no.</label>
+                                        <input id="txtPONOEdit" type="text" class="form-control" autocomplete="off">
                                         <div class="validation-message" data-field="pono"></div>
                                     </div>
                                     <div class="col-12 col-md-6">
@@ -1134,13 +1134,13 @@
 
         function clearFilters() {
 
-            $('ddYearFilter').val(null).trigger('change');
-            $('ddMonthFilter').val(null).trigger('change');
-            $('ddCompanyFilter').val(null).trigger('change');
-            $('ddCategoryFilter').val(null).trigger('change');
-            $('ddSegmentFilter').val(null).trigger('change');
-            $('ddBrandFilter').val(null).trigger('change');
-            $('ddVendorFilter').val(null).trigger('change');
+            $('#ddYearFilter').val(null).trigger('change');
+            $('#ddMonthFilter').val(null).trigger('change');
+            $('#ddCompanyFilter').val(null).trigger('change');
+            $('#ddCategoryFilter').val(null).trigger('change');
+            $('#ddSegmentFilter').val(null).trigger('change');
+            $('#ddBrandFilter').val(null).trigger('change');
+            $('#ddVendorFilter').val(null).trigger('change');
         }
 
         async function handleViewData() {
@@ -1188,13 +1188,16 @@
 
                 // [BMS Gem Fix]: ตรวจสอบสถานะเพื่อจัดการปุ่ม Edit
                 const status = (row.Status || '').trim(); // ตัดช่องว่างเผื่อมี
-                const isMatched = status.toLowerCase() === 'matched';
-                const isCancelled = status.toLowerCase() === 'cancelled';
+                const statusLower = status.toLowerCase();
+                const isMatched = statusLower === 'matched';
+                const isCancelled = statusLower === 'cancelled';
+
+                const canDelete = (statusLower === 'draft' || statusLower === 'matching');
 
                 // กำหนด Class สีสถานะ
                 let statusClass = '';
-                if (isMatched) statusClass = 'table-secondary';
-                else if (isCancelled) statusClass = 'status-cancelled';
+                if (isMatched) statusClass = 'table-success';
+                else if (isCancelled) statusClass = 'text-danger';
 
                 // กำหนดสถานะปุ่ม Edit
                 // ปิดปุ่มถ้าเป็น Matched หรือ Cancelled
@@ -1209,36 +1212,46 @@
 
                 return `
                     <tr class="${statusClass}" >
-                        <td >${createdDate}</td>
-                        <td>${row.DraftPO_No || ''}</td>
-                        <td>${row.PO_Type || ''}</td>
-                        <td>${row.PO_Year || ''}</td>
-                        <td>${row.PO_Month_Name || ''}</td>
-                        <td>${row.Category_Code || ''}</td>
-                        <td>${row.Category_Name || ''}</td>
-                        <td>${row.Company_Code || ''}</td>
-                        <td>${row.Segment_Code || ''}</td>
-                        <td>${row.Segment_Name || ''}</td>
-                        <td>${row.Brand_Code || ''}</td>
-                        <td>${row.Brand_Name || ''}</td>
-                        <td>${row.Vendor_Code || ''}</td>
-                        <td>${row.Vendor_Name || ''}</td>
-                        <td class="text-end">${formatNum(row.Amount_THB)}</td>
-                        <td class="text-end">${formatNum(row.Amount_CCY)}</td>
-                        <td>${row.CCY || ''}</td>
-                        <td class="text-end">${formatNum(row.Exchange_Rate, 4)}</td>
-                        <td>${row.Actual_PO_Ref || ''}</td>
-                        <td class="${statusClass}">${(row.Status === 'Matched' ? 'Actual' : (row.Status || '')) }</td>
-                        <td>${statusDate}</td>
-                        <td>${row.Remark || ''}</td>
-                        <td>${row.Status_By || ''}</td>
-                        <td>
+                        <td  class="${statusClass}" >${createdDate}</td>
+                        <td  class="${statusClass}" >${row.DraftPO_No || ''}</td>
+                        <td  class="${statusClass}" >${row.PO_Type || ''}</td>
+                        <td  class="${statusClass}" >${row.PO_Year || ''}</td>
+                        <td  class="${statusClass}" >${row.PO_Month_Name || ''}</td>
+                        <td  class="${statusClass}" >${row.Category_Code || ''}</td>
+                        <td  class="${statusClass}" >${row.Category_Name || ''}</td>
+                        <td  class="${statusClass}" >${row.Company_Code || ''}</td>
+                        <td  class="${statusClass}" >${row.Segment_Code || ''}</td>
+                        <td  class="${statusClass}" >${row.Segment_Name || ''}</td>
+                        <td  class="${statusClass}" >${row.Brand_Code || ''}</td>
+                        <td  class="${statusClass}" >${row.Brand_Name || ''}</td>
+                        <td  class="${statusClass}" >${row.Vendor_Code || ''}</td>
+                        <td  class="${statusClass}" >${row.Vendor_Name || ''}</td>
+                        <td class="${statusClass} text-end">${formatNum(row.Amount_THB)}</td>
+                        <td class="${statusClass} text-end">${formatNum(row.Amount_CCY)}</td>
+                        <td class="${statusClass}" >${row.CCY || ''}</td>
+                        <td  class="${statusClass} text-end">${formatNum(row.Exchange_Rate, 4)}</td>
+                        <td  class="${statusClass}" >${row.Actual_PO_Ref || ''}</td>
+                        <td  class="${statusClass}" >${(row.Status === 'Matched' ? 'Matched' : (row.Status || '')) }</td>
+                        <td  class="${statusClass}" >${statusDate}</td>
+                        <td  class="${statusClass}" >${row.Remark || ''}</td>
+                        <td  class="${statusClass}" >${row.Status_By || ''}</td>
+                        <td  class="${statusClass}" >
+                            <div class="d-flex gap-1">
                             <button class="btn ${editBtnClass} btn-edit-po" 
                                     data-draftpoid="${row.DraftPO_ID}" 
                                     title="${editBtnTitle}"
                                     ${editBtnAttr}>
                                 <i class="bi bi-pencil"></i> Edit
                             </button>
+                            ${canDelete ? `
+                            <button class="btn btn-danger btn-sm btn-delete-po" 
+                                    data-draftpoid="${row.DraftPO_ID}" 
+                                    data-pono="${row.DraftPO_No}"
+                                    title="Delete (Cancel)">
+                                <i class="bi bi-trash"></i>
+                            </button>
+                            ` : ''}
+                            </div>
                         </td>
                     </tr>
                 `;
@@ -1246,16 +1259,61 @@
 
             draftPOTableBody.innerHTML = rowsHtml;
             addEditButtonListeners();
+            addDeleteButtonListeners();
         }
 
         // ==========================================
         // Edit PO Functions
         // ==========================================
-
+        function addDeleteButtonListeners() {
+            document.querySelectorAll('.btn-delete-po').forEach(button => {
+                button.addEventListener('click', handleDeleteClick);
+            });
+        }
         function addEditButtonListeners() {
             document.querySelectorAll('.btn-edit-po').forEach(button => {
                 button.addEventListener('click', handleEditClick);
             });
+        }
+
+        async function handleDeleteClick(event) {
+            const btn = event.currentTarget;
+            const draftPOID = btn.dataset.draftpoid;
+            const poNo = btn.dataset.pono;
+
+            if (!confirm(`Are you sure you want to CANCEL Draft PO No: ${poNo}?`)) {
+                return;
+            }
+
+            showLoading(true, "Cancelling...");
+
+            const formData = new FormData();
+            formData.append('draftPOID', draftPOID);
+
+            try {
+                const response = await fetch('Handler/DataPOHandler.ashx?action=deleteDraftPO', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+
+                const result = await response.json();
+                showLoading(false);
+
+                if (result.success) {
+                    alert(result.message);
+                    // Refresh Table
+                    handleViewData();
+                } else {
+                    alert('Error: ' + result.message);
+                }
+
+            } catch (error) {
+                showLoading(false);
+                console.error('Delete error:', error);
+                alert('Fatal error cancelling Draft PO: ' + error.message);
+            }
         }
 
         async function handleEditClick(event) {

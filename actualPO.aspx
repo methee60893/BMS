@@ -350,13 +350,13 @@
 
         // --- Clear Filters ---
         function clearFilters() {
-            $('ddYearFilter').val(null).trigger('change');
-            $('ddMonthFilter').val(null).trigger('change');
-            $('ddCompanyFilter').val(null).trigger('change');
-            $('ddCategoryFilter').val(null).trigger('change');
-            $('ddSegmentFilter').val(null).trigger('change');
-            $('ddBrandFilter').val(null).trigger('change');
-            $('ddVendorFilter').val(null).trigger('change');
+            $('#ddYearFilter').val(null).trigger('change');
+            $('#ddMonthFilter').val(null).trigger('change');
+            $('#ddCompanyFilter').val(null).trigger('change');
+            $('#ddCategoryFilter').val(null).trigger('change');
+            $('#ddSegmentFilter').val(null).trigger('change');
+            $('#ddBrandFilter').val(null).trigger('change');
+            $('#ddVendorFilter').val(null).trigger('change');
             InitVendor(ddVendorFilter); // Reset vendor list
             actualPOTableBody.innerHTML = "<tr><td colspan='22' class='text-center text-muted p-4'>Please use the filters and click 'View' to see data.</td></tr>";
         }

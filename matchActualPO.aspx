@@ -18,6 +18,31 @@
         .highlight-matching {
             background-color: #fff3cd !important; /* Yellow for Matching */
         }
+
+        /* [BMS Gem] New Header Styles */
+        .table thead th {
+            vertical-align: middle !important;
+            text-align: center;
+            border-color: #fff !important; /* เส้นคั่นสีขาว */
+        }
+
+        /* 1. Common Keys (Grey/Dark) */
+        .th-key {
+            background-color: #5a6268 !important; 
+            color: white !important;
+        }
+
+        /* 2. Draft PO Group (Teal/Light Blue) */
+        .th-draft {
+            background-color: #17a2b8 !important; 
+            color: white !important;
+        }
+
+        /* 3. Actual PO Group (Primary Blue) */
+        .th-actual {
+            background-color: var(--primary-blue) !important; 
+            color: white !important;
+        }
     </style>
 </head>
 <body>
@@ -145,24 +170,26 @@
                     <table class="table table-hover mb-0">
                         <thead>
                             <tr>
-                                <th>Select</th>
-                                <th>Year</th>
-                                <th>Month</th>
-                                <th>Cate</th>
-                                <th>Company</th>
-                                <th>Segment</th>
-                                <th>Brand</th>
-                                <th>Vendor</th>
-                                <th>Draft PO Date</th>
-                                <th>Draft PO No.</th>
-                                <th>Draft PO Amount (THB)</th>
-                                <th>Draft PO Amount (CCY)</th>
-                                <th>Actual PO Amount (THB)</th>
-                                <th>Actual Amount (CCY)</th>
-                                <th>CCY</th>
-                                <th>Acutal Ex. Rate</th>
-                                <th>Actual PO Date</th>
-                                <th>Actual PO no.</th>
+                                <th class="th-key">Select</th>
+                                <th class="th-key">Year</th>
+                                <th class="th-key">Month</th>
+                                <th class="th-key">Cate</th>
+                                <th class="th-key">Company</th>
+                                <th class="th-key">Segment</th>
+                                <th class="th-key">Brand</th>
+                                <th class="th-key">Vendor</th>
+
+                                <th class="th-draft">Draft PO Date</th>
+                                <th class="th-draft">Draft PO No.</th>
+                                <th class="th-draft">Draft PO Amount (THB)</th>
+                                <th class="th-draft">Draft PO Amount (CCY)</th>
+
+                                <th class="th-actual">Actual Amount (CCY)</th>
+                                <th class="th-actual">Actual PO Amount (THB)</th>
+                                <th class="th-actual">CCY</th>
+                                <th class="th-actual">Actual Ex. Rate</th>
+                                <th class="th-actual">Actual PO Date</th>
+                                <th class="th-actual">Actual PO no.</th>
                             </tr>
                         </thead>
                          <tbody id="matchTableBody">
@@ -334,6 +361,15 @@
                 let isChecked = (isMatched || isMatching) ? 'checked' : '';
                 let isDisabled = isMatched ? 'disabled' : ''; // [BMS Gem Fix] ปิดการใช้งานถ้า Matched แล้ว
 
+                // --- [BMS Gem Logic] Check Amount CCY Difference ---
+                let highlightCCYStyle = '';
+                const draftAmtCCY = getNum(draft, 'DraftAmountCCY');
+                const actualAmtCCY = getNum(actual, 'ActualAmountCCY');
+
+                // ถ้ามีคู่ Match และยอดเงิน CCY ต่างกัน (มากกว่า 0.01 เพื่อกันเรื่องทศนิยม)
+                if (draft && Math.abs(draftAmtCCY - actualAmtCCY) > 0.01) {
+                    highlightCCYStyle = 'background-color: #fff3cd; color: #856404; font-weight: bold;'; // สีเหลือง (Warning Theme)
+                }
 
                 html += `<td class="text-center" style="white-space: nowrap;">
                             <div class="d-flex align-items-center gap-2 justify-content-center">
@@ -367,11 +403,13 @@
                 html += `<td id="td-date-${actualPOID}">${draft ? getVal(draft, 'DraftPODate') : '-'}</td>`;
                 html += `<td id="td-no-${actualPOID}">${draft ? getVal(draft, 'DraftPONo') : '-'}</td>`;
                 html += `<td id="td-thb-${actualPOID}" class="text-end">${draft ? formatNumber(getNum(draft, 'DraftAmountTHB')) : '-'}</td>`;
-                html += `<td id="td-ccy-${actualPOID}" class="text-end">${draft ? formatNumber(getNum(draft, 'DraftAmountCCY')) : '-'}</td>`;
+
+                html += `<td id="td-ccy-${actualPOID}" class="text-end" style="${highlightCCYStyle}">${draft ? formatNumber(draftAmtCCY) : '-'}</td>`;
 
                 // --- Actual PO Data (ต้องมีค่าเสมอ) ---
+                html += `<td class="text-end" style="${highlightCCYStyle}">${formatNumber(actualAmtCCY)}</td>`;
+
                 html += `<td class="text-end"><strong>${formatNumber(getNum(actual, 'ActualAmountTHB'))}</strong></td>`;
-                html += `<td class="text-end">${formatNumber(getNum(actual, 'ActualAmountCCY'))}</td>`;
                 html += `<td>${getVal(actual, 'ActualCCY')}</td>`;
                 html += `<td class="text-end">${formatNumber(getNum(actual, 'ActualExRate'), 4)}</td>`; // 4 decimal places for Rate
                 html += `<td>${getVal(actual, 'ActualPODate')}</td>`;

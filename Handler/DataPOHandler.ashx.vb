@@ -36,6 +36,8 @@ Public Class DataPOHandler
             GetDraftPODetails(context)
         ElseIf action = "savedraftpoedit" Then
             SaveDraftPOEdit(context)
+        ElseIf action = "deletedraftpo" Then
+            DeleteDraftPO(context)
         ElseIf context.Request("action") = "PoListFilter" Then
             Try
                 ' 1. รับค่า Parameters (ตัวอย่าง)
@@ -93,6 +95,65 @@ Public Class DataPOHandler
         End If
     End Sub
 
+    ' =================================================
+    ' ===== ADDED: DELETE (CANCEL) DRAFT PO FUNCTION =====
+    ' =================================================
+    Private Sub DeleteDraftPO(context As HttpContext)
+        context.Response.ContentType = "application/json"
+        Dim response As New Dictionary(Of String, Object)
+        Dim statusBy As String = "System"
+
+        If context.Session IsNot Nothing AndAlso context.Session("user") IsNot Nothing Then
+            statusBy = context.Session("user").ToString()
+        End If
+
+        Try
+            Dim draftPOID As Integer
+            If Not Integer.TryParse(context.Request.Form("draftPOID"), draftPOID) Then
+                Throw New Exception("Invalid DraftPO ID")
+            End If
+
+            Using conn As New SqlConnection(connectionString)
+                conn.Open()
+
+                ' ตรวจสอบสถานะก่อนลบ (Double Check)
+                Dim checkQuery As String = "SELECT Status FROM [BMS].[dbo].[Draft_PO_Transaction] WHERE DraftPO_ID = @ID"
+                Dim currentStatus As String = ""
+                Using cmdCheck As New SqlCommand(checkQuery, conn)
+                    cmdCheck.Parameters.AddWithValue("@ID", draftPOID)
+                    Dim res = cmdCheck.ExecuteScalar()
+                    If res IsNot Nothing Then currentStatus = res.ToString()
+                End Using
+
+                If currentStatus.Equals("Matched", StringComparison.OrdinalIgnoreCase) OrElse
+                   currentStatus.Equals("Cancelled", StringComparison.OrdinalIgnoreCase) Then
+                    Throw New Exception($"Cannot cancel. Current status is '{currentStatus}'.")
+                End If
+
+                ' Update Status to Cancelled
+                Dim query As String = "UPDATE [BMS].[dbo].[Draft_PO_Transaction] " &
+                                      "SET [Status] = 'Cancelled', " &
+                                      "    [Status_Date] = GETDATE(), " &
+                                      "    [Status_By] = @StatusBy " &
+                                      "WHERE [DraftPO_ID] = @DraftPOID"
+
+                Using cmd As New SqlCommand(query, conn)
+                    cmd.Parameters.AddWithValue("@DraftPOID", draftPOID)
+                    cmd.Parameters.AddWithValue("@StatusBy", statusBy)
+                    cmd.ExecuteNonQuery()
+                End Using
+            End Using
+
+            response("success") = True
+            response("message") = "Draft PO cancelled successfully."
+
+        Catch ex As Exception
+            response("success") = False
+            response("message") = ex.Message
+        End Try
+
+        context.Response.Write(JsonConvert.SerializeObject(response))
+    End Sub
     Private Function GetDraftPODataTable(context As HttpContext, isExport As Boolean) As DataTable
         ' รับค่า Parameter (รองรับทั้ง Form สำหรับ View และ QueryString สำหรับ Export)
         Dim req = context.Request

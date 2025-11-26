@@ -29,7 +29,7 @@ Public Class POValidate
             Using conn As New SqlConnection(connectionString)
                 conn.Open()
                 ' ดึงข้อมูล Draft PO ที่ยังไม่ Cancelled เพื่อใช้คำนวณยอดจอง
-                Dim query As String = "SELECT PO_Year, PO_Month, Company_Code, Category_Code, Segment_Code, Brand_Code, Vendor_Code, Amount_THB 
+                Dim query As String = "SELECT DraftPO_ID, PO_Year, PO_Month, Company_Code, Category_Code, Segment_Code, Brand_Code, Vendor_Code, Amount_THB 
                                      FROM [BMS].[dbo].[Draft_PO_Transaction]
                                      WHERE ISNULL(Status, 'Draft') <> 'Cancelled'"
                 Using cmd As New SqlCommand(query, conn)
@@ -59,30 +59,16 @@ Public Class POValidate
                $"[Vendor_Code] = '{EscapeFilter(key.Vendor)}'"
     End Function
 
-    ' --- (เพิ่ม Method ใหม่) ---
-    ''' <summary>
-    ''' คำนวณงบประมาณคงเหลือ (Approved - Reserved)
-    ''' </summary>
     Public Function GetRemainingBudget(key As POMatchKey) As Decimal
-        Dim totalApproved As Decimal = 0
+        Dim totalApproved As Decimal = calculator.CalculateCurrentApprovedBudget(key.Year, key.Month, key.Category, key.Company, key.Segment, key.Brand, key.Vendor)
         Dim totalDraft As Decimal = 0
-
-        ' 1. Get Total Approved (จาก OTB_Transaction และ OTB_Switching)
-        ' (เรียกใช้ OTBBudgetCalculator ที่เรา New ไว้ใน Constructor)
-        totalApproved = calculator.CalculateCurrentApprovedBudget(key.Year, key.Month, key.Category, key.Company, key.Segment, key.Brand, key.Vendor)
-
-        ' 2. Get Total Reserved (จาก Draft_PO_Transaction ที่โหลดไว้)
         Try
             Dim filter As String = BuildKeyFilter(key)
-            ' ใช้ .Compute เพื่อ Sum ข้อมูล Amount_THB จาก DataTable ใน Memory
             Dim draftSum As Object = dtDraftPO.Compute("SUM(Amount_THB)", filter)
             totalDraft = If(draftSum IsNot DBNull.Value, Convert.ToDecimal(draftSum), 0)
-        Catch ex As Exception
-            ' (ถ้าไม่มีข้อมูลใน dtDraftPO, Compute จะ Error แต่เราถือว่าเป็น 0)
+        Catch
             totalDraft = 0
         End Try
-
-        ' 3. Return remaining
         Return totalApproved - totalDraft
     End Function
 
@@ -113,7 +99,7 @@ Public Class POValidate
                 End Using
 
                 dtVendors = New DataTable()
-                Using cmd As New SqlCommand("SELECT [VendorCode],[Vendor],[SegmentCode] FROM [BMS].[dbo].[MS_Vendor]", conn)
+                Using cmd As New SqlCommand("SELECT [VendorCode],[Vendor],[SegmentCode],[CCY] FROM [BMS].[dbo].[MS_Vendor]", conn)
                     Using reader As SqlDataReader = cmd.ExecuteReader()
                         dtVendors.Load(reader)
                     End Using
@@ -276,12 +262,13 @@ Public Class POValidate
     ''' <summary>
     ''' Validate ข้อมูล Draft PO TXN (ตอน Edit)
     ''' </summary>
-    Public Shared Function ValidateDraftPOEdit(context As HttpContext) As Dictionary(Of String, String)
+    Public Function ValidateDraftPOEdit(context As HttpContext) As Dictionary(Of String, String)
         Dim errors As New Dictionary(Of String, String)
         Dim isValid As Boolean = True
 
         ' ดึงข้อมูล
-        Dim draftPOID As String = If(String.IsNullOrWhiteSpace(context.Request.Form("draftPOID")), "", context.Request.Form("draftPOID").Trim())
+        Dim draftPOID As Integer = 0
+        Integer.TryParse(If(context.Request.Form("draftPOID"), "0"), draftPOID)
         Dim year As String = If(String.IsNullOrWhiteSpace(context.Request.Form("year")), "", context.Request.Form("year").Trim())
         Dim month As String = If(String.IsNullOrWhiteSpace(context.Request.Form("month")), "", context.Request.Form("month").Trim())
         Dim company As String = If(String.IsNullOrWhiteSpace(context.Request.Form("company")), "", context.Request.Form("company").Trim())
@@ -289,7 +276,7 @@ Public Class POValidate
         Dim segment As String = If(String.IsNullOrWhiteSpace(context.Request.Form("segment")), "", context.Request.Form("segment").Trim())
         Dim brand As String = If(String.IsNullOrWhiteSpace(context.Request.Form("brand")), "", context.Request.Form("brand").Trim())
         Dim vendor As String = If(String.IsNullOrWhiteSpace(context.Request.Form("vendor")), "", context.Request.Form("vendor").Trim())
-        Dim pono As String = If(String.IsNullOrWhiteSpace(context.Request.Form("pono")), "", context.Request.Form("pono").Trim()) ' (Readonly)
+        Dim pono As String = If(String.IsNullOrWhiteSpace(context.Request.Form("pono")), "", context.Request.Form("pono").Trim())
         Dim amtCCY As String = If(String.IsNullOrWhiteSpace(context.Request.Form("amtCCY")), "", context.Request.Form("amtCCY").Trim())
         Dim ccy As String = If(String.IsNullOrWhiteSpace(context.Request.Form("ccy")), "", context.Request.Form("ccy").Trim())
         Dim exRate As String = If(String.IsNullOrWhiteSpace(context.Request.Form("exRate")), "", context.Request.Form("exRate").Trim())
@@ -297,7 +284,7 @@ Public Class POValidate
         ' ========================================
         ' 1. ตรวจสอบช่องว่าง (Required Fields)
         ' ========================================
-        If String.IsNullOrEmpty(draftPOID) Then errors.Add("general", "DraftPO_ID is missing. Cannot save.")
+        If draftPOID = 0 Then errors.Add("general", "DraftPO_ID is missing.")
         If String.IsNullOrEmpty(year) Then errors.Add("year", "Year is required")
         If String.IsNullOrEmpty(month) Then errors.Add("month", "Month is required")
         If String.IsNullOrEmpty(company) Then errors.Add("company", "Company is required")
@@ -305,7 +292,7 @@ Public Class POValidate
         If String.IsNullOrEmpty(segment) Then errors.Add("segment", "Segment is required")
         If String.IsNullOrEmpty(brand) Then errors.Add("brand", "Brand is required")
         If String.IsNullOrEmpty(vendor) Then errors.Add("vendor", "Vendor is required")
-        If String.IsNullOrEmpty(pono) Then errors.Add("pono", "Draft PO No. is required") ' (Readonly, should not be empty)
+        If String.IsNullOrEmpty(pono) Then errors.Add("pono", "Draft PO No. is required")
         If String.IsNullOrEmpty(amtCCY) Then errors.Add("amtCCY", "Amount (CCY) is required")
         If String.IsNullOrEmpty(ccy) Then errors.Add("ccy", "CCY is required")
         If String.IsNullOrEmpty(exRate) Then errors.Add("exRate", "Exchange rate is required")
@@ -331,27 +318,63 @@ Public Class POValidate
             End If
         End If
 
-        ' ========================================
-        ' 3. Business Logic & Master Data
-        ' ========================================
-        If errors.Count = 0 Then
-            ' 3.1 ไม่ต้องตรวจสอบ PO No. ซ้ำ (เพราะเป็นการ Edit)
-
-            ' 3.2 ตรวจสอบ Master Data (ตัวอย่าง)
-            If Not CheckMasterDataExists("MS_Category", "Cate", category) Then
-                errors.Add("category", $"Category '{category}' not found in master data.")
-            End If
-            If Not CheckMasterDataExists("MS_Segment", "SegmentCode", segment) Then
-                errors.Add("segment", $"Segment '{segment}' not found in master data.")
-            End If
-            If Not CheckMasterDataExists("MS_Brand", "Brand Code", brand) Then
-                errors.Add("brand", $"Brand '{brand}' not found in master data.")
-            End If
-            If Not CheckMasterDataExists("MS_Vendor", "VendorCode", vendor) Then
-                errors.Add("vendor", $"Vendor '{vendor}' not found in master data.")
-            End If
-
+        If ccy = "THB" AndAlso exRateValue <> 1 Then
+            errors.Add("exRate", "Exchange rate must be 1.00 when CCY is THB")
         End If
+
+        ' 3. Budget Check Logic (ถ้าไม่มี Error พื้นฐาน)
+        If errors.Count = 0 Then
+            Try
+                ' 3.1 คำนวณยอดใหม่ (Request)
+                Dim newAmtTHB As Decimal = amtCCYValue * exRateValue
+
+                ' 3.2 สร้าง Key ใหม่ที่ผู้ใช้เลือก
+                Dim newKey As New POMatchKey With {
+                    .Year = year, .Month = month, .Company = company, .Category = category,
+                    .Segment = segment, .Brand = brand, .Vendor = vendor
+                }
+
+                ' 3.3 หาข้อมูลเดิมใน Memory (เพื่อดูยอดเก่าและ Key เก่า)
+                Dim oldAmtTHB As Decimal = 0
+                Dim oldKey As POMatchKey = Nothing
+                Dim rows As DataRow() = dtDraftPO.Select($"DraftPO_ID = {draftPOID}")
+
+                If rows.Length > 0 Then
+                    oldAmtTHB = Convert.ToDecimal(rows(0)("Amount_THB"))
+                    oldKey = New POMatchKey With {
+                        .Year = rows(0)("PO_Year").ToString(),
+                        .Month = rows(0)("PO_Month").ToString(),
+                        .Company = rows(0)("Company_Code").ToString(),
+                        .Category = rows(0)("Category_Code").ToString(),
+                        .Segment = rows(0)("Segment_Code").ToString(),
+                        .Brand = rows(0)("Brand_Code").ToString(),
+                        .Vendor = rows(0)("Vendor_Code").ToString()
+                    }
+                End If
+
+                ' 3.4 คำนวณงบคงเหลือ (Base Available)
+                ' GetRemainingBudget จะหักยอด Draft ทั้งหมดใน DB ออกไปแล้ว (รวมถึงตัวที่กำลังแก้ด้วย)
+                Dim remaining As Decimal = GetRemainingBudget(newKey)
+
+                ' 3.5 คืนยอดเก่า (Re-add Old Amount)
+                ' ถ้า Key ใหม่ ตรงกับ Key เก่า -> เราต้องบวกยอดเก่ากลับเข้าไปใน Remaining ก่อนเทียบ
+                ' (เพราะยอดเก่าถูกหักไปแล้วใน GetRemainingBudget แต่มันคือก้อนเดียวกันที่เรากำลังจะเปลี่ยน)
+                If oldKey IsNot Nothing AndAlso newKey.Equals(oldKey) Then
+                    remaining += oldAmtTHB
+                End If
+                ' หมายเหตุ: ถ้า Key ไม่ตรงกัน (เช่นเปลี่ยน Brand) ยอดเก่าจะคืนให้ Brand เดิม (ช่างมัน)
+                ' ส่วน Brand ใหม่ เราเช็คจาก remaining ของ Brand ใหม่ได้เลย (ซึ่งไม่เคยมียอดนี้อยู่แล้ว)
+
+                ' 3.6 ตรวจสอบ
+                If newAmtTHB > remaining Then
+                    errors.Add("amtCCY", $"Budget limit exceeded. Request: {newAmtTHB:N2} THB, Available: {remaining:N2} THB")
+                End If
+
+            Catch ex As Exception
+                errors.Add("general", "Error validating budget: " & ex.Message)
+            End Try
+        End If
+
 
         Return errors
     End Function
@@ -373,7 +396,7 @@ Public Class POValidate
     Private Function ValidateYear(ByVal year As String) As Boolean
         Try
             Dim yearInt As Integer = Convert.ToInt32(year)
-            Return (yearInt >= Date.Now.Year - 1 AndAlso yearInt <= Date.Now.Year + 2) ' อนุญาต 2 ปีย้อนหลัง 2 ปีล่วงหน้า
+            Return (yearInt >= Date.Now.Year - 1 AndAlso yearInt <= Date.Now.Year + 2)
         Catch
             Return False
         End Try
@@ -412,6 +435,19 @@ Public Class POValidate
         Dim rows() As DataRow = dtVendors.Select($"[VendorCode] = '{vendor.Replace("'", "''")}' AND [SegmentCode] = '{segment.Replace("'", "''")}'")
         Return rows.Length > 0
     End Function
+
+
+    Public Function ValidateVendorCCY(vendor As String, ccy As String) As Boolean
+        ' หา Vendor ใน DataTable
+        Dim rows() As DataRow = dtVendors.Select($"[VendorCode] = '{vendor.Replace("'", "''")}'")
+        If rows.Length > 0 Then
+            ' ตรวจสอบว่า CCY ตรงกับ Master หรือไม่ (Case Insensitive)
+            Dim masterCCY As String = rows(0)("CCY").ToString()
+            Return masterCCY.Equals(ccy, StringComparison.OrdinalIgnoreCase)
+        End If
+        Return False ' ไม่พบ Vendor หรือ CCY ไม่ตรง
+    End Function
+
 
     Private Function CheckPODuplicate(ByVal poNo As String) As Boolean
         Try

@@ -394,13 +394,13 @@
             segmentDropdown.addEventListener('change', changeVendor);
             btnClearFilter.addEventListener('click', function () {
                 // Clear filter fields
-                $("DDYear").val(null).trigger('change');
-                $("DDMonth").val(null).trigger('change');
-                $("DDCompany").val(null).trigger('change');
-                $("DDSegment").val(null).trigger('change');
-                $("DDCategory").val(null).trigger('change');
-                $("DDBrand").val(null).trigger('change');
-                $("DDVendor").val(null).trigger('change');
+                $("#DDYear").val(null).trigger('change');
+                $("#DDMonth").val(null).trigger('change');
+                $("#DDCompany").val(null).trigger('change');
+                $("#DDSegment").val(null).trigger('change');
+                $("#DDCategory").val(null).trigger('change');
+                $("#DDBrand").val(null).trigger('change');
+                $("#DDVendor").val(null).trigger('change');
                 // Re-initialize vendor dropdown (to show all)
                 InitVendor(vendorDropdown);
                 // Clear table
