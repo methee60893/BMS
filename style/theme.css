@@ -929,6 +929,8 @@ body::-webkit-scrollbar-thumb {
     margin-bottom: 25px;
 }
 
+
+
 .section-title {
     background: #f8f9fa;
     padding: 15px 20px;
@@ -936,6 +938,16 @@ body::-webkit-scrollbar-thumb {
     color: #2c3e50;
     border-bottom: 2px solid #dee2e6;
 }
+.status-matched {
+    color: #198754; /* Green */
+    font-weight: 600;
+}
+
+.status-cancelled {
+    color: #dc3545; /* Red */
+    font-weight: 600;
+}
+
 
 .table {
     margin: 0;
@@ -970,7 +982,7 @@ body::-webkit-scrollbar-thumb {
 /* Export Section */
 .export-section {
     display: flex;
-    justify-content: center;
+    justify-content: left;
     margin: 20px 0;
 }
 

@@ -140,6 +140,42 @@ Public Class POValidate
         End Try
     End Function
 
+    Private Function CheckDuplicateDraftPO(poNo As String, year As String, month As String,
+                                           brand As String, category As String, vendor As String,
+                                           segment As String) As Boolean
+        Try
+            Using conn As New SqlConnection(connectionString)
+                conn.Open()
+                ' ตรวจสอบข้อมูลซ้ำ โดยไม่นับรายการที่ Cancelled ไปแล้ว
+                Dim query As String = "SELECT COUNT(1) FROM [BMS].[dbo].[Draft_PO_Transaction] " &
+                                      "WHERE [DraftPO_No] = @poNo " &
+                                      "AND [PO_Year] = @year " &
+                                      "AND [PO_Month] = @month " &
+                                      "AND [Brand_Code] = @brand " &
+                                      "AND [Category_Code] = @category " &
+                                      "AND [Vendor_Code] = @vendor " &
+                                      "AND [Segment_Code] = @segment " &
+                                      "AND ISNULL(Status, '') <> 'Cancelled'"
+
+                Using cmd As New SqlCommand(query, conn)
+                    cmd.Parameters.AddWithValue("@poNo", poNo)
+                    cmd.Parameters.AddWithValue("@year", year)
+                    cmd.Parameters.AddWithValue("@month", month)
+                    cmd.Parameters.AddWithValue("@brand", brand)
+                    cmd.Parameters.AddWithValue("@category", category)
+                    cmd.Parameters.AddWithValue("@vendor", vendor)
+                    cmd.Parameters.AddWithValue("@segment", segment)
+
+                    Dim count As Integer = Convert.ToInt32(cmd.ExecuteScalar())
+                    Return count > 0
+                End Using
+            End Using
+        Catch ex As Exception
+            ' กรณี Error ให้ปล่อยผ่านไปก่อน (หรือ Log ตามต้องการ)
+            Return False
+        End Try
+    End Function
+
     ''' <summary>
     ''' Validate ข้อมูล Draft PO TXN
     ''' </summary>
@@ -217,6 +253,12 @@ Public Class POValidate
         ' 4. ตรวจสอบ Logic (CCY/Ex.Rate)
         If ccy = "THB" AndAlso exRateValue <> 1 Then
             errors.Add("txtExRate", "Exchange rate must be 1.00 when CCY is THB")
+        End If
+
+        If checkDuplicate Then
+            If CheckDuplicateDraftPO(poNo, year, month, brand, category, vendor, segment) Then
+                errors.Add("general", "Duplicate Draft PO")
+            End If
         End If
 
         If errors.Count = 0 Then ' เช็คเมือข้อมูลพื้นฐานผ่านแล้วเท่านั้น

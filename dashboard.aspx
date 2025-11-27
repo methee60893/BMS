@@ -27,6 +27,11 @@
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
             background-color: #ecf0f1;
             overflow-x: hidden;
+
+                width: auto;
+                height: auto;
+                background-image: url(https://s3-ap-southeast-1.amazonaws.com/story.kingpower.com/wp-content/uploads/2018/01/09142612/Final_17King_Power_Capture227.jpg);
+                background-size: cover;
         }
 
         .sidebar {
@@ -192,6 +197,7 @@
 
         .content-area {
             padding: 30px;
+            display:none;
         }
 
         .stats-grid {

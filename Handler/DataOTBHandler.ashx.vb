@@ -1366,6 +1366,8 @@ Public Class DataOTBHandler
         Dim dtDraftPO As DataTable = LoadDraftPOForReport(year, month, company, category, segment, brand, vendor)
         Dim dtActualPO As DataTable = LoadActualPOForReport(year, month, company, category, segment, brand, vendor)
 
+        '
+
         ' 2.3 หา Distinct Keys ทั้งหมดที่มีการเคลื่อนไหว (จาก OTB Transaction, Draft PO, Actual PO)
         ' เพื่อให้มั่นใจว่าแสดงครบทุกบรรทัดที่มีข้อมูล แม้จะไม่มี Budget แต่มี PO
         Dim dtKeys As DataTable = GetDistinctKeysForReport(year, month, company, category, segment, brand, vendor)
@@ -1484,7 +1486,7 @@ Public Class DataOTBHandler
                 SELECT PO_Year AS Year, PO_Month AS Month, Company_Code AS Company, Category_Code AS Category, 
                        Segment_Code AS Segment, Brand_Code AS Brand, Vendor_Code AS Vendor, Amount_THB AS Amount
                 FROM [BMS].[dbo].[Draft_PO_Transaction]
-                WHERE ISNULL(Status, '') <> 'Cancelled' AND ISNULL(Actual_PO_Ref, '') = '' 
+                WHERE (ISNULL(Status, '') = 'Matching' OR ISNULL(Status, '') = 'Matched')
                 AND (@Year IS NULL OR PO_Year = @Year)
                 AND (@Month IS NULL OR PO_Month = @Month)
                 AND (@Company IS NULL OR Company_Code = @Company)

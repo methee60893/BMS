@@ -797,7 +797,7 @@
 
                         const code = btn.data('code');
                         $('#hdnOriginalVendorCode').val(code);
-                        $('#hdVendorId').val(btn.data('vendorId'));
+                        $('#hdVendorId').val(btn.data('vendorid'));
                         $('#txtModalCode').val(code).prop('readonly', true);
                         $('#txtModalName').val(btn.data('name'));
 
@@ -846,7 +846,7 @@
                 $('#vendorTableBody').on('click', '.btn-edit-vendor', function () {
                     const btn = $(this);
                     clearModalForm();
-                    $('#hdVendorId').val(btn.data('vendorId'));
+                    $('#hdVendorId').val(btn.data('vendorid'));
                     $('#hdnEditMode').val('edit');
                     $('#vendorModalLabel').text('Edit Vendor');
 
@@ -874,7 +874,7 @@
                 // *** อัปเดตตรงนี้: เปลี่ยน gvVendor.ClientID เป็น #vendorTableBody ***
                 $('#vendorTableBody').on('click', '.btn-delete-vendor', function () {
                     const btn = $(this);
-                    const venid = btn.data('vendorId');
+                    const venid = btn.data('vendorid');
                     const code = btn.data('code');
                     const name = btn.data('name');
 

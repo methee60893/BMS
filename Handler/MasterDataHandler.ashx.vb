@@ -742,7 +742,7 @@ Public Class MasterDataHandler
                             isActive.ToString().ToLower()) ' (MODIFIED) Added data-active
 
                 sb.AppendFormat("<button type='button' class='btn btn-delete btn-sm btn-delete-vendor' " &
-                            "data-vendorid='{0}' data-code='{1}' data-name='{2}><i class='bi bi-trash'></i> Delete</button>",
+                            "data-vendorid='{0}' data-code='{1}' data-name='{2}'><i class='bi bi-trash'></i> Delete</button>",
                             HttpUtility.HtmlAttributeEncode(row("VendorId")),
                             HttpUtility.HtmlAttributeEncode(row("VendorCode")),
                             HttpUtility.HtmlAttributeEncode(row("Vendor")))

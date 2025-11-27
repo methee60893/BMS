@@ -230,7 +230,7 @@
                 <button type="button"  class="btn btn-export btn-custom" id="btnExportTXN">
                     <i class="bi bi-file-earmark-excel"></i> Export TXN
                 </button>
-                <button type="button"  class="btn btn-export btn-custom" id="btnExportSUM">
+                <button type="button"  class="btn btn-export btn-custom" style="display:none;" id="btnExportSUM">
                     <i class="bi bi-file-earmark-spreadsheet"></i> Export Sum
                 </button>
             </div>

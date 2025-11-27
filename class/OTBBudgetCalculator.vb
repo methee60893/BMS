@@ -179,9 +179,9 @@ Public Class OTBBudgetCalculator
                 Dim amount As Decimal = If(row("BudgetAmount") IsNot DBNull.Value, Convert.ToDecimal(row("BudgetAmount")), 0)
 
                 Select Case toType
-                    Case "D" : result("SwitchIn") += amount
-                    Case "G" : result("CarryIn") += amount
-                    Case "I" : result("BalanceIn") += amount
+                    Case "C" : result("SwitchIn") += amount
+                    Case "F" : result("CarryIn") += amount
+                    Case "H" : result("BalanceIn") += amount
                 End Select
             Next
 
