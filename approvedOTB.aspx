@@ -92,7 +92,7 @@
                 <h1 class="page-title" id="pageTitle">KBMS - Approved OTB</h1>
             </div>
             <div class="user-info">
-                <span class="d-none d-md-inline">Welcome, Admin</span>
+                <span class="d-none d-md-inline">Welcome, <%= HttpUtility.JavaScriptStringEncode(Session("user").ToString()) %></span>
                 <div class="user-avatar">
                     <i class="bi bi-person-circle"></i>
                 </div>

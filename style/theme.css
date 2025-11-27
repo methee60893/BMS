@@ -22,6 +22,13 @@
     --green-highlight: #d4edda;
     --yellow-highlight: #fff3cd;
     --pink-highlight: #FFB6C1;
+    --yellow-btn: #FFC107;
+    --sidebar-bg: #2c3e50;
+    --sidebar-hover: #34495e;
+    --orange-header: #D2691E;
+    --light-blue-bg: #E6F2FF;
+    --green-btn: #28a745;
+    --red-btn: #dc3545;
 }
 .highlight-matched {
     background-color: var(--green-highlight);
@@ -234,6 +241,10 @@ body {
 
 .content-area {
     padding: 30px;
+}
+
+.required {
+    color: red;
 }
 
 /* --- 5. Common Components (กล่อง, ตาราง, ฟอร์ม) --- */
@@ -621,6 +632,11 @@ body::-webkit-scrollbar-thumb {
     }
 
 
+/* Content Area */
+.content-area {
+    padding: 30px;
+}
+
 /* Tab Content */
 .tab-content {
     display: none;
@@ -723,6 +739,17 @@ body::-webkit-scrollbar-thumb {
         background: #094580;
         transform: translateY(-2px);
         box-shadow: 0 4px 12px rgba(11,86,164,0.3);
+    }
+
+.btn-action {
+    background: var(--yellow-btn);
+    color: #000;
+    padding: 6px 15px;
+    font-size: 0.85rem;
+}
+
+    .btn-action:hover {
+        background: #e0a800;
     }
 
 
@@ -986,10 +1013,81 @@ body::-webkit-scrollbar-thumb {
     margin: 20px 0;
 }
 
-/* Responsive */
+/* Create Section */
+.create-section {
+    background: var(--primary-blue);
+    color: white;
+    padding: 12px 20px;
+    font-weight: 700;
+    font-size: 1.1rem;
+    border-radius: 6px 6px 0 0;
+    margin: -25px -25px 20px -25px;
+}
+
+
+
+/* ========================================== */
+/* ===== RESPONSIVE FIX FOR MOBILE FORM ===== */
+/* ========================================== */
 @media (max-width: 768px) {
+
+    /* 1. ปรับ Padding ของ Content ให้เหลือพื้นที่หายใจ */
     .content-area {
         padding: 15px;
+    }
+
+    .form-container {
+        padding: 20px 15px; /* ลด Padding ด้านข้างลง */
+    }
+
+    /* 2. ปรับแถว Form ให้เรียงเป็นแนวตั้ง (สำคัญมาก) */
+    .form-row-display {
+        flex-direction: column; /* เปลี่ยนจากแนวนอนเป็นแนวตั้ง */
+        gap: 0; /* ลบ Gap ระหว่างคอลัมน์ (เราจะใช้ margin-bottom แทน) */
+    }
+
+        /* 3. ปรับแต่ละช่อง Input ให้เต็มความกว้าง */
+        .form-row-display .form-group {
+            width: 100%; /* กว้างเต็มจอ */
+            display: block; /* เปลี่ยนจาก flex เป็น block เพื่อให้ Label อยู่บน Input */
+            margin-bottom: 15px; /* เว้นระยะห่างระหว่างบรรทัด */
+        }
+
+            /* 4. ปรับ Label ให้อยู่ด้านบน Input */
+            .form-row-display .form-group label {
+                display: block; /* บังคับขึ้นบรรทัดใหม่ */
+                width: 100%; /* กว้างเต็ม */
+                margin-bottom: 5px; /* เว้นห่างจาก Input นิดหน่อย */
+                min-width: auto; /* ยกเลิกค่า min-width เดิม */
+                font-size: 0.9rem;
+            }
+
+    /* 5. ปรับ Input/Select ให้กว้างเต็มและกดง่ายขึ้น */
+    .form-control,
+    .form-select,
+    .select2-container {
+        width: 100% !important; /* บังคับกว้างเต็ม */
+    }
+
+        /* 6. ปรับ Select2 (Dropdown) ให้สวยงามบนมือถือ */
+        .select2-container .select2-selection--single {
+            height: 40px; /* เพิ่มความสูงให้กดง่าย */
+        }
+
+    .select2-container--bootstrap-5 .select2-selection--single .select2-selection__rendered {
+        line-height: 38px;
+    }
+
+    /* 7. ปรับปุ่มให้กดง่าย */
+    .btn-submit, .btn-upload {
+        width: 100%; /* ปุ่มกว้างเต็มจอ */
+        padding: 12px;
+        margin-top: 10px;
+    }
+
+    /* 8. ซ่อน Element ที่ไม่จำเป็น (เช่น ช่องว่างที่ใช้จัด Layout บน Desktop) */
+    .form-group[style*="visibility: hidden"] {
+        display: none !important;
     }
 
     .table {

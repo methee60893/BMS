@@ -93,7 +93,7 @@
                 <h1 class="page-title" id="pageTitle">KBMS - Create Draft PO</h1>
             </div>
             <div class="user-info">
-                <span class="d-none d-md-inline">Welcome, Admin</span>
+                <span class="d-none d-md-inline">Welcome, <%= HttpUtility.JavaScriptStringEncode(Session("user").ToString()) %></span>
                 <div class="user-avatar">
                     <i class="bi bi-person-circle"></i>
                 </div>
@@ -445,6 +445,41 @@
             </div>
         </div>
     </div>
+
+    <div class="modal fade" id="uploadResultModal" tabindex="-1" aria-labelledby="uploadResultModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-xl">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="uploadResultModalLabel">
+                    <i class="bi bi-clipboard-data"></i> Upload Results
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div id="uploadResultSummary" class="alert alert-info mb-3"></div>
+                
+                <div class="table-responsive" style="max-height: 500px; overflow-y: auto;">
+                    <table class="table table-bordered table-hover" id="tblUploadResults">
+                        <thead class="table-light sticky-top" style="top: 0; z-index: 1;">
+                            <tr>
+                                <th style="width: 50px;">#</th>
+                                <th style="width: 150px;">Draft PO No.</th>
+                                <th style="width: 100px;">Status</th>
+                                <th>Message</th>
+                            </tr>
+                        </thead>
+                        <tbody id="uploadResultBody">
+                            </tbody>
+                    </table>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-primary" data-bs-dismiss="modal" onclick="closeAndRefresh()">OK & Refresh</button>
+            </div>
+        </div>
+    </div>
+</div>
+
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
@@ -454,7 +489,7 @@
         let previewTxnModal, errorModal, successModal, uploadPreviewModal;
         let previewPOTXNModal;
 
-
+        let uploadResultModal;
 
         let yearDropdown = document.getElementById("DDYear");
         let monthDropdown = document.getElementById("DDMonth");
@@ -1235,19 +1270,24 @@
                 data: formData,
                 processData: false,
                 contentType: false,
+                dataType: 'json',
                 success: function (response) {
                     showLoading(false);
                     btnSubmitData.disabled = false;
+
                     uploadPreviewModal.hide();
+
                     previewTableContainer.innerHTML = '';
                     fileUploadInput.value = '';
 
+                    showUploadResults(response);
+
                     // ตรวจสอบว่ามี error message กลับมาหรือไม่
-                    if (response.toLowerCase().includes("error") || response.includes("alert-danger")) {
-                        showErrorSaveModal(response, 'Save Error');
-                    } else {
-                        showSuccessModal('Success', response);
-                    }
+                    //if (response.toLowerCase().includes("error") || response.includes("alert-danger")) {
+                    //    showErrorSaveModal(response, 'Save Error');
+                    //} else {
+                    //    showSuccessModal('Success', response);
+                    //}
                 },
                 error: function (xhr, status, error) {
                     showLoading(false);
@@ -1257,6 +1297,7 @@
             });
         }
         // --- END: Upload File Logic ---
+
 
        
 
@@ -1331,7 +1372,64 @@
             }
         }
 
+        // ============================================================
+        // 2. เพิ่มฟังก์ชันใหม่สำหรับแสดงผลลัพธ์ราย Row (Show Result)
+        // ============================================================
+        function showUploadResults(results) {
+            // 1. สรุปยอดรวม
+            let total = results.length;
+            let success = results.filter(r => r.Status === 'Success').length;
+            let error = results.filter(r => r.Status === 'Error').length;
 
+            let summaryHtml = `
+            <strong>Process Complete:</strong> 
+            Total <span class="badge bg-primary">${total}</span> | 
+            Success <span class="badge bg-success">${success}</span> | 
+            Failed <span class="badge bg-danger">${error}</span>
+        `;
+
+            // ปรับสี Alert ตามผลลัพธ์
+            let alertClass = error > 0 ? 'alert-warning' : 'alert-success';
+            $('#uploadResultSummary').removeClass('alert-info alert-success alert-warning alert-danger').addClass(alertClass).html(summaryHtml);
+
+            // 2. สร้างตารางรายละเอียด
+            let tbody = $('#uploadResultBody');
+            tbody.empty();
+
+            results.forEach((row, index) => {
+                let isSuccess = row.Status === 'Success';
+                let rowClass = isSuccess ? 'table-success' : 'table-danger';
+                let icon = isSuccess ? '<i class="bi bi-check-circle-fill text-success"></i>' : '<i class="bi bi-x-circle-fill text-danger"></i>';
+
+                let tr = `
+                <tr class="${rowClass}">
+                    <td class="text-center">${index + 1}</td>
+                    <td>${row.DraftPONo || '-'}</td>
+                    <td class="text-center">${icon} ${row.Status}</td>
+                    <td>${row.Message}</td>
+                </tr>
+            `;
+                tbody.append(tr);
+            });
+
+            // 3. เปิด Modal
+            // (ต้องแน่ใจว่าประกาศตัวแปร uploadResultModal ไว้แล้วใน initial)
+            if (!uploadResultModal) {
+                uploadResultModal = new bootstrap.Modal(document.getElementById('uploadResultModal'));
+            }
+            uploadResultModal.show();
+        }
+
+        // ฟังก์ชันเสริม: กดปุ่ม OK ใน Result Modal แล้วให้ Refresh หน้าจอหรือเคลียร์ค่า
+        function closeAndRefresh() {
+            // เคลียร์ค่า Preview
+            document.getElementById('previewTableContainer').innerHTML = '';
+            document.getElementById('fileUpload').value = '';
+
+            // (Optional) โหลดข้อมูลในตารางหลักใหม่ เพื่อให้เห็นรายการที่เพิ่ง Save
+            // search(); 
+            // หรือถ้าต้องการแค่ปิด Modal เฉยๆ ก็ไม่ต้องทำอะไร
+        }
 
 
         // Initialize

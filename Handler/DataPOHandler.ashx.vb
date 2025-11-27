@@ -169,7 +169,7 @@ Public Class DataPOHandler
         Using conn As New SqlConnection(connectionString)
             conn.Open()
             Dim query As New StringBuilder()
-            query.Append("SELECT  ")
+            query.Append("SELECT DISTINCT  ")
             query.Append("   po.DraftPO_ID, ")
             query.Append("   po.Created_Date, ")
             query.Append("   po.DraftPO_No, ")
@@ -683,11 +683,11 @@ Public Class DataPOHandler
         context.Response.ContentType = "application/json"
         Dim response As New Dictionary(Of String, Object)
         Dim createdBy As String = "System" ' Default
+
+        If context.Session("user") IsNot Nothing Then createdBy = context.Session("user").ToString()
+
         Try
-            ' (ต้องตรวจสอบ Session จริง)
-            If context.Session("user") IsNot Nothing AndAlso Not String.IsNullOrEmpty(context.Session("user").ToString()) Then
-                createdBy = context.Session("user").ToString()
-            End If
+
 
             ' ดึงข้อมูลจาก Form
             Dim year As String = context.Request.Form("year")
@@ -704,6 +704,19 @@ Public Class DataPOHandler
             Dim remark As String = context.Request.Form("remark")
             Dim amtTHB As Decimal = amtCCY * exRate
 
+            ' 1. เรียก Validation
+            Dim Validator As New POValidate()
+            Dim errors As Dictionary(Of String, String) = Validator.ValidateDraftPOCreation(
+                year, month, company, category, segment, brand, vendor,
+                pono, amtCCY, ccy, exRate, amtTHB
+            )
+
+            If errors.Count > 0 Then
+                response("success") = False
+                response("message") = "Validation Failed: " & String.Join(", ", errors.Values)
+                context.Response.Write(JsonConvert.SerializeObject(response))
+                Return
+            End If
 
             Using conn As New SqlConnection(connectionString)
                 conn.Open()

@@ -3,12 +3,13 @@ Imports System.Data
 Imports System.Data.SqlClient
 Imports System.Globalization
 Imports System.IO
+Imports System.Linq
 Imports System.Text
 Imports System.Web
-Imports ExcelDataReader
 Imports System.Web.Script.Serialization
-Imports System.Linq
 Imports BMS
+Imports ExcelDataReader
+Imports Newtonsoft.Json
 
 ' Class สำหรับรับ-ส่งข้อมูล JSON
 Public Class POPreviewRow
@@ -25,6 +26,12 @@ Public Class POPreviewRow
     Public Property CCY As String
     Public Property ExRate As String
     Public Property Remark As String
+End Class
+
+Public Class RowSaveResult
+    Public Property DraftPONo As String
+    Public Property Status As String ' "Success" or "Error"
+    Public Property Message As String
 End Class
 
 Public Class POUploadHandler
@@ -397,6 +404,10 @@ Public Class POUploadHandler
 
     Private Sub SaveFromPreview(jsonData As String, uploadBy As String, context As HttpContext)
         If String.IsNullOrEmpty(jsonData) Then Throw New Exception("No data selected.")
+
+        context.Response.ContentType = "application/json" ' เปลี่ยน ContentType เป็น JSON
+        Dim results As New List(Of RowSaveResult)
+
         Dim serializer As New JavaScriptSerializer()
         Dim selectedRows As List(Of POPreviewRow) = serializer.Deserialize(Of List(Of POPreviewRow))(jsonData)
 
@@ -405,19 +416,35 @@ Public Class POUploadHandler
             Return
         End If
 
-        Dim savedCount As Integer = 0
-        Using conn As New SqlConnection(connectionString)
-            conn.Open()
-            Using transaction As SqlTransaction = conn.BeginTransaction()
-                Try
-                    For Each row As POPreviewRow In selectedRows
+        Dim Validator As New POValidate()
+        For Each row As POPreviewRow In selectedRows
+            Dim result As New RowSaveResult With {.DraftPONo = row.DraftPONo}
+
+            Try
+                Dim amtCCY As Decimal = Decimal.Parse(row.AmountCCY)
+                Dim exRate As Decimal = Decimal.Parse(row.ExRate)
+                Dim amtTHB As Decimal = Decimal.Parse(row.AmountTHB)
+
+                ' 1. Validate
+                Dim errors As Dictionary(Of String, String) = Validator.ValidateDraftPOCreation(
+                    row.Year, row.Month, row.Company, row.Category, row.Segment, row.Brand, row.Vendor,
+                    row.DraftPONo, amtCCY, row.CCY, exRate, amtTHB
+                )
+
+                If errors.Count > 0 Then
+                    result.Status = "Error"
+                    result.Message = String.Join(", ", errors.Values)
+                Else
+                    ' 2. Insert ลง DB (ถ้าผ่าน)
+                    Using conn As New SqlConnection(connectionString)
+                        conn.Open()
                         Dim query As String = "INSERT INTO [BMS].[dbo].[Draft_PO_Transaction] " &
                                             "([DraftPO_No], [PO_Year], [PO_Month], [Company_Code], [Category_Code], [Segment_Code], [Brand_Code], [Vendor_Code], " &
                                             "[CCY], [Exchange_Rate], [Amount_CCY], [Amount_THB], [PO_Type], [Status], [Status_Date], [Status_By], [Remark], [Created_By], [Created_Date]) " &
                                             "VALUES (@PoNo, @Year, @Month, @Company, @Category, @Segment, @Brand, @Vendor, " &
                                             "@CCY, @ExRate, @AmtCCY, @AmtTHB, 'Upload', 'Draft', GETDATE(), @User, @Remark, @User, GETDATE())"
 
-                        Using cmd As New SqlCommand(query, conn, transaction)
+                        Using cmd As New SqlCommand(query, conn)
                             cmd.Parameters.AddWithValue("@PoNo", row.DraftPONo)
                             cmd.Parameters.AddWithValue("@Year", row.Year)
                             cmd.Parameters.AddWithValue("@Month", row.Month)
@@ -434,16 +461,23 @@ Public Class POUploadHandler
                             cmd.Parameters.AddWithValue("@Remark", row.Remark)
                             cmd.ExecuteNonQuery()
                         End Using
-                        savedCount += 1
-                    Next
-                    transaction.Commit()
-                    context.Response.Write($"Successfully saved {savedCount} Draft POs.")
-                Catch ex As Exception
-                    transaction.Rollback()
-                    Throw New Exception("Database Error: " & ex.Message)
-                End Try
-            End Using
-        End Using
+                    End Using
+
+                    result.Status = "Success"
+                    result.Message = "Saved successfully"
+                End If
+
+            Catch ex As Exception
+                result.Status = "Error"
+                result.Message = ex.Message
+            End Try
+
+            results.Add(result)
+        Next
+
+        ' ส่งผลลัพธ์กลับเป็น JSON List
+        context.Response.Write(JsonConvert.SerializeObject(results))
+
     End Sub
 
     ReadOnly Property IsReusable() As Boolean Implements IHttpHandler.IsReusable

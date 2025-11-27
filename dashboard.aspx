@@ -434,7 +434,7 @@
                 <h1 class="page-title">KBMS - Dashboard</h1>
             </div>
             <div class="d-flex align-items-center gap-3">
-                <span class="d-none d-md-inline">Welcome, Admin</span>
+                <span class="d-none d-md-inline">Welcome, <%= HttpUtility.JavaScriptStringEncode(Session("user").ToString()) %></span>
                 <div class="user-avatar">
                     <i class="bi bi-person-circle"></i>
                 </div>

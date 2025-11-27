@@ -16,12 +16,14 @@ Public Class POValidate
 
     Private calculator As OTBBudgetCalculator
     Private dtDraftPO As DataTable
+    Private dtActualPO As DataTable
 
     ' Constructor - โหลดข้อมูล Master ทั้งหมด
     Public Sub New()
         LoadAllMasterData()
         calculator = New OTBBudgetCalculator()
         LoadDraftPOData()
+        LoadActualPOData()
     End Sub
     Private Sub LoadDraftPOData()
         Try
@@ -29,12 +31,48 @@ Public Class POValidate
             Using conn As New SqlConnection(connectionString)
                 conn.Open()
                 ' ดึงข้อมูล Draft PO ที่ยังไม่ Cancelled เพื่อใช้คำนวณยอดจอง
-                Dim query As String = "SELECT DraftPO_ID, PO_Year, PO_Month, Company_Code, Category_Code, Segment_Code, Brand_Code, Vendor_Code, Amount_THB 
+                Dim query As String = "SELECT DraftPO_ID
+                                        , PO_Year
+                                        , PO_Month
+                                        , Company_Code
+                                        , Category_Code
+                                        , Segment_Code
+                                        , Brand_Code
+                                        , Vendor_Code
+                                        , Amount_THB 
                                      FROM [BMS].[dbo].[Draft_PO_Transaction]
-                                     WHERE ISNULL(Status, 'Draft') <> 'Cancelled'"
+                                     WHERE ISNULL(Status, 'Draft') IN ('Draft', 'Edited')"
                 Using cmd As New SqlCommand(query, conn)
                     Using reader As SqlDataReader = cmd.ExecuteReader()
                         dtDraftPO.Load(reader)
+                    End Using
+                End Using
+            End Using
+        Catch ex As Exception
+            Throw New Exception("Error loading draft PO data: " & ex.Message)
+        End Try
+    End Sub
+
+    Private Sub LoadActualPOData()
+        Try
+            dtActualPO = New DataTable()
+            Using conn As New SqlConnection(connectionString)
+                conn.Open()
+                ' ดึงข้อมูล Draft PO ที่ยังไม่ Cancelled เพื่อใช้คำนวณยอดจอง
+                Dim query As String = "SELECT ActualPO_ID
+                                        , OTB_Year
+                                        , OTB_Month
+                                        , Company_Code
+                                        , Category_Code
+                                        , SUBSTRING(Segment_Code, 2, CASE WHEN LEN(ISNULL(Segment_Code, '')) > 2 THEN LEN(Segment_Code) - 2 ELSE 0 END) As Segment_Code
+                                        , Brand_Code
+                                        , Vendor_Code
+                                        , Amount_THB
+                                        FROM [dbo].Actual_PO_Summary
+                                        WHERE [Status] IN ('Matching','Matched' )"
+                Using cmd As New SqlCommand(query, conn)
+                    Using reader As SqlDataReader = cmd.ExecuteReader()
+                        dtActualPO.Load(reader)
                     End Using
                 End Using
             End Using
@@ -59,17 +97,33 @@ Public Class POValidate
                $"[Vendor_Code] = '{EscapeFilter(key.Vendor)}'"
     End Function
 
+    Private Function BuildKeyFilterActual(key As POMatchKey) As String
+        ' (Key นี้ต้องตรงกับ POMatchKey และ คอลัมน์ใน dtDraftPO)
+        Return $"[OTB_Year] = '{EscapeFilter(key.Year)}' AND " &
+               $"[OTB_Month] = '{EscapeFilter(key.Month)}' AND " &
+               $"[Company_Code] = '{EscapeFilter(key.Company)}' AND " &
+               $"[Category_Code] = '{EscapeFilter(key.Category)}' AND " &
+               $"SUBSTRING([Segment_Code], 2, CASE WHEN LEN(ISNULL([Segment_Code], '')) > 2 THEN LEN([Segment_Code]) - 2 ELSE 0 END) = '{EscapeFilter(key.Segment)}' AND " &
+               $"[Brand_Code] = '{EscapeFilter(key.Brand)}' AND " &
+               $"[Vendor_Code] = '{EscapeFilter(key.Vendor)}'"
+    End Function
+
     Public Function GetRemainingBudget(key As POMatchKey) As Decimal
         Dim totalApproved As Decimal = calculator.CalculateCurrentApprovedBudget(key.Year, key.Month, key.Category, key.Company, key.Segment, key.Brand, key.Vendor)
         Dim totalDraft As Decimal = 0
+        Dim totalActual As Decimal = 0
         Try
             Dim filter As String = BuildKeyFilter(key)
+            Dim filterActual As String = BuildKeyFilterActual(key)
             Dim draftSum As Object = dtDraftPO.Compute("SUM(Amount_THB)", filter)
+            Dim actualSum As Object = dtActualPO.Compute("SUM(Amount_THB)", filterActual)
             totalDraft = If(draftSum IsNot DBNull.Value, Convert.ToDecimal(draftSum), 0)
+            totalActual = If(actualSum IsNot DBNull.Value, Convert.ToDecimal(actualSum), 0)
         Catch
             totalDraft = 0
+            totalActual = 0
         End Try
-        Return totalApproved - totalDraft
+        Return totalApproved - (totalDraft + totalActual)
     End Function
 
     ' โหลดข้อมูล Master
@@ -301,6 +355,138 @@ Public Class POValidate
         Return errors
     End Function
 
+
+    ' เพิ่มฟังก์ชันใหม่สำหรับ Edit โดยเฉพาะ
+    Public Function ValidateDraftPOEditLogic(context As HttpContext) As Dictionary(Of String, String)
+        Dim errors As New Dictionary(Of String, String)
+
+        ' 1. รับค่าจาก Form
+        Dim idStr As String = context.Request.Form("draftPOID")
+        Dim draftPOID As Integer = If(Integer.TryParse(idStr, Nothing), Integer.Parse(idStr), 0)
+
+        Dim year As String = context.Request.Form("year")
+        Dim month As String = context.Request.Form("month")
+        Dim company As String = context.Request.Form("company")
+        Dim category As String = context.Request.Form("category")
+        Dim segment As String = context.Request.Form("segment")
+        Dim brand As String = context.Request.Form("brand")
+        Dim vendor As String = context.Request.Form("vendor")
+        Dim poNo As String = context.Request.Form("pono")
+
+        ' รับค่า Amount และ ExRate
+        Dim amtCCYStr As String = context.Request.Form("amtCCY")
+        Dim exRateStr As String = context.Request.Form("exRate")
+        Dim amtCCY As Decimal = 0
+        Dim exRate As Decimal = 0
+        Decimal.TryParse(amtCCYStr, amtCCY)
+        Decimal.TryParse(exRateStr, exRate)
+
+        ' คำนวณยอดเงินใหม่ (THB)
+        Dim newAmountTHB As Decimal = amtCCY * exRate
+
+        ' =========================================================
+        ' เงื่อนไขที่ 1: ตรวจสอบซ้ำ (Duplicate Check) แบบยกเว้นตัวเอง
+        ' =========================================================
+        Dim isDuplicate As Boolean = False
+        Dim queryDup As String = "SELECT COUNT(1) FROM [BMS].[dbo].[Draft_PO_Transaction] " &
+                             "WHERE [DraftPO_No] = @No " &
+                             "AND [PO_Year] = @Year AND [PO_Month] = @Month " &
+                             "AND [Category_Code] = @Cat AND [Company_Code] = @Com " &
+                             "AND [Segment_Code] = @Seg AND [Brand_Code] = @Brand " &
+                             "AND [Vendor_Code] = @Ven " &
+                             "AND [DraftPO_ID] <> @ID " & ' <--- ยกเว้นตัวเอง
+                             "AND ISNULL(Status, '') <> 'Cancelled'"
+
+        Using conn As New SqlConnection(connectionString)
+            conn.Open()
+            Using cmd As New SqlCommand(queryDup, conn)
+                cmd.Parameters.AddWithValue("@No", poNo)
+                cmd.Parameters.AddWithValue("@Year", year)
+                cmd.Parameters.AddWithValue("@Month", month)
+                cmd.Parameters.AddWithValue("@Cat", category)
+                cmd.Parameters.AddWithValue("@Com", company)
+                cmd.Parameters.AddWithValue("@Seg", segment)
+                cmd.Parameters.AddWithValue("@Brand", brand)
+                cmd.Parameters.AddWithValue("@Ven", vendor)
+                cmd.Parameters.AddWithValue("@ID", draftPOID)
+
+                If Convert.ToInt32(cmd.ExecuteScalar()) > 0 Then
+                    errors.Add("general", "ข้อมูลซ้ำกับรายการอื่นในระบบ (Duplicate Data)")
+                    Return errors ' หยุดทำงานทันทีถ้าซ้ำ
+                End If
+            End Using
+
+            ' =========================================================
+            ' ดึงข้อมูลเก่า (Old Data) เพื่อเปรียบเทียบ
+            ' =========================================================
+            Dim oldRow As DataRow = Nothing
+            Dim qOld As String = "SELECT * FROM [BMS].[dbo].[Draft_PO_Transaction] WHERE DraftPO_ID = @ID"
+            Using cmdOld As New SqlCommand(qOld, conn)
+                cmdOld.Parameters.AddWithValue("@ID", draftPOID)
+                Dim da As New SqlDataAdapter(cmdOld)
+                Dim dtOld As New DataTable()
+                da.Fill(dtOld)
+                If dtOld.Rows.Count > 0 Then oldRow = dtOld.Rows(0)
+            End Using
+
+            If oldRow IsNot Nothing Then
+                ' สร้าง Key ของค่าใหม่
+                Dim newKey As New POMatchKey With {
+                .Year = year, .Month = month, .Company = company,
+                .Category = category, .Segment = segment,
+                .Brand = brand, .Vendor = vendor
+            }
+
+                ' สร้าง Key ของค่าเก่า
+                Dim oldKey As New POMatchKey With {
+                    .Year = oldRow("PO_Year").ToString(),
+                    .Month = oldRow("PO_Month").ToString(),
+                    .Company = oldRow("Company_Code").ToString(),
+                    .Category = oldRow("Category_Code").ToString(),
+                    .Segment = oldRow("Segment_Code").ToString(),
+                    .Brand = oldRow("Brand_Code").ToString(),
+                    .Vendor = oldRow("Vendor_Code").ToString()
+                }
+
+                Dim oldAmountTHB As Decimal = Convert.ToDecimal(oldRow("Amount_THB"))
+
+                ' =========================================================
+                ' เงื่อนไขที่ 2 & 3: ตรวจสอบ Budget (Budget Check)
+                ' =========================================================
+
+                ' คำนวณงบคงเหลือจากระบบ (Approved - All Drafts in DB)
+                Dim remainingInDB As Decimal = GetRemainingBudget(newKey)
+
+                If newKey.Equals(oldKey) Then
+                    ' [กรณีที่ 2]: Key เหมือนเดิม (Year/Month/... ไม่เปลี่ยน)
+                    ' ต้อง "คืน" ยอดเก่ากลับไปในงบก่อน แล้วค่อยหักยอดใหม่
+                    ' Logic: Available = (RemainingInDB + OldAmount)
+                    ' Check: NewAmount <= Available
+
+                    Dim actualAvailable As Decimal = remainingInDB + oldAmountTHB
+
+                    If newAmountTHB > actualAvailable Then
+                        errors.Add("txtAmtCCY", $"เงินไม่พอ (ต้องการ: {newAmountTHB:N2}, คงเหลือจริง: {actualAvailable:N2})")
+                    End If
+
+                Else
+                    ' [กรณีที่ 3]: Key เปลี่ยน (เปลี่ยน Year/Month/...)
+                    ' ยอดเก่า (OldAmount) อยู่ใน Key เก่า ไม่กระทบ Key ใหม่
+                    ' ยอดใหม่ (NewAmount) เป็นยอดใหม่สำหรับ Key ใหม่
+                    ' Check: NewAmount <= RemainingInDB (ของ Key ใหม่)
+
+                    If newAmountTHB > remainingInDB Then
+                        errors.Add("txtAmtCCY", $"เงินไม่พอสำหรับ Key ใหม่ (ต้องการ: {newAmountTHB:N2}, คงเหลือ: {remainingInDB:N2})")
+                    End If
+                End If
+
+            End If
+
+        End Using
+
+        Return errors
+    End Function
+
     ''' <summary>
     ''' Validate ข้อมูล Draft PO TXN (ตอน Edit)
     ''' </summary>
@@ -432,8 +618,106 @@ Public Class POValidate
 
     End Function
 
+    Public Function ValidateDraftPOCreation(
+        year As String, month As String, company As String, category As String, segment As String, brand As String, vendor As String,
+        poNo As String, amtCCY As Decimal, ccy As String, exRate As Decimal, amtTHB As Decimal
+    ) As Dictionary(Of String, String)
+
+        Dim errors As New Dictionary(Of String, String)()
+
+        ' 1. ตรวจสอบ PO No. ซ้ำ (Duplicate Check)
+        ' ต้องไม่ซ้ำกับ Draft ที่มีอยู่ (ยกเว้น Cancelled)
+        Dim queryDup As String = "SELECT COUNT(1) FROM [BMS].[dbo].[Draft_PO_Transaction] WHERE [DraftPO_No] = @No AND ISNULL(Status, '') <> 'Cancelled'"
+        Using conn As New SqlConnection(connectionString)
+            conn.Open()
+            Using cmd As New SqlCommand(queryDup, conn)
+                cmd.Parameters.AddWithValue("@No", poNo)
+                If Convert.ToInt32(cmd.ExecuteScalar()) > 0 Then
+                    errors.Add("txtPONO", $"Draft PO No. '{poNo}' already exists.")
+                End If
+            End Using
+        End Using
+
+        ' 2. ตรวจสอบงบประมาณ (Budget Check)
+        ' Logic: Available = Approved - (Total Draft Used + Total Actual Used)
+        ' Check: NewAmount <= Available
+
+        Dim key As New POMatchKey With {
+            .Year = year, .Month = month, .Company = company,
+            .Category = category, .Segment = segment, .Brand = brand, .Vendor = vendor
+        }
+
+        ' ดึงงบ Approved
+        Dim approvedBudget As Decimal = calculator.CalculateCurrentApprovedBudget(key.Year, key.Month, key.Category, key.Company, key.Segment, key.Brand, key.Vendor)
+
+        ' ดึงยอดใช้ไปแล้ว (Draft + Actual) แบบ Real-time จาก DB
+        Dim usedBudget As Decimal = GetTotalUsedBudget(key)
+
+        Dim remainingBudget As Decimal = approvedBudget - usedBudget
+
+        If amtTHB > remainingBudget Then
+            errors.Add("txtAmtCCY", $"งบประมาณไม่เพียงพอ (ต้องการ: {amtTHB:N2}, คงเหลือ: {remainingBudget:N2})")
+        End If
+
+        Return errors
+    End Function
+
 
     ' --- Private Helper Functions ---
+
+    ' Helper: คำนวณยอดใช้ไปทั้งหมด (Draft + Actual) จาก DB โดยตรง
+    Private Function GetTotalUsedBudget(key As POMatchKey) As Decimal
+        Dim totalUsed As Decimal = 0
+        Using conn As New SqlConnection(connectionString)
+            conn.Open()
+
+            ' 1. Sum Draft (ที่ไม่ใช่ Cancelled)
+            Dim sqlDraft As String = "SELECT SUM(ISNULL(Amount_THB, 0)) FROM [BMS].[dbo].[Draft_PO_Transaction] " &
+                                     "WHERE PO_Year = @Year AND PO_Month = @Month AND Company_Code = @Comp " &
+                                     "AND Category_Code = @Cat AND Segment_Code = @Seg AND Brand_Code = @Brand AND Vendor_Code = @Ven " &
+                                     "AND ISNULL(Status, '') <> 'Cancelled'"
+
+            ' 2. Sum Actual (ที่ไม่ใช่ Cancelled และไม่ถูก Match กับ Draft - เพื่อกันการนับซ้ำ ถ้า Business Logic คือ Draft ถูกหักล้างเมื่อ Match)
+            ' *หมายเหตุ: ปกติถ้า Match แล้ว Draft จะเป็น Matched, Actual จะเป็น Matched
+            ' เพื่อความปลอดภัยและง่ายที่สุด: นับ Actual ทั้งหมด + Draft ที่ยังไม่ Match (Status != Matched)
+
+            ' ปรับสูตร: Used = (Draft ที่ Active และยังไม่ Match) + (Actual ทั้งหมดที่ Active)
+
+            ' A. Draft Active & Unmatched
+            Using cmd As New SqlCommand(sqlDraft & " AND ISNULL(Status, '') <> 'Matched'", conn)
+                cmd.Parameters.AddWithValue("@Year", key.Year)
+                cmd.Parameters.AddWithValue("@Month", key.Month)
+                cmd.Parameters.AddWithValue("@Comp", key.Company)
+                cmd.Parameters.AddWithValue("@Cat", key.Category)
+                cmd.Parameters.AddWithValue("@Seg", key.Segment)
+                cmd.Parameters.AddWithValue("@Brand", key.Brand)
+                cmd.Parameters.AddWithValue("@Ven", key.Vendor)
+
+                Dim result = cmd.ExecuteScalar()
+                If result IsNot DBNull.Value Then totalUsed += Convert.ToDecimal(result)
+            End Using
+
+            ' B. Actual Active (Sum ทั้งหมดที่เข้ามา)
+            Dim sqlActual As String = "SELECT SUM(ISNULL(Amount_THB, 0)) FROM [BMS].[dbo].[Actual_PO_Summary] " &
+                                      "WHERE OTB_Year = @Year AND OTB_Month = @Month AND Company_Code = @Comp " &
+                                      "AND Category_Code = @Cat AND Segment_Code = @Seg AND Brand_Code = @Brand AND Vendor_Code = @Ven " &
+                                      "AND ISNULL(Status, '') <> 'Cancelled'"
+            Using cmd As New SqlCommand(sqlActual, conn)
+                cmd.Parameters.AddWithValue("@Year", key.Year)
+                cmd.Parameters.AddWithValue("@Month", key.Month)
+                cmd.Parameters.AddWithValue("@Comp", key.Company)
+                cmd.Parameters.AddWithValue("@Cat", key.Category)
+                cmd.Parameters.AddWithValue("@Seg", key.Segment)
+                cmd.Parameters.AddWithValue("@Brand", key.Brand)
+                cmd.Parameters.AddWithValue("@Ven", key.Vendor)
+
+                Dim result = cmd.ExecuteScalar()
+                If result IsNot DBNull.Value Then totalUsed += Convert.ToDecimal(result)
+            End Using
+
+        End Using
+        Return totalUsed
+    End Function
 
     Private Function ValidateYear(ByVal year As String) As Boolean
         Try
@@ -490,20 +774,4 @@ Public Class POValidate
         Return False ' ไม่พบ Vendor หรือ CCY ไม่ตรง
     End Function
 
-
-    Private Function CheckPODuplicate(ByVal poNo As String) As Boolean
-        Try
-            Using conn As New SqlConnection(connectionString)
-                conn.Open()
-                Dim query As String = "SELECT COUNT(1) FROM [BMS].[dbo].[Draft_PO_Transaction] WHERE [DraftPO_No] = @DraftPO_No"
-                Using cmd As New SqlCommand(query, conn)
-                    cmd.Parameters.AddWithValue("@DraftPO_No", poNo)
-                    Dim count As Integer = Convert.ToInt32(cmd.ExecuteScalar())
-                    Return (count > 0)
-                End Using
-            End Using
-        Catch ex As Exception
-            Return True ' ถ้าเช็คไม่ได้ ให้ assume ว่าซ้ำ (ปลอดภัยไว้ก่อน)
-        End Try
-    End Function
 End Class

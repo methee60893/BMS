@@ -219,6 +219,13 @@ Public Class POMatchingHandler
 
     Private Sub SyncAndGetPOData(context As HttpContext)
         Try
+            Dim updateBy As String = "System AutoMatchh"
+
+            ' (TODO: ควรดึง User จริงจาก Session)
+            If context.Session IsNot Nothing AndAlso context.Session("user") IsNot Nothing Then
+                updateBy = context.Session("user").ToString()
+            End If
+
             Dim combinedPoList As New List(Of SapPOResultItem)()
 
             Dim filterDate As Date = Date.Today.AddDays(-30) 'New DateTime(2025, 11, 20)
@@ -243,7 +250,7 @@ Public Class POMatchingHandler
                 ' 4.1 เรียก SP Auto Match (เพื่อจับคู่ Reference)
                 Using cmdMatch As New SqlCommand("SP_Auto_Match_Actual_Draft", conn)
                     cmdMatch.CommandType = CommandType.StoredProcedure
-                    cmdMatch.Parameters.AddWithValue("@UpdateBy", "System AutoMatch")
+                    cmdMatch.Parameters.AddWithValue("@UpdateBy", updateBy)
                     cmdMatch.ExecuteNonQuery()
                 End Using
 
@@ -251,24 +258,26 @@ Public Class POMatchingHandler
                 ' อัปเดตตาราง Draft_PO_Transaction
                 Dim sqlUpdateDraft As String = "
                     UPDATE D
-                    SET D.Status = 'Matching', D.Status_Date = GETDATE(), D.Status_By = 'System AutoMatch'
+                    SET D.Status = 'Matching', D.Status_Date = GETDATE(), D.Status_By = @updateBy
                     FROM [BMS].[dbo].[Draft_PO_Transaction] D
                     WHERE D.Actual_PO_Ref IS NOT NULL 
                       AND ISNULL(D.Status, '') NOT IN ('Matched', 'Cancelled')
                 "
                 Using cmd As New SqlCommand(sqlUpdateDraft, conn)
+                    cmd.Parameters.AddWithValue("@updateBy", updateBy)
                     cmd.ExecuteNonQuery()
                 End Using
 
                 ' อัปเดตตาราง Actual_PO_Summary
                 Dim sqlUpdateActual As String = "
                     UPDATE A
-                    SET A.Status = 'Matching', A.Matching_Date = GETDATE(), A.Changed_By = 'System AutoMatch'
+                    SET A.Status = 'Matching', A.Matching_Date = GETDATE(), A.Changed_By = @updateBy
                     FROM [BMS].[dbo].[Actual_PO_Summary] A
                     WHERE A.Draft_PO_Ref IS NOT NULL
                       AND ISNULL(A.Status, '') NOT IN ('Matched', 'Cancelled')
                 "
                 Using cmd As New SqlCommand(sqlUpdateActual, conn)
+                    cmd.Parameters.AddWithValue("@updateBy", updateBy)
                     cmd.ExecuteNonQuery()
                 End Using
             End Using
@@ -511,7 +520,7 @@ Public Class POMatchingHandler
                 D.Status AS DraftStatus -- สถานะของ Draft PO
             FROM [dbo].[Actual_PO_Summary] A
             LEFT JOIN [dbo].[Draft_PO_Transaction] D ON A.Draft_PO_Ref = D.DraftPO_No
-            WHERE ISNULL(A.Status, '') <> 'Cancelled' AND ISNULL(D.Status, '') <> 'Matched'
+            WHERE (ISNULL(A.Status, '') NOT IN ('Cancelled','Matched')) AND (ISNULL(D.Status, '') NOT IN ('Matched','Cancelled'))
               AND (ISNULL(A.Segment_Code, '') <> '' AND A.Segment_Code <> '000')
               AND (ISNULL(A.Brand_Code, '') <> '' AND A.Brand_Code <> '000')
             ORDER BY A.OTB_Year DESC, A.OTB_Month DESC, A.PO_No

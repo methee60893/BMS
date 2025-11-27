@@ -1486,7 +1486,7 @@ Public Class DataOTBHandler
                 SELECT PO_Year AS Year, PO_Month AS Month, Company_Code AS Company, Category_Code AS Category, 
                        Segment_Code AS Segment, Brand_Code AS Brand, Vendor_Code AS Vendor, Amount_THB AS Amount
                 FROM [BMS].[dbo].[Draft_PO_Transaction]
-                WHERE (ISNULL(Status, '') = 'Matching' OR ISNULL(Status, '') = 'Matched')
+                WHERE ISNULL(Status, '') IN ('Draft', 'Edited')
                 AND (@Year IS NULL OR PO_Year = @Year)
                 AND (@Month IS NULL OR PO_Month = @Month)
                 AND (@Company IS NULL OR Company_Code = @Company)
@@ -1518,17 +1518,17 @@ Public Class DataOTBHandler
             conn.Open()
             ' ดึง Actual PO (จาก Staging หรือ View)
             Dim query As String = "
-                SELECT Otb_Year AS Year, Otb_Month AS Month, Company_Code AS Company, Category, 
-                       Fund AS Segment, Brand, Supplier AS Vendor, PO_Local_Amount AS Amount
-                FROM [BMS].[dbo].[Actual_PO_Staging]
-                WHERE ISNULL(Deletion_Flag, '') <> 'L'
+                SELECT Otb_Year AS Year, Otb_Month AS Month, Company_Code AS Company, Category_Code As Category, 
+                       SUBSTRING(Segment_Code, 2, CASE WHEN LEN(ISNULL(Segment_Code, '')) > 2 THEN LEN(Segment_Code) - 2 ELSE 0 END) As Segment,Brand_Code As Brand,Vendor_Code As Vendor, Amount_THB AS Amount
+                FROM [BMS].[dbo].[Actual_PO_Summary]
+                WHERE ISNULL(Status, '') IN ('Matching','Matched' )
                 AND (@Year IS NULL OR Otb_Year = @Year)
                 AND (@Month IS NULL OR Otb_Month = @Month)
                 AND (@Company IS NULL OR Company_Code = @Company)
-                AND (@Category IS NULL OR Category = @Category)
-                AND (@Segment IS NULL OR Fund = @Segment)
-                AND (@Brand IS NULL OR Brand = @Brand)
-                AND (@Vendor IS NULL OR Supplier = @Vendor)
+                AND (@Category IS NULL OR Category_Code = @Category)
+                AND (@Segment IS NULL OR SUBSTRING(Segment_Code, 2, CASE WHEN LEN(ISNULL(Segment_Code, '')) > 2 THEN LEN(Segment_Code) - 2 ELSE 0 END) = @Segment)
+                AND (@Brand IS NULL OR Brand_Code = @Brand)
+                AND (@Vendor IS NULL OR Vendor_Code = @Vendor)
                 "
             Using cmd As New SqlCommand(query, conn)
                 cmd.Parameters.AddWithValue("@Year", If(String.IsNullOrEmpty(year), DBNull.Value, year))
@@ -1734,8 +1734,8 @@ Public Class DataOTBHandler
         Dim segment As String = context.Request.QueryString("OTBSegment")
         Dim masterinstance As New MasterDataUtil
         ' *สำคัญ* เราต้องดึงข้อมูลระดับ Brand/Vendor ทั้งหมดภายใต้ Filter นี้มาคำนวณก่อน แล้วค่อย Group รวม
-        Dim brand As String = ""
-        Dim vendor As String = ""
+        Dim brand As String = context.Request.QueryString("OTBBrand")
+        Dim vendor As String = context.Request.QueryString("OTBVendor")
 
 
         If String.IsNullOrEmpty(year) Then Throw New Exception("Year is required.")

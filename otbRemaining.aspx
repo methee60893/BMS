@@ -93,7 +93,7 @@
                 <h1 class="page-title" id="pageTitle">KBMS - OTB Remaining</h1>
             </div>
             <div class="user-info">
-                <span class="d-none d-md-inline">Welcome, Admin</span>
+                <span class="d-none d-md-inline">Welcome, <%= HttpUtility.JavaScriptStringEncode(Session("user").ToString()) %></span>
                 <div class="user-avatar">
                     <i class="bi bi-person-circle"></i>
                 </div>
@@ -709,6 +709,8 @@
             let OTBcompany = companyDropdown.value;
             let OTBCategory = categoryDropdown.value;
             let OTBSegment = segmentDropdown.value;
+            let OTBBrand = brandDropdown.value;
+            let OTBVendor = vendorDropdown.value;
             // Brand และ Vendor ไม่จำเป็นต้องส่งไปกรอง เพราะ Report นี้ดูภาพรวม แต่ถ้าส่งไปก็ไม่เสียหาย
 
             if (!OTByear) {
@@ -724,6 +726,9 @@
             params.append('OTBCompany', OTBcompany);
             params.append('OTBCategory', OTBCategory);
             params.append('OTBSegment', OTBSegment);
+            params.append('OTBBrand', OTBBrand);
+            params.append('OTBVendor', OTBVendor);
+
 
             // Trigger Download
             window.location.href = 'Handler/DataOTBHandler.ashx?' + params.toString();

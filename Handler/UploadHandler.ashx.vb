@@ -885,22 +885,11 @@ Public Class UploadHandler : Implements IHttpHandler
                     SELECT [Version]
                     FROM [dbo].[OTB_Transaction]
                     WHERE [Year] = @Year
-                      AND [Month] = @Month
-                      AND [Category] = @Category
-                      AND [Company] = @Company
-                      AND [Segment] = @Segment
-                      AND [Brand] = @Brand
-                      AND [Vendor] = @Vendor
                     ORDER BY ISNULL([ApprovedDate], [CreateDate]) DESC, [ID] DESC" ' อ้างอิงจากโค้ดเดิมในไฟล์เดียวกัน
 
                 Using cmd As New SqlCommand(queryApproved, conn)
                     cmd.Parameters.AddWithValue("@Year", year)
-                    cmd.Parameters.AddWithValue("@Month", month)
-                    cmd.Parameters.AddWithValue("@Category", category)
-                    cmd.Parameters.AddWithValue("@Company", company)
-                    cmd.Parameters.AddWithValue("@Segment", segment)
-                    cmd.Parameters.AddWithValue("@Brand", brand)
-                    cmd.Parameters.AddWithValue("@Vendor", vendor)
+
 
                     ' เราแค่ต้องการค่าสูงสุดค่าเดียว
                     Dim lastApprovedVersion As Object = cmd.ExecuteScalar()
