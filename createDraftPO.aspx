@@ -212,7 +212,7 @@
                             <div class="form-row-display form-row-item">
                                 <div class="form-group">
                                     <label>Exchange rate</label>
-                                    <input id="txtExRate" type="text" class="form-control" placeholder="0.0000" pattern="^\d+(\.\d{1,2})?$" title="Enter a valid amount (e.g., 123 or 123.4523)" autocomplete="off">
+                                    <input id="txtExRate" type="text" class="form-control" pattern="^\d+(\.\d{1,2})?$" title="Enter a valid amount (e.g., 123 or 123.4523)" placeholder="0.0000" autocomplete="off">
                                 </div>
                                 <div class="form-group">
                                     <label>Remark</label>
@@ -748,6 +748,9 @@
                 txtAmtCCY.addEventListener('focus', cleanCurrencyOnFocus);
                 txtAmtCCY.addEventListener('blur', formatCurrencyOnBlur);
             }
+            if (txtExRate) {
+                txtExRate.addEventListener('keydown', restrictToNumeric);
+            }
 
             if (ccyDropdown) {
                 $(ccyDropdown).select2({
@@ -803,16 +806,15 @@
             previewPOTXNModal = new bootstrap.Modal(document.getElementById('previewPOTXNModal'));
             errorModal = new bootstrap.Modal(document.getElementById('errorValidationModal'));
             successModal = new bootstrap.Modal(document.getElementById('successModal'));
-
             uploadPreviewModal = new bootstrap.Modal(document.getElementById('previewModal'));
 
 
-           $('#DDSegment').on('select2:select',changeVendor);
-           $('#DDVendor').on('select2:select',chengeCCY);
-
+            $('#DDSegment').on('select2:select',changeVendor);
+            $('#DDVendor').on('select2:select',chengeCCY);
+            $('#DDCCY').on('select2:select', currencyCal);
             txtAmtCCY.addEventListener('change', currencyCal);
             txtExRate.addEventListener('change', currencyCal);
-            $('#DDCCY').on('select2:select', currencyCal);
+            
             btnSubmit.addEventListener('click', handleSubmitPOTXN);
 
             // ADDED: Confirm button logic

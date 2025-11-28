@@ -316,12 +316,6 @@
                                     <div class="col-12 col-md-6">
                                         <label for="ddCCYEdit">CCY</label>
                                         <select id="ddCCYEdit" class="form-select">
-                                            <option value="">-- Select CCY --</option>
-                                            <option>USD</option>
-                                            <option>THB</option>
-                                            <option>EUR</option>
-                                            <option>JPY</option>
-                                            <option>SGD</option>
                                         </select>
                                         <div class="validation-message" data-field="ccy"></div>
                                     </div>
@@ -470,6 +464,15 @@
             errorValidationModal = new bootstrap.Modal(document.getElementById('errorValidationModal'));
             successModal = new bootstrap.Modal(document.getElementById('successModal'));
 
+            if (txtExRateEdit) {
+                txtExRateEdit.addEventListener('keydown', restrictToNumeric);
+            }
+
+            if (txtAmtCCYEdit) {
+                txtAmtCCYEdit.addEventListener('keydown', restrictToNumeric);
+            }
+
+
             if (ddYearFilter) {
                 $(ddYearFilter).select2({
                     theme: "bootstrap-5"
@@ -585,6 +588,7 @@
             InitSegment(ddSegmentFilter);
             InitBrand(ddBrandFilter);
             InitVendor(ddVendorFilter);
+           
         }
 
         function InitMSDataEditModal() {
@@ -596,6 +600,7 @@
             InitSegment(ddSegmentEdit, false);
             InitBrand(ddBrandEdit, false);
             InitVendor(ddVendorEdit, false);
+            InitCCY(ddCCYEdit, false);
         }
 
         // Generic Master Data Functions
@@ -664,6 +669,17 @@
                 error: (xhr, s, e) => console.log('Error getlist Vendor: ' + e)
             });
         }
+        let InitCCY = function (element, addAll = true) {
+            $.ajax({
+                url: 'Handler/MasterDataHandler.ashx?action=CCYMSList',
+                type: 'POST',
+                processData: false,
+                contentType: false,
+                data: { addAll: addAll },
+                success: (response) => element.innerHTML = response,
+                error: (xhr, s, e) => console.log('Error getlist Vendor: ' + e)
+            });
+        }
 
         // ==========================================
         // Filter & View Data Functions
@@ -682,7 +698,7 @@
 
         async function handleViewData() {
             showLoading(true, "Fetching data...");
-
+           
             const formData = new FormData();
             formData.append('year', ddYearFilter.value);
             formData.append('month', ddMonthFilter.value);
@@ -889,6 +905,7 @@
         }
 
         function populateEditModal(data) {
+
             hdnDraftPOID.value = data.DraftPO_ID;
 
             $('#ddYearEdit').val(data.PO_Year).trigger('change');
@@ -1176,6 +1193,31 @@
 
             // ใช้ window.location เพื่อเรียก Download ไฟล์ (GET Request)
             window.location.href = 'Handler/DataPOHandler.ashx?' + params.toString();
+        }
+
+        function restrictToNumeric(event) {
+            const input = event.target;
+            const key = event.key;
+
+            // Allow control keys (Backspace, Tab, Enter, Arrows, Home, End, Delete)
+            if (['Backspace', 'Tab', 'Enter', 'ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Home', 'End', 'Delete'].includes(key)) {
+                return;
+            }
+
+            // [BMS Gem Fix] Allow Ctrl+A, Ctrl+C, Ctrl+V, Ctrl+X
+            if ((key === 'a' || key === 'c' || key === 'v' || key === 'x') && event.ctrlKey) {
+                return;
+            }
+
+            // Allow one decimal point
+            if (key === '.' && !input.value.includes('.')) {
+                return;
+            }
+
+            // Allow only digits
+            if (!/\d/.test(key)) {
+                event.preventDefault(); // Block the key press
+            }
         }
 
         // Close sidebar when clicking outside
