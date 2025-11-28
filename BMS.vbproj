@@ -187,6 +187,7 @@
     <Content Include="draftOTB.aspx" />
     <Content Include="draftPO.aspx" />
     <Content Include="favicon.ico" />
+    <Content Include="manage_users.aspx" />
     <Content Include="master_brand.aspx" />
     <Content Include="master_category.aspx" />
     <Content Include="master_vendor.aspx" />
@@ -290,10 +291,14 @@
     <Compile Include="Handler\SaveOTBHandler.ashx.vb">
       <DependentUpon>SaveOTBHandler.ashx</DependentUpon>
     </Compile>
+    <Compile Include="Handler\UserHandler.ashx.vb">
+      <DependentUpon>UserHandler.ashx</DependentUpon>
+    </Compile>
     <Compile Include="Handler\ValidateHandler.ashx.vb">
       <DependentUpon>ValidateHandler.ashx</DependentUpon>
     </Compile>
     <Compile Include="Helper\KBMSApiHelper.vb" />
+    <Compile Include="Helper\PermissionHelper.vb" />
     <Compile Include="Helper\SapApiHelper.vb" />
     <Compile Include="JsonObject\OTBSwitchJsonRequestRow.vb" />
     <Compile Include="JsonObject\OTBSwitchJsonResponseRow.vb" />
@@ -305,6 +310,13 @@
     <Compile Include="JsonObject\RequestOTBSwitchData.vb" />
     <Compile Include="JsonObject\ResponseOTBUploadResult.vb" />
     <Compile Include="JsonObject\ResponseOTBStatus.vb" />
+    <Compile Include="manage_users.aspx.designer.vb">
+      <DependentUpon>manage_users.aspx</DependentUpon>
+    </Compile>
+    <Compile Include="manage_users.aspx.vb">
+      <DependentUpon>manage_users.aspx</DependentUpon>
+      <SubType>ASPXCodebehind</SubType>
+    </Compile>
     <Compile Include="master_brand.aspx.designer.vb">
       <DependentUpon>master_brand.aspx</DependentUpon>
     </Compile>
@@ -388,6 +400,7 @@
     <Content Include="Handler\DataPOHandler.ashx" />
     <Content Include="Handler\POMatchingHandler.ashx" />
     <Content Include="Handler\DataOTBRemainingHandler.ashx" />
+    <Content Include="Handler\UserHandler.ashx" />
     <None Include="My Project\Application.myapp">
       <Generator>MyApplicationCodeGenerator</Generator>
       <LastGenOutput>Application.Designer.vb</LastGenOutput>

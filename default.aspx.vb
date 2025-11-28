@@ -6,7 +6,7 @@ Public Class _default
     Inherits System.Web.UI.Page
 
     Public connectionString As String = ConfigurationManager.ConnectionStrings("LoginConnectionString")?.ConnectionString
-
+    Public connectionStringLocal As String = ConfigurationManager.ConnectionStrings("BMSConnectionString")?.ConnectionString
     Protected Sub Page_Load(ByVal sender As Object, ByVal e As System.EventArgs) Handles Me.Load
 
     End Sub
@@ -16,14 +16,33 @@ Public Class _default
             Dim clientIP As String = GetClientIP()
             Dim email As String = txtEmail.Text
             Dim password As String = txtPassword.Text
-
+            Dim username As String = ""
+            Dim fullName As String = ""
+            Dim userEmail As String = ""
             'adddblog()
 
             If authen_by_ad(email, password) Then
                 'Dim chkauthen = CheckADAccess(email)
+                Try
+                    ' ดึงข้อมูล Profile จาก AD (ต้องใช้ Function ที่มีใน share_class)
+                    Dim adProfile As share_class.retAD = share_class.GetLDAPUsersProfile(email)
+
+                    ' เตรียมข้อมูล
+                    username = email
+                    fullName = adProfile.ADname & " " & adProfile.ADSurname
+                    userEmail = adProfile.ADemail
+
+                    ' บันทึกลงฐานข้อมูล
+                    SyncUserWithDB(username, fullName, userEmail)
+
+                Catch exSync As Exception
+                    ' ถ้า Sync พลาด ให้ Log ไว้ แต่ยอมให้ Login ต่อไปได้ (Non-blocking)
+                    Console.WriteLine("Sync User Error: " & exSync.Message)
+                End Try
                 'If chkauthen Then
                 Session("Login") = True
-                Session("user") = email
+                Session("user") = username
+                Session("fullname") = fullName
                 Response.Redirect("dashboard.aspx?u=" & Server.UrlEncode(email))
                 'Else
                 '    ClientScript.RegisterStartupScript(Me.GetType(), "AuthorizationFailed", "alert(""You don't have authorization!"");", True)
@@ -38,6 +57,20 @@ Public Class _default
             Dim safeMsg As String = ex.Message.Replace("""", "\""").Replace(vbCrLf, "\n")
             ClientScript.RegisterStartupScript(Me.GetType(), "Error", $"alert(""เกิดข้อผิดพลาด: {safeMsg}"");", True)
         End Try
+    End Sub
+
+    ' ฟังก์ชันใหม่สำหรับเรียก Stored Procedure
+    Private Sub SyncUserWithDB(username As String, fullName As String, email As String)
+        Using conn As New SqlConnection(connectionStringLocal)
+            conn.Open()
+            Using cmd As New SqlCommand("SP_Sync_User_From_AD", conn)
+                cmd.CommandType = CommandType.StoredProcedure
+                cmd.Parameters.AddWithValue("@Username", username)
+                cmd.Parameters.AddWithValue("@FullName", If(String.IsNullOrEmpty(fullName), username, fullName))
+                cmd.Parameters.AddWithValue("@Email", If(String.IsNullOrEmpty(email), "", email))
+                cmd.ExecuteNonQuery()
+            End Using
+        End Using
     End Sub
 
     Private Sub adddblog()

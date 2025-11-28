@@ -10,9 +10,9 @@ Public Module SapApiHelper
     Private ReadOnly client As HttpClient
 
     Sub New()
-        Dim baseUrl As String = "http://s4kpqas.kingpower.com:8000"
-        Dim username As String = "RFCBMS"
-        Dim password As String = "Kpc#2025"
+        Dim baseUrl As String = ConfigurationManager.AppSettings("SAPAPI_BASEURL")
+        Dim username As String = ConfigurationManager.AppSettings("SAPAPI_USERNAME")
+        Dim password As String = ConfigurationManager.AppSettings("SAPAPI_PASSWORD")
 
         client = New HttpClient()
         client.BaseAddress = New Uri(baseUrl)

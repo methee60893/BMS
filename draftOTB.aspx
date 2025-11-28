@@ -80,6 +80,7 @@
                     <li><a href="master_category.aspx" class="menu-link">Master Category</a></li>
                 </ul>
             </li>
+            <li class="menu-item"><a href="default.aspx" class="menu-link"><i class="bi bi-box-arrow-left"></i> Logout</a></li>
         </ul>
     </div>
 
@@ -94,7 +95,7 @@
                 <h1 class="page-title" id="pageTitle">KBMS - Draft OTB</h1>
             </div>
             <div class="user-info">
-                <span class="d-none d-md-inline">Welcome, <%= HttpUtility.JavaScriptStringEncode(Session("user").ToString()) %></span>
+                <span class="d-none d-md-inline">Welcome, <%= HttpUtility.JavaScriptStringEncode(Session("fullname").ToString()) %></span>
                 <div class="user-avatar">
                     <i class="bi bi-person-circle"></i>
                 </div>
