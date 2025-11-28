@@ -342,8 +342,7 @@
 
             if (yearDropdown) {
                 $(yearDropdown).select2({
-                    theme: "bootstrap-5",
-                    allowClear: true
+                    theme: "bootstrap-5"
                 });
             }
 

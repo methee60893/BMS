@@ -1,10 +1,10 @@
 ﻿Imports System.Data.SqlClient
 Imports System.DirectoryServices
-Imports System.DirectoryServices.AccountManagement
+'Imports System.DirectoryServices.AccountManagement
 Imports System.Net
 Imports System.Security.Authentication
 Imports System.Security.Cryptography
-Imports Microsoft.VisualStudio.Services.WebApi.Jwt
+'Imports Microsoft.VisualStudio.Services.WebApi.Jwt
 
 Public Class share_class
 
@@ -58,7 +58,6 @@ Public Class share_class
         Dim oResult As SearchResult
         Dim RetArray As New ArrayList
         Dim mCount As Integer
-        Dim mIdx As Integer
         Dim mLDAPRecord As String
         Dim ret As New retAD
         Dim ResultFields() As String = {"securityEquals", "cn"}

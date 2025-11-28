@@ -745,7 +745,13 @@
 
 
                 // Helper to format numbers
-                const formatNum = (num, decimals = 2) => (num != null ? parseFloat(num).toFixed(decimals) : '0.00');
+                const formatNum = (num, decimals = 2) => {
+                    if (num == null || num === '') return '0.00';
+                    return parseFloat(num).toLocaleString('en-US', {
+                        minimumFractionDigits: decimals,
+                        maximumFractionDigits: decimals
+                    });
+                };
 
                 return `
                     <tr class="${statusClass}" >

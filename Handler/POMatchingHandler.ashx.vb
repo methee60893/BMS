@@ -228,7 +228,7 @@ Public Class POMatchingHandler
 
             Dim combinedPoList As New List(Of SapPOResultItem)()
 
-            Dim filterDate As Date = Date.Today.AddDays(-30) 'New DateTime(2025, 11, 20)
+            Dim filterDate As Date = Date.Today
 
             Dim poList As List(Of SapPOResultItem) = Task.Run(Async Function()
                                                                   Return Await SapApiHelper.GetPOsAsync(filterDate)
@@ -503,10 +503,9 @@ Public Class POMatchingHandler
 
     Private Function GetMatchedDataFromDB() As List(Of MatchedPOItem)
         Dim list As New List(Of MatchedPOItem)()
+        Dim masterinstance As New MasterDataUtil
 
-        ' Query นี้ยึด Actual_PO_Summary เป็นหลัก (Main Driver)
-        ' ข้อมูล Key ต่างๆ (Year, Month, Category...) จะถูกดึงจาก Actual
-        ' ข้อมูล Draft จะถูกดึงมาแสดงถ้ามีการ Match กัน (ผ่าน Draft_PO_Ref)
+
         Dim query As String = "
           SELECT 
                 A.ActualPO_ID, A.OTB_Year, A.OTB_Month, A.Company_Code, A.Category_Code, 
@@ -537,7 +536,7 @@ Public Class POMatchingHandler
                         item.Key = New POMatchKey With {
                             .Year = r("OTB_Year").ToString(),
                             .Month = r("OTB_Month").ToString(),
-                            .Company = r("Company_Code").ToString(),
+                            .Company = masterinstance.GetCompanyName(r("Company_Code").ToString()),
                             .Category = r("Category_Code").ToString(),
                             .Segment = r("Segment_Code").ToString(),
                             .Brand = r("Brand_Code").ToString(),
@@ -666,7 +665,7 @@ Public Class POMatchingHandler
                 Try
                     ' 3.1 Bulk copy to Temp Table
                     ' (แก้ไข) ใช้ SELECT INTO ... WHERE 1=0 แทน LIKE
-                    Using cmdCreateTemp As New SqlCommand("SELECT * INTO #TempSAPPOs FROM [BMS].[dbo].[Actual_PO_Staging] WHERE 1 = 0", conn, transaction)
+                    Using cmdCreateTemp As New SqlCommand("SELECT * INTO #TempSAPPOs FROM [BMS].[dbo].[Actual_PO_Staging] WHERE 1 = 0 AND [Deletion_Flag] <> 'L'", conn, transaction)
                         cmdCreateTemp.ExecuteNonQuery()
                     End Using
 

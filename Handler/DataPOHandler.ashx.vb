@@ -303,7 +303,7 @@ Public Class DataPOHandler
     ' =================================================
     Private Function GenerateHtmlActualPOTable(dt As DataTable) As String
         Dim sb As New StringBuilder()
-
+        Dim masterinstance As New MasterDataUtil
         If dt.Rows.Count = 0 Then
             sb.Append("<tr><td colspan='22' class='text-center text-muted p-4'>No Actual PO records found for the selected filters.</td></tr>")
             Return sb.ToString()
@@ -324,7 +324,7 @@ Public Class DataPOHandler
             sb.AppendFormat("<td>{0}</td>", HttpUtility.HtmlEncode(GetDbString(row, "PO_Month_Name"))) ' Use Month Name
             sb.AppendFormat("<td>{0}</td>", HttpUtility.HtmlEncode(GetDbString(row, "Category_Code")))
             sb.AppendFormat("<td>{0}</td>", HttpUtility.HtmlEncode(GetDbString(row, "Category_Name")))
-            sb.AppendFormat("<td>{0}</td>", HttpUtility.HtmlEncode(GetDbString(row, "Company_Name")))
+            sb.AppendFormat("<td>{0}</td>", HttpUtility.HtmlEncode(masterinstance.GetCompanyName(GetDbString(row, "Company_Code"))))
             sb.AppendFormat("<td>{0}</td>", HttpUtility.HtmlEncode(GetDbString(row, "Segment_Code")))
             sb.AppendFormat("<td>{0}</td>", HttpUtility.HtmlEncode(GetDbString(row, "Segment_Name")))
             sb.AppendFormat("<td>{0}</td>", HttpUtility.HtmlEncode(GetDbString(row, "Brand_Code")))
