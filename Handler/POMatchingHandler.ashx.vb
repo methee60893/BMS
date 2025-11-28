@@ -523,7 +523,7 @@ Public Class POMatchingHandler
             WHERE (ISNULL(A.Status, '') NOT IN ('Cancelled','Matched')) AND (ISNULL(D.Status, '') NOT IN ('Matched','Cancelled'))
               AND (ISNULL(A.Segment_Code, '') <> '' AND A.Segment_Code <> '000')
               AND (ISNULL(A.Brand_Code, '') <> '' AND A.Brand_Code <> '000')
-            ORDER BY A.OTB_Year DESC, A.OTB_Month DESC, A.PO_No
+            ORDER BY A.Actual_PO_Date DESC
         "
 
         Using conn As New SqlConnection(connectionString)

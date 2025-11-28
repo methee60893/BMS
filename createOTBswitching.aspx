@@ -684,134 +684,113 @@
 
             if (yearDropdownf) {
                 $(yearDropdownf).select2({
-                    theme: "bootstrap-5",
-                    allowClear: true
+                    theme: "bootstrap-5"
                 });
             }
             if (yearDropdownt) {
                 $(yearDropdownt).select2({
-                    theme: "bootstrap-5",
-                    allowClear: true
+                    theme: "bootstrap-5"
                 });
             }
             if (yearDropdownE) {
                 $(yearDropdownE).select2({
-                    theme: "bootstrap-5",
-                    allowClear: true
+                    theme: "bootstrap-5"
                 });
             }
 
             if (monthDropdownf) {
                 $(monthDropdownf).select2({
-                    theme: "bootstrap-5",
-                    allowClear: true
+                    theme: "bootstrap-5"
                 });
             }
             if (monthDropdownt) {
                 $(monthDropdownt).select2({
-                    theme: "bootstrap-5",
-                    allowClear: true
+                    theme: "bootstrap-5"
                 });
             }
             if (monthDropdownE) {
                 $(monthDropdownE).select2({
-                    theme: "bootstrap-5",
-                    allowClear: true
+                    theme: "bootstrap-5"
                 });
             }
 
             if (companyDropdownf) {
                 $(companyDropdownf).select2({
-                    theme: "bootstrap-5",
-                    allowClear: true
+                    theme: "bootstrap-5"
                 });
             }
             if (companyDropdownt) {
                 $(companyDropdownt).select2({
-                    theme: "bootstrap-5",
-                    allowClear: true
+                    theme: "bootstrap-5"
                 });
             }
             if (companyDropdownE) {
                 $(companyDropdownE).select2({
-                    theme: "bootstrap-5",
-                    allowClear: true
+                    theme: "bootstrap-5"
                 });
             }
 
             if (segmentDropdownf) {
                 $(segmentDropdownf).select2({
-                    theme: "bootstrap-5",
-                    allowClear: true
+                    theme: "bootstrap-5"
                 });
             }
             if (segmentDropdownt) {
                 $(segmentDropdownt).select2({
-                    theme: "bootstrap-5",
-                    allowClear: true
+                    theme: "bootstrap-5"
                 });
             }
             if (segmentDropdownE) {
                 $(segmentDropdownE).select2({
-                    theme: "bootstrap-5",
-                    allowClear: true
+                    theme: "bootstrap-5"
                 });
             }
 
             if (categoryDropdownf) {
                 $(categoryDropdownf).select2({
-                    theme: "bootstrap-5",
-                    allowClear: true
+                    theme: "bootstrap-5"
                 });
             }
             if (categoryDropdownt) {
                 $(categoryDropdownt).select2({
-                    theme: "bootstrap-5",
-                    allowClear: true
+                    theme: "bootstrap-5"
                 });
             }
             if (categoryDropdownE) {
                 $(categoryDropdownE).select2({
-                    theme: "bootstrap-5",
-                    allowClear: true
+                    theme: "bootstrap-5"
                 });
             }
 
             if (brandDropdownf) {
                 $(brandDropdownf).select2({
-                    theme: "bootstrap-5",
-                    allowClear: true
+                    theme: "bootstrap-5"
                 });
             }
             if (brandDropdownt) {
                 $(brandDropdownt).select2({
-                    theme: "bootstrap-5",
-                    allowClear: true
+                    theme: "bootstrap-5"
                 });
             }
             if (brandDropdownE) {
                 $(brandDropdownE).select2({
-                    theme: "bootstrap-5",
-                    allowClear: true
+                    theme: "bootstrap-5"
                 });
             }
 
             if (vendorDropdownf) {
                 $(vendorDropdownf).select2({
-                    theme: "bootstrap-5",
-                    allowClear: true
+                    theme: "bootstrap-5"
                 });
             }
             if (vendorDropdownt) {
                 $(vendorDropdownt).select2({
-                    theme: "bootstrap-5",
-                    allowClear: true
+                    theme: "bootstrap-5"
                 });
             }
             if (vendorDropdownE) {
                 $(vendorDropdownE).select2({
-                    theme: "bootstrap-5",
-                    allowClear: true
+                    theme: "bootstrap-5"
                 });
             }
 

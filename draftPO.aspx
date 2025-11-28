@@ -472,101 +472,86 @@
 
             if (ddYearFilter) {
                 $(ddYearFilter).select2({
-                    theme: "bootstrap-5",
-                    allowClear: true
+                    theme: "bootstrap-5"
                 });
             }
             if (ddMonthFilter) {
                 $(ddMonthFilter).select2({
-                    theme: "bootstrap-5",
-                    allowClear: true
+                    theme: "bootstrap-5"
                 });
             }
             if (ddCompanyFilter) {
                 $(ddCompanyFilter).select2({
-                    theme: "bootstrap-5",
-                    allowClear: true
+                    theme: "bootstrap-5"
                 });
             }
             if (ddCategoryFilter) {
                 $(ddCategoryFilter).select2({
-                    theme: "bootstrap-5",
-                    allowClear: true
+                    theme: "bootstrap-5"
                 });
             }
             if (ddSegmentFilter) {
                 $(ddSegmentFilter).select2({
-                    theme: "bootstrap-5",
-                    allowClear: true
+                    theme: "bootstrap-5"
                 });
             }
             if (ddBrandFilter) {
                 $(ddBrandFilter).select2({
-                    theme: "bootstrap-5",
-                    allowClear: true
+                    theme: "bootstrap-5"
                 });
             }
             if (ddVendorFilter) {
                 $(ddVendorFilter).select2({
-                    theme: "bootstrap-5",
-                    allowClear: true
+                    theme: "bootstrap-5"
                 });
             }
 
             if (ddCCYEdit) {
                 $(ddCCYEdit).select2({
                     theme: "bootstrap-5",
-                    dropdownParent: $("#editPOModal"), 
-                    allowClear: true
+                    dropdownParent: $("#editPOModal")
                 });
             }
             if (ddYearEdit) {
                 $(ddYearEdit).select2({
                     theme: "bootstrap-5",
-                    dropdownParent: $("#editPOModal"), 
-                    allowClear: true
+                    dropdownParent: $("#editPOModal")
                 });
             }
             if (ddMonthEdit) {
                 $(ddMonthEdit).select2({
                     theme: "bootstrap-5",
-                    dropdownParent: $("#editPOModal"), 
-                    allowClear: true
+                    dropdownParent: $("#editPOModal")
                 });
             }
             if (ddCompanyEdit) {
                 $(ddCompanyEdit).select2({
                     theme: "bootstrap-5",
-                    dropdownParent: $("#editPOModal"), 
-                    allowClear: true
+                    dropdownParent: $("#editPOModal")
                 });
             }
             if (ddCategoryEdit) {
                 $(ddCategoryEdit).select2({
                     theme: "bootstrap-5",
-                    dropdownParent: $("#editPOModal"), 
-                    allowClear: true
+                    dropdownParent: $("#editPOModal")
                 });
             }
             if (ddSegmentEdit) {
                 $(ddSegmentEdit).select2({
                     theme: "bootstrap-5",
-                    dropdownParent: $("#editPOModal"), 
-                    allowClear: true
+                    dropdownParent: $("#editPOModal")
                 });
             }
             if (ddBrandEdit) {
                 $(ddBrandEdit).select2({
                     theme: "bootstrap-5",
-                    dropdownParent: $("#editPOModal"), 
-                    allowClear: true
+                    dropdownParent: $("#editPOModal")
                 });
             }
             if (ddVendorEdit) {
                 $(ddVendorEdit).select2({
                     theme: "bootstrap-5",
-                    dropdownParent: $("#editPOModal"), 
-                    allowClear: true
+                    dropdownParent: $("#editPOModal")
                 });
             }
 
@@ -771,7 +756,7 @@
                         <td  class="${statusClass}" >${row.PO_Month_Name || ''}</td>
                         <td  class="${statusClass}" >${row.Category_Code || ''}</td>
                         <td  class="${statusClass}" >${row.Category_Name || ''}</td>
-                        <td  class="${statusClass}" >${row.Company_Code || ''}</td>
+                        <td  class="${statusClass}" >${row.Company_Name || ''}</td>
                         <td  class="${statusClass}" >${row.Segment_Code || ''}</td>
                         <td  class="${statusClass}" >${row.Segment_Name || ''}</td>
                         <td  class="${statusClass}" >${row.Brand_Code || ''}</td>

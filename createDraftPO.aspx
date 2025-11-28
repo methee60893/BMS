@@ -751,57 +751,49 @@
 
             if (ccyDropdown) {
                 $(ccyDropdown).select2({
-                    theme: "bootstrap-5",
-                    allowClear: true
+                    theme: "bootstrap-5"
                 });
             }
 
             if (yearDropdown) {
                 $(yearDropdown).select2({
-                    theme: "bootstrap-5",
-                    allowClear: true
+                    theme: "bootstrap-5"
                 });
             }
 
             if (monthDropdown) {
                 $(monthDropdown).select2({
-                    theme: "bootstrap-5",
-                    allowClear: true
+                    theme: "bootstrap-5"
                 });
             }
 
             if (companyDropdown) {
                 $(companyDropdown).select2({
-                    theme: "bootstrap-5",
-                    allowClear: true
+                    theme: "bootstrap-5"
                 });
             }
 
             if (segmentDropdown) {
                 $(segmentDropdown).select2({
-                    theme: "bootstrap-5",
-                    allowClear: true
+                    theme: "bootstrap-5"
                 });
             }
 
             if (categoryDropdown) {
                 $(categoryDropdown).select2({
-                    theme: "bootstrap-5",
-                    allowClear: true
+                    theme: "bootstrap-5"
                 });
             }
 
             if (brandDropdown) {
                 $(brandDropdown).select2({
-                    theme: "bootstrap-5",
-                    allowClear: true
+                    theme: "bootstrap-5"
                 });
             }
 
             if (vendorDropdown) {
                 $(vendorDropdown).select2({
-                    theme: "bootstrap-5",
-                    allowClear: true
+                    theme: "bootstrap-5"
                 });
             }
 

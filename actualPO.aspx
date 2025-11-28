@@ -300,44 +300,37 @@
 
             if (ddYearFilter) {
                 $(ddYearFilter).select2({
-                    theme: "bootstrap-5",
-                    allowClear: true
+                    theme: "bootstrap-5"
                 });
             }
             if (ddMonthFilter) {
                 $(ddMonthFilter).select2({
-                    theme: "bootstrap-5",
-                    allowClear: true
+                    theme: "bootstrap-5"
                 });
             }
             if (ddCompanyFilter) {
                 $(ddCompanyFilter).select2({
-                    theme: "bootstrap-5",
-                    allowClear: true
+                    theme: "bootstrap-5"
                 });
             }
             if (ddCategoryFilter) {
                 $(ddCategoryFilter).select2({
-                    theme: "bootstrap-5",
-                    allowClear: true
+                    theme: "bootstrap-5"
                 });
             }
             if (ddSegmentFilter) {
                 $(ddSegmentFilter).select2({
-                    theme: "bootstrap-5",
-                    allowClear: true
+                    theme: "bootstrap-5"
                 });
             }
             if (ddBrandFilter) {
                 $(ddBrandFilter).select2({
-                    theme: "bootstrap-5",
-                    allowClear: true
+                    theme: "bootstrap-5"
                 });
             }
             if (ddVendorFilter) {
                 $(ddVendorFilter).select2({
-                    theme: "bootstrap-5",
-                    allowClear: true
+                    theme: "bootstrap-5"
                 });
             }
 

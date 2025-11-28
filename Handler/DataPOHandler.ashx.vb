@@ -27,7 +27,6 @@ Public Class DataPOHandler
             ' --- NEW: Get List Action ---
         ElseIf action = "getactualpolist" Then
             GetActualPOList(context)
-
         ElseIf action = "savedraftpotxn" Then
             SaveDraftPOTXN(context)
         ElseIf action = "getdraftpolist" Then
@@ -179,6 +178,7 @@ Public Class DataPOHandler
             query.Append("   po.Category_Code, ")
             query.Append("   c.Category AS Category_Name, ")
             query.Append("   po.Company_Code, ")
+            query.Append("   comp.[CompanyNameShort] As Company_Name, ")
             query.Append("   po.Segment_Code, ")
             query.Append("   s.SegmentName AS Segment_Name, ")
             query.Append("   po.Brand_Code, ")
@@ -196,6 +196,7 @@ Public Class DataPOHandler
             query.Append("   po.Status_By ")
             query.Append("FROM [BMS].[dbo].[Draft_PO_Transaction] po ")
             query.Append("LEFT JOIN [BMS].[dbo].[MS_Month] m ON po.PO_Month = m.month_code ")
+            query.Append("LEFT JOIN [BMS].[dbo].[MS_Company] comp ON po.Company_Code = comp.[CompanyCode]  ")
             query.Append("LEFT JOIN [BMS].[dbo].[MS_Category] c ON po.Category_Code = c.Cate ")
             query.Append("LEFT JOIN [BMS].[dbo].[MS_Segment] s ON po.Segment_Code = s.SegmentCode ")
             query.Append("LEFT JOIN [BMS].[dbo].[MS_Brand] b ON po.Brand_Code = b.[Brand Code] ")
@@ -323,7 +324,7 @@ Public Class DataPOHandler
             sb.AppendFormat("<td>{0}</td>", HttpUtility.HtmlEncode(GetDbString(row, "PO_Month_Name"))) ' Use Month Name
             sb.AppendFormat("<td>{0}</td>", HttpUtility.HtmlEncode(GetDbString(row, "Category_Code")))
             sb.AppendFormat("<td>{0}</td>", HttpUtility.HtmlEncode(GetDbString(row, "Category_Name")))
-            sb.AppendFormat("<td>{0}</td>", HttpUtility.HtmlEncode(GetDbString(row, "Company_Code")))
+            sb.AppendFormat("<td>{0}</td>", HttpUtility.HtmlEncode(GetDbString(row, "Company_Name")))
             sb.AppendFormat("<td>{0}</td>", HttpUtility.HtmlEncode(GetDbString(row, "Segment_Code")))
             sb.AppendFormat("<td>{0}</td>", HttpUtility.HtmlEncode(GetDbString(row, "Segment_Name")))
             sb.AppendFormat("<td>{0}</td>", HttpUtility.HtmlEncode(GetDbString(row, "Brand_Code")))
@@ -395,7 +396,7 @@ Public Class DataPOHandler
                 GetDbString(row, "PO_Month_Name"),
                 GetDbString(row, "Category_Code"),
                 GetDbString(row, "Category_Name"),
-                GetDbString(row, "Company_Code"),
+                GetDbString(row, "Company_Name"),
                 GetDbString(row, "Segment_Code"),
                 GetDbString(row, "Segment_Name"),
                 GetDbString(row, "Brand_Code"),
@@ -519,7 +520,7 @@ Public Class DataPOHandler
                     GetDbString(row, "PO_Month_Name"),
                     GetDbString(row, "Category_Code"),
                     GetDbString(row, "Category_Name"),
-                    GetDbString(row, "Company_Code"),
+                    GetDbString(row, "Company_Name"),
                     GetDbString(row, "Segment_Code"),
                     GetDbString(row, "Segment_Name"),
                     GetDbString(row, "Brand_Code"),

@@ -343,13 +343,11 @@
 
                 $('#ddlModalCCY').select2({
                     theme: "bootstrap-5",
-                    dropdownParent: $("#vendorModal"), // (สำคัญมากสำหรับ Modal)
-                    allowClear: true
+                    dropdownParent: $("#vendorModal")
                 });
                 $('#ddlModalSegment').select2({
                     theme: "bootstrap-5",
-                    dropdownParent: $("#vendorModal"),
-                    allowClear: true
+                    dropdownParent: $("#vendorModal")
                 });
 
                 // 3. (MODIFIED: เรียกใช้ฟังก์ชันและเก็บค่า Promise)
