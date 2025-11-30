@@ -1,4 +1,4 @@
 ﻿Public Class OTBSwitchJsonRequestRow
     Public Property datas As List(Of RequestOTBSwitchData)
-    Public Property TestMode As String = "X"
+    Public Property TestMode As String = ""
 End Class

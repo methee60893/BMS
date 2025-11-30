@@ -192,12 +192,12 @@ Public Class OTBValidate
 
     ''' <summary>
     ''' เงื่อนไขที่ 1: ตรวจสอบว่ามีข้อมูลซ้ำใน Draft OTB หรือไม่
-    ''' Return: "CAN_UPDATE" ถ้าซ้ำและเป็น Draft (สามารถ Update ได้)
-    ''' Return: "DUPLICATED_APPROVED" ถ้าซ้ำและ Approved แล้ว (ไม่ควร Update)
-    ''' Return: "" ถ้าไม่ซ้ำ
+    ''' Return: "CAN_UPDATE" ถ้าซ้ำและเป็น Draft เท่านั้น (Update ได้)
+    ''' Return: "DUPLICATED_APPROVED" ถ้าซ้ำและ Approved แล้ว (Block Original)
+    ''' Return: "" ถ้าซ้ำแต่ไม่ใช่ Draft (เช่น Approved/Waiting) ให้มองเป็น Insert (Revise)
     ''' </summary>
     Public Function ValidateDuplicateInDraftOTB(type As String, year As String, month As String,
-                                                 category As String, company As String, segment As String,
+                                               category As String, company As String, segment As String,
                                                  brand As String, vendor As String) As String
         Try
             If dtDraftOTB Is Nothing OrElse dtDraftOTB.Rows.Count = 0 Then
@@ -216,20 +216,36 @@ Public Class OTBValidate
             Dim rows() As DataRow = dtDraftOTB.Select(filter)
 
             If rows.Length > 0 Then
-                ' มีข้อมูลซ้ำ - เช็คว่าเป็น Draft หรือ Approved
-                ' ถ้ามีคอลัมน์ OTBStatus
                 If dtDraftOTB.Columns.Contains("OTBStatus") Then
+
+                    Dim foundDraft As Boolean = False
+
                     For Each row As DataRow In rows
-                        Dim status As String = If(row("OTBStatus") IsNot DBNull.Value, row("OTBStatus").ToString(), "")
-                        If status.Equals("Approved", StringComparison.OrdinalIgnoreCase) And type.Equals("Original", StringComparison.OrdinalIgnoreCase) Then
-                            ' มี Approved แล้วและเป็น Original - ไม่ควร Update
+                        Dim status As String = If(row("OTBStatus") IsNot DBNull.Value, row("OTBStatus").ToString().Trim(), "")
+
+                        ' 1. ถ้าเจอสถานะ Approved และเป็น Original ให้ Block
+                        If status.Equals("Approved", StringComparison.OrdinalIgnoreCase) AndAlso type.Equals("Original", StringComparison.OrdinalIgnoreCase) Then
                             Return "DUPLICATED_APPROVED"
                         End If
+
+                        ' 2. ถ้าเจอสถานะ Draft (หรือว่าง) ให้ Mark ว่ามี Draft ที่ Update ได้
+                        If String.IsNullOrEmpty(status) OrElse status.Equals("Draft", StringComparison.OrdinalIgnoreCase) Then
+                            foundDraft = True
+                        End If
                     Next
-                    ' ถ้าไม่มี Approved = ทั้งหมดเป็น Draft - สามารถ Update ได้
-                    Return "CAN_UPDATE"
+
+                    ' 3. สรุปผล:
+                    If foundDraft Then
+                        ' ถ้ามี Draft อยู่ -> ให้ Update ตัว Draft นั้น
+                        Return "CAN_UPDATE"
+                    Else
+                        ' ถ้ามีข้อมูลซ้ำ แต่ไม่มีตัวไหนเป็น Draft เลย (เช่นเป็น Approved หรือ Waiting)
+                        ' ให้ return ค่าว่าง เพื่อให้ UploadHandler มองว่าเป็น New Record (Insert)
+                        Return ""
+                    End If
+
                 Else
-                    ' ถ้าไม่มีคอลัมน์ OTBStatus = ถือว่าเป็น Draft ทั้งหมด
+                    ' ถ้าไม่มี column OTBStatus ให้สมมติว่าเป็น Draft ไว้ก่อน (ตาม Logic เดิม)
                     Return "CAN_UPDATE"
                 End If
             End If

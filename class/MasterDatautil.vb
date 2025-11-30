@@ -126,7 +126,26 @@ Public Class MasterDataUtil
     ''' ดึงชื่อ Segment (e.g., "Segment Name") จาก Code (e.g., "S01")
     ''' </summary>
     Public Function GetSegmentName(ByVal segmentCode As String) As String
-        Return FindMasterDataName(dtSegments, "SegmentCode", "SegmentName", segmentCode)
+        If String.IsNullOrEmpty(segmentCode) Then Return ""
+
+        Dim searchCode As String = segmentCode
+
+        ' ตรวจสอบเงื่อนไขเฉพาะของ SAP: 
+        ' 1. ขึ้นต้นด้วย "O" (ตัวโอ)
+        ' 2. ลงท้ายด้วย "0" (เลขศูนย์)
+        ' 3. มีความยาวมากกว่า 2 ตัวอักษร (เพื่อป้องกันการตัดจนไม่เหลือค่า หรือตัดค่าที่สั้นเกินไป)
+        If searchCode.StartsWith("O", StringComparison.OrdinalIgnoreCase) AndAlso
+           searchCode.EndsWith("0") AndAlso
+           searchCode.Length > 2 Then
+
+            ' ทำการตัดตัวอักษรแรก (O) และตัวสุดท้าย (0) ออก
+            ' ตัวอย่าง: "O2000" (Length 5) -> ตัด index 0 และ index 4 -> เหลือ index 1-3 ("200")
+            searchCode = searchCode.Substring(1, searchCode.Length - 2)
+
+        End If
+
+        ' นำรหัสที่แปลงแล้วไปค้นหาชื่อ Segment
+        Return FindMasterDataName(dtSegments, "SegmentCode", "SegmentName", searchCode)
     End Function
 
     ''' <summary>
@@ -140,7 +159,29 @@ Public Class MasterDataUtil
     ''' ดึงชื่อ Vendor (e.g., "Vendor Name") จาก Code (e.g., "V01")
     ''' </summary>
     Public Function GetVendorName(ByVal vendorCode As String) As String
-        Return FindMasterDataName(dtVendors, "VendorCode", "Vendor", vendorCode)
+        If String.IsNullOrEmpty(vendorCode) Then Return ""
+
+        Dim searchCode As String = vendorCode
+        Dim numCheck As Long
+
+        ' 1. ตรวจสอบก่อนว่าเป็น "ตัวเลขล้วน" หรือไม่? (ใช้ Long.TryParse เพื่อความปลอดภัย ไม่ให้ Error)
+        If Long.TryParse(vendorCode, numCheck) Then
+            ' --- กรณีเป็นตัวเลข (Numeric) ---
+            ' ตัดเลข '0' ด้านหน้าออก (แก้ปัญหา SAP ส่งมา 10 digit)
+            searchCode = vendorCode.TrimStart("0"c)
+
+            ' ถ้าตัดหมดแล้วเป็นค่าว่าง (เช่น code คือ "000") ให้ถือว่าเป็น "0"
+            If String.IsNullOrEmpty(searchCode) Then
+                searchCode = "0"
+            End If
+        Else
+            ' --- กรณีไม่ใช่ตัวเลข (String/Alphanumeric) เช่น "OTBDUMM" ---
+            ' ใช้ค่าเดิมได้เลย ไม่ต้องตัด 0 และไม่ต้องแปลง Type
+            searchCode = vendorCode
+        End If
+
+        ' 2. นำรหัสที่ Prepare แล้วไปค้นหา (ในรูปแบบ String)
+        Return FindMasterDataName(dtVendors, "VendorCode", "Vendor", searchCode)
     End Function
 
     ''' <summary>

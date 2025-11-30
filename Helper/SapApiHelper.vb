@@ -32,29 +32,22 @@ Public Module SapApiHelper
             Dim content As New StringContent(jsonContent, Encoding.UTF8, "application/json")
             Using response As HttpResponseMessage = Await client.PostAsync(endpointUrl, content)
 
-                ' --- [BMS Gem MODIFICATION 2 START] ---
-
-                ' (2) ตรวจสอบ 2xx (Success) หรือ 422 (Unprocessable Entity)
-                ' (422 มักจะส่ง JSON Error Body กลับมา ซึ่งเราต้องการอ่าน)
                 If response.IsSuccessStatusCode OrElse CInt(response.StatusCode) = 422 Then
                     ' คืนค่า Response Body กลับไปตามปกติ
                     Return Await response.Content.ReadAsStringAsync()
                 Else
-                    ' (3) กรณี Error อื่นๆ (เช่น 500, 404, 403) ที่เป็น HTML Error
-                    Dim errorContent As String = Await response.Content.ReadAsStringAsync()
 
+                    Dim errorContent As String = Await response.Content.ReadAsStringAsync()
                     If errorContent.Trim().StartsWith("<!DOCTYPE html", StringComparison.OrdinalIgnoreCase) Then
-                        ' นี่คือ HTML Error Page (แบบในรูป)
                         Throw New Exception($"SAP API returned an unhandled server error (StatusCode: {response.StatusCode}). Please check API logs.")
                     ElseIf String.IsNullOrWhiteSpace(errorContent) Then
-                        ' ไม่มีข้อความ Error
+
                         Throw New Exception($"SAP API Error (StatusCode: {response.StatusCode}). No error message provided.")
                     Else
-                        ' นี่คือข้อความ Error ที่เราต้องการแสดง
                         Throw New Exception($"SAP Error ({response.StatusCode}): {errorContent}")
                     End If
                 End If
-                ' --- [BMS Gem MODIFICATION 2 END] ---
+
 
             End Using
         Catch ex As Exception

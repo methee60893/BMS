@@ -54,7 +54,7 @@ Public Class SaveOTBHandler
             Dim categoryTo As Integer = context.Request.Form("categoryTo")
             Dim segmentTo As Integer = context.Request.Form("segmentTo")
             Dim brandTo As String = context.Request.Form("brandTo")
-            Dim vendorTo As Integer = context.Request.Form("vendorTo")
+            Dim vendorTo As String = context.Request.Form("vendorTo")
 
             Dim amount As Decimal = Convert.ToDecimal(context.Request.Form("amount"))
             Dim createdBy As String = If(String.IsNullOrEmpty(context.Request.Form("createdBy")), "System", context.Request.Form("createdBy"))
@@ -77,7 +77,7 @@ Public Class SaveOTBHandler
             End If
 
             Dim sapRequest As New OtbSwitchRequest()
-            sapRequest.TestMode = "X" ' (ถ้าต้องการ Test)
+            'sapRequest.TestMode = "X" ' (ถ้าต้องการ Test)
             Dim switchItem As New OtbSwitchItem With {
                 .DocYearFrom = yearFrom.ToString(),
                 .PeriodFrom = monthFrom.ToString(),
@@ -224,11 +224,11 @@ Public Class SaveOTBHandler
             ' 1. รับข้อมูลจาก Form
             Dim year As Integer = Convert.ToInt32(context.Request.Form("year"))
             Dim month As Integer = Convert.ToInt32(context.Request.Form("month"))
-            Dim company As Integer = Convert.ToInt32(context.Request.Form("company"))
-            Dim category As Integer = Convert.ToInt32(context.Request.Form("category"))
-            Dim segment As Integer = Convert.ToInt32(context.Request.Form("segment"))
+            Dim company As Integer = context.Request.Form("company")
+            Dim category As Integer = context.Request.Form("category")
+            Dim segment As Integer = context.Request.Form("segment")
             Dim brand As String = context.Request.Form("brand")
-            Dim vendor As Integer = Convert.ToInt32(context.Request.Form("vendor"))
+            Dim vendor As String = context.Request.Form("vendor")
 
             Dim amount As Decimal = Convert.ToDecimal(context.Request.Form("amount"))
             Dim createdBy As String = If(String.IsNullOrEmpty(context.Request.Form("createdBy")), "System", context.Request.Form("createdBy"))
@@ -236,7 +236,7 @@ Public Class SaveOTBHandler
             Dim remark As String = If(String.IsNullOrEmpty(context.Request.Form("remark")), "", context.Request.Form("remark"))
 
             Dim sapRequest As New OtbSwitchRequest()
-            sapRequest.TestMode = "X" ' (ถ้าต้องการ Test)
+            'sapRequest.TestMode = "X" ' (ถ้าต้องการ Test)
 
             Dim switchItem As New OtbSwitchItem With {
                 .DocYearFrom = year.ToString(),

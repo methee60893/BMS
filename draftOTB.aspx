@@ -764,7 +764,7 @@
         var sb = [];
         sb.push("<table class='table table-bordered table-striped table-sm table-hover'>");
         sb.push("<thead class='table-primary sticky-header'><tr>");
-        sb.push("<th>Type</th><th>Year</th><th>Month</th><th>Category</th><th>Category Name</th>");
+        sb.push("<th>Year</th><th>Month</th><th>Category</th><th>Category Name</th>");
         sb.push("<th>Segment</th><th>Segment Name</th><th>Brand</th><th>Brand Name</th>");
         sb.push("<th>Vendor</th><th>Vendor Name</th><th class='text-end'>Amount (THB)</th>");
         sb.push("<th class='text-danger'>SAP Status</th><th class='text-danger'>SAP Message</th>");
@@ -775,7 +775,7 @@
             let rowClass = (statusType === 'S') ? 'table-success' : 'table-danger';
             
             sb.push(`<tr class="${rowClass}">`);
-            sb.push(`<td>${row.OTBType || ''}</td>`);
+            //sb.push(`<td>${row.OTBType || ''}</td>`);
             sb.push(`<td>${row.OTBYear || ''}</td>`);
             sb.push(`<td>${row.OTBMonth || ''}</td>`); // Assuming month number is fine
             sb.push(`<td>${row.OTBCategory || ''}</td>`);

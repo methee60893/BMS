@@ -968,8 +968,7 @@ Public Class DataOTBHandler
                 If runNoToFind <> -1 AndAlso runNoToDataRowMap.ContainsKey(runNoToFind) Then
                     ' Found matching Draft data
                     Dim draftRow As DataRow = runNoToDataRowMap(runNoToFind)
-                    'resultRow.Add("RunNo", draftRow("RunNo"))
-                    'resultRow.Add("OTBType", draftRow("OTBType"))
+
                     resultRow.Add("OTBYear", draftRow("OTBYear"))
                     resultRow.Add("OTBMonth", draftRow("OTBMonth"))
                     resultRow.Add("OTBCategory", draftRow("OTBCategory"))
@@ -985,8 +984,6 @@ Public Class DataOTBHandler
                     resultRow.Add("Remark", draftRow("Remark"))
                 Else
                     ' Data mismatch - should not happen, but good to handle
-                    'resultRow.Add("RunNo", "N/A")
-                    'resultRow.Add("OTBType", "N/A")
                     resultRow.Add("OTBYear", sapResult.Year)
                     resultRow.Add("OTBMonth", sapResult.Month)
                     resultRow.Add("OTBCategory", sapResult.Category)
