@@ -694,6 +694,8 @@
             $('#ddSegmentFilter').val(null).trigger('change');
             $('#ddBrandFilter').val(null).trigger('change');
             $('#ddVendorFilter').val(null).trigger('change');
+
+            draftPOTableBody.innerHTML = '<tr><td colspan="24" class="text-center text-muted p-4">Please use the filters and click "View" to see data.</td></tr>';
         }
 
         async function handleViewData() {
@@ -904,6 +906,29 @@
             }
         }
 
+        let chengeCCYedit = function () {
+            var vendorCode = $('#ddVendorEdit').val();
+            if (!vendorCode) {
+                InitVendor(ddVendorEdit, false);
+                return;
+            }
+            var formData = new FormData();
+            formData.append('vendorCode', vendorCode);
+            $.ajax({
+                url: 'Handler/MasterDataHandler.ashx?action=CCYMSListChg',
+                type: 'POST',
+                data: formData,
+                processData: false,
+                contentType: false,
+                success: function (response) {
+                    document.getElementById('ddCCYEdit').innerHTML = response;
+                },
+                error: function (xhr, status, error) {
+                    console.log('Error getlist data: ' + error);
+                }
+            });
+        }
+
         function populateEditModal(data) {
 
             hdnDraftPOID.value = data.DraftPO_ID;
@@ -916,7 +941,7 @@
             $('#ddBrandEdit').val(data.Brand_Code).trigger('change');
             $('#ddVendorEdit').val(data.Vendor_Code).trigger('change');
             $('#ddCCYEdit').val(data.CCY).trigger('change');
-
+            $('#ddVendorEdit').on('select2:select', chengeCCYedit);
             txtPONOEdit.value = data.DraftPO_No;
             txtAmtCCYEdit.value = parseFloat(data.Amount_CCY || 0).toFixed(2);
             txtExRateEdit.value = parseFloat(data.Exchange_Rate || 0).toFixed(4);

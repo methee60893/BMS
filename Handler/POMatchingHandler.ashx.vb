@@ -99,7 +99,6 @@ Public Class POMatchingHandler
                 ' ---------------------------------------------------------
                 ValidatePoMatching(draftData, actualData)
 
-
                 ' ---------------------------------------------------------
                 ' 5. Perform Match (Update DB) - Only if validation passed
                 ' ---------------------------------------------------------
@@ -141,7 +140,7 @@ Public Class POMatchingHandler
             context.Response.Write(JsonConvert.SerializeObject(New With {.success = True, .message = "Matched successfully!", .data = responseData}))
 
         Catch ex As Exception
-            context.Response.StatusCode = 500
+            context.Response.StatusCode = 200
             context.Response.Write(JsonConvert.SerializeObject(New With {.success = False, .message = ex.Message}))
         End Try
     End Sub
@@ -228,7 +227,8 @@ Public Class POMatchingHandler
 
             Dim combinedPoList As New List(Of SapPOResultItem)()
 
-            Dim filterDate As Date = Date.Today
+            'Dim filterDate As Date = Date.Today.AddDays(-1)
+            Dim filterDate As Date = New Date(2025, 11, 28)
 
             Dim poList As List(Of SapPOResultItem) = Task.Run(Async Function()
                                                                   Return Await SapApiHelper.GetPOsAsync(filterDate)
@@ -256,30 +256,30 @@ Public Class POMatchingHandler
 
                 ' 4.2 [NEW LOGIC] อัปเดตสถานะเป็น 'Matching' (เฉพาะที่ยังไม่ Matched)
                 ' อัปเดตตาราง Draft_PO_Transaction
-                Dim sqlUpdateDraft As String = "
-                    UPDATE D
-                    SET D.Status = 'Matching', D.Status_Date = GETDATE(), D.Status_By = @updateBy
-                    FROM [BMS].[dbo].[Draft_PO_Transaction] D
-                    WHERE D.Actual_PO_Ref IS NOT NULL 
-                      AND ISNULL(D.Status, '') NOT IN ('Matched', 'Cancelled')
-                "
-                Using cmd As New SqlCommand(sqlUpdateDraft, conn)
-                    cmd.Parameters.AddWithValue("@updateBy", updateBy)
-                    cmd.ExecuteNonQuery()
-                End Using
+                'Dim sqlUpdateDraft As String = "
+                '    UPDATE D
+                '    SET D.Status = 'Matching', D.Status_Date = GETDATE(), D.Status_By = @updateBy
+                '    FROM [BMS].[dbo].[Draft_PO_Transaction] D
+                '    WHERE D.Actual_PO_Ref IS NOT NULL 
+                '      AND ISNULL(D.Status, '') NOT IN ('Matched', 'Cancelled')
+                '"
+                'Using cmd As New SqlCommand(sqlUpdateDraft, conn)
+                '    cmd.Parameters.AddWithValue("@updateBy", updateBy)
+                '    cmd.ExecuteNonQuery()
+                'End Using
 
                 ' อัปเดตตาราง Actual_PO_Summary
-                Dim sqlUpdateActual As String = "
-                    UPDATE A
-                    SET A.Status = 'Matching', A.Matching_Date = GETDATE(), A.Changed_By = @updateBy
-                    FROM [BMS].[dbo].[Actual_PO_Summary] A
-                    WHERE A.Draft_PO_Ref IS NOT NULL
-                      AND ISNULL(A.Status, '') NOT IN ('Matched', 'Cancelled')
-                "
-                Using cmd As New SqlCommand(sqlUpdateActual, conn)
-                    cmd.Parameters.AddWithValue("@updateBy", updateBy)
-                    cmd.ExecuteNonQuery()
-                End Using
+                'Dim sqlUpdateActual As String = "
+                '    UPDATE A
+                '    SET A.Status = 'Matching', A.Matching_Date = GETDATE(), A.Changed_By = @updateBy
+                '    FROM [BMS].[dbo].[Actual_PO_Summary] A
+                '    WHERE A.Draft_PO_Ref IS NOT NULL
+                '      AND ISNULL(A.Status, '') NOT IN ('Matched', 'Cancelled')
+                '"
+                'Using cmd As New SqlCommand(sqlUpdateActual, conn)
+                '    cmd.Parameters.AddWithValue("@updateBy", updateBy)
+                '    cmd.ExecuteNonQuery()
+                'End Using
             End Using
 
             ' 5. [จุดสำคัญ] ดึงข้อมูลผลลัพธ์จากตาราง Actual_PO_Summary โดยตรง
@@ -474,8 +474,53 @@ Public Class POMatchingHandler
     ' (เปลี่ยน) แยก GetPO ออกมาเป็น Sub
     Private Sub GetPOData(context As HttpContext)
         Try
+            Dim updateBy As String = "System AutoMatchh"
+
+            ' (TODO: ควรดึง User จริงจาก Session)
+            If context.Session IsNot Nothing AndAlso context.Session("user") IsNot Nothing Then
+                updateBy = context.Session("user").ToString()
+            End If
+
 
             Dim upsertStats As String = ""
+
+            Using conn As New SqlConnection(connectionString)
+                conn.Open()
+
+                ' 4.1 เรียก SP Auto Match (เพื่อจับคู่ Reference)
+                Using cmdMatch As New SqlCommand("SP_Auto_Match_Actual_Draft", conn)
+                    cmdMatch.CommandType = CommandType.StoredProcedure
+                    cmdMatch.Parameters.AddWithValue("@UpdateBy", updateBy)
+                    cmdMatch.ExecuteNonQuery()
+                End Using
+
+                ' 4.2 [NEW LOGIC] อัปเดตสถานะเป็น 'Matching' (เฉพาะที่ยังไม่ Matched)
+                ' อัปเดตตาราง Draft_PO_Transaction
+                Dim sqlUpdateDraft As String = "
+                    UPDATE D
+                    SET D.Status = 'Matching', D.Status_Date = GETDATE(), D.Status_By = @updateBy
+                    FROM [BMS].[dbo].[Draft_PO_Transaction] D
+                    WHERE D.Actual_PO_Ref IS NOT NULL 
+                      AND ISNULL(D.Status, '') NOT IN ('Matched', 'Cancelled')
+                "
+                Using cmd As New SqlCommand(sqlUpdateDraft, conn)
+                    cmd.Parameters.AddWithValue("@updateBy", updateBy)
+                    cmd.ExecuteNonQuery()
+                End Using
+
+                ' อัปเดตตาราง Actual_PO_Summary
+                Dim sqlUpdateActual As String = "
+                    UPDATE A
+                    SET A.Status = 'Matching', A.Matching_Date = GETDATE(), A.Changed_By = @updateBy
+                    FROM [BMS].[dbo].[Actual_PO_Summary] A
+                    WHERE A.Draft_PO_Ref IS NOT NULL
+                      AND ISNULL(A.Status, '') NOT IN ('Matched', 'Cancelled')
+                "
+                Using cmd As New SqlCommand(sqlUpdateActual, conn)
+                    cmd.Parameters.AddWithValue("@updateBy", updateBy)
+                    cmd.ExecuteNonQuery()
+                End Using
+            End Using
 
             ' 5. [จุดสำคัญ] ดึงข้อมูลผลลัพธ์จากตาราง Actual_PO_Summary โดยตรง
             Dim results As List(Of MatchedPOItem) = GetMatchedDataFromDB()
@@ -520,8 +565,11 @@ Public Class POMatchingHandler
             FROM [dbo].[Actual_PO_Summary] A
             LEFT JOIN [dbo].[Draft_PO_Transaction] D ON A.Draft_PO_Ref = D.DraftPO_No
             WHERE (ISNULL(A.Status, '') NOT IN ('Cancelled','Matched')) AND (ISNULL(D.Status, '') NOT IN ('Matched','Cancelled'))
-              AND (ISNULL(A.Segment_Code, '') <> '' AND A.Segment_Code <> '000')
-              AND (ISNULL(A.Brand_Code, '') <> '' AND A.Brand_Code <> '000')
+              AND A.Company_Code IN ('1000','2000','3000')
+              AND LEN(TRIM(A.Segment_Code)) > 0
+			  AND LEN(TRIM(A.Brand_Code)) > 0
+			  AND ( ISNULL(A.Segment_Code, '') NOT IN ('000')  OR (ISNULL(A.Brand_Code, '') NOT IN ('','000')))
+              AND (CAST(A.OTB_Year AS INT) * 100 + CAST(A.OTB_Month AS INT)) >= 202512
             ORDER BY A.Actual_PO_Date DESC
         "
 
@@ -618,13 +666,13 @@ Public Class POMatchingHandler
 
         'ตรงส่วนนี้ ให้ เพิ่มเงื่อนไข การตรวจสอบ เอา เฉพาะข้อมูล ที่ OTBYear ตั้งแต่ 2025 OTBMonth ตั้งแต่ เดือน 12 เป็นต้นไป และ ไม่เอาข้อมูลที่ไม่มี ค่า Fund และ ไม่มีค่า Brand
         ' กรอง poList ตามเงื่อนไขที่กำหนด
-        poList = poList.Where(Function(po)
-                                  Dim yearValid As Boolean = Integer.TryParse(po.OtbYear, Nothing) AndAlso Integer.Parse(po.OtbYear) >= 2025
-                                  Dim monthValid As Boolean = Integer.TryParse(po.OtbMonth, Nothing) AndAlso Integer.Parse(po.OtbMonth) >= 12
-                                  Dim fundValid As Boolean = Not String.IsNullOrEmpty(po.Fund)
-                                  Dim brandValid As Boolean = Not String.IsNullOrEmpty(po.Brand)
-                                  Return yearValid AndAlso monthValid AndAlso fundValid AndAlso brandValid
-                              End Function).ToList()
+        'poList = poList.Where(Function(po)
+        '                          Dim yearValid As Boolean = Integer.TryParse(po.OtbYear, Nothing) AndAlso Integer.Parse(po.OtbYear) >= 2025
+        '                          Dim monthValid As Boolean = Integer.TryParse(po.OtbMonth, Nothing) AndAlso Integer.Parse(po.OtbMonth) >= 12
+        '                          Dim fundValid As Boolean = Not String.IsNullOrEmpty(po.Fund)
+        '                          Dim brandValid As Boolean = Not String.IsNullOrEmpty(po.Brand)
+        '                          Return yearValid AndAlso monthValid AndAlso fundValid AndAlso brandValid
+        '                      End Function).ToList()
 
         ' 2. วนลูป List จาก SAP มาใส่ DataTable
         For Each po In poList
@@ -665,7 +713,7 @@ Public Class POMatchingHandler
                 Try
                     ' 3.1 Bulk copy to Temp Table
                     ' (แก้ไข) ใช้ SELECT INTO ... WHERE 1=0 แทน LIKE
-                    Using cmdCreateTemp As New SqlCommand("SELECT * INTO #TempSAPPOs FROM [BMS].[dbo].[Actual_PO_Staging] WHERE 1 = 0 AND [Deletion_Flag] <> 'L'", conn, transaction)
+                    Using cmdCreateTemp As New SqlCommand("SELECT * INTO #TempSAPPOs FROM [BMS].[dbo].[Actual_PO_Staging] WHERE 1 = 1", conn, transaction)
                         cmdCreateTemp.ExecuteNonQuery()
                     End Using
 
@@ -678,8 +726,17 @@ Public Class POMatchingHandler
                     ' (Key ทั้ง 9 ตัวตามที่คุณระบุ)
                     Dim mergeQuery As String = "
                         MERGE INTO [BMS].[dbo].[Actual_PO_Staging] AS T
-                        USING #TempSAPPOs AS S
-                        ON (
+                        USING (
+                            SELECT * FROM (
+                                SELECT *, 
+                                    ROW_NUMBER() OVER (
+                                        PARTITION BY PO, PO_Item, Otb_Year, Otb_Month, Company_Code, Supplier, Fund, Category, Brand
+                                        ORDER BY Modified_Date DESC, BMS_Last_Synced DESC
+                                    ) AS Rn
+                                FROM #TempSAPPOs
+                            ) AS Src WHERE Src.Rn = 1
+                        ) AS S
+                         ON (
                             T.PO = S.PO AND
                             T.PO_Item = S.PO_Item AND
                             T.Otb_Year = S.Otb_Year AND
@@ -689,7 +746,7 @@ Public Class POMatchingHandler
                             T.Fund = S.Fund AND
                             T.Category = S.Category AND
                             T.Brand = S.Brand
-                        )
+                         )
                         WHEN MATCHED THEN
                             UPDATE SET 
                                 T.Otb_Date = S.Otb_Date,
@@ -716,7 +773,7 @@ Public Class POMatchingHandler
                                 [PO_Amount], [PO_Currency], [PO_Local_Amount], [PO_Local_Currency], [Exchange_Rate],
                                 [Deletion_Flag], [Delivery_Completed_Flag], [Final_Invoice_Flag],
                                 [Create_On], [Change_On], [Modified_Date], [BMS_Last_Synced]
-                            )
+                             )
                             VALUES (
                                 S.[PO], S.[PO_Item], S.[Otb_Year], S.[Otb_Month], S.[Company_Code], S.[Supplier], S.[Fund], S.[Category], S.[Brand],
                                 S.[Otb_Date], S.[Supplier_Name], S.[Fund_Name], S.[Brand_Name], S.[Category_Name],
@@ -724,7 +781,7 @@ Public Class POMatchingHandler
                                 S.[Deletion_Flag], S.[Delivery_Completed_Flag], S.[Final_Invoice_Flag],
                                 S.[Create_On], S.[Change_On], S.[Modified_Date], S.[BMS_Last_Synced]
                             )
-                        OUTPUT $action, inserted.PO; -- (OUTPUT เพื่อนับจำนวน)
+                        OUTPUT $action, inserted.PO;
                     "
 
                     Dim insertedCount As Integer = 0

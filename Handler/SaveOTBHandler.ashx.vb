@@ -77,7 +77,7 @@ Public Class SaveOTBHandler
             End If
 
             Dim sapRequest As New OtbSwitchRequest()
-            sapRequest.TestMode = "" ' (ถ้าต้องการ Test)
+            sapRequest.TestMode = "X" ' (ถ้าต้องการ Test)
             Dim switchItem As New OtbSwitchItem With {
                 .DocYearFrom = yearFrom.ToString(),
                 .PeriodFrom = monthFrom.ToString(),
@@ -236,7 +236,7 @@ Public Class SaveOTBHandler
             Dim remark As String = If(String.IsNullOrEmpty(context.Request.Form("remark")), "", context.Request.Form("remark"))
 
             Dim sapRequest As New OtbSwitchRequest()
-            ' sapRequest.TestMode = "X" ' (ถ้าต้องการ Test)
+            sapRequest.TestMode = "X" ' (ถ้าต้องการ Test)
 
             Dim switchItem As New OtbSwitchItem With {
                 .DocYearFrom = year.ToString(),

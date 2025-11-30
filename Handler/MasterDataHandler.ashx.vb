@@ -516,7 +516,7 @@ Public Class MasterDataHandler
                 End Using
             End Using
         End Using
-        Return GenerateHtmlCCYDropdown(dt)
+        Return GenerateHtmlCCYVendorDropdown(dt)
     End Function
 
     Private Function GetMSCCYListFromMainMaster() As String
@@ -677,6 +677,24 @@ Public Class MasterDataHandler
             sb.Append("<option value=''>-- กรุณาเลือก Vendor ก่อน --</option>")
         Else
             sb.Append("<option value=''>-- กรุณาเลือก CCY --</option>")
+            For i As Integer = 0 To dt.Rows.Count - 1
+                Dim CCY As String = If(dt.Rows(i)("CCY") IsNot DBNull.Value, dt.Rows(i)("CCY").ToString(), "")
+
+                sb.AppendFormat("<option value='{0}'>{1}</option>",
+                           HttpUtility.HtmlEncode(CCY),
+                           HttpUtility.HtmlEncode(CCY))
+            Next
+        End If
+
+        Return sb.ToString()
+    End Function
+
+    Private Function GenerateHtmlCCYVendorDropdown(dt As DataTable) As String
+
+        Dim sb As New StringBuilder()
+        If dt.Rows.Count.Equals(0) Then
+            sb.Append("<option value=''>-- กรุณาเลือก Vendor ก่อน --</option>")
+        Else
             For i As Integer = 0 To dt.Rows.Count - 1
                 Dim CCY As String = If(dt.Rows(i)("CCY") IsNot DBNull.Value, dt.Rows(i)("CCY").ToString(), "")
 
