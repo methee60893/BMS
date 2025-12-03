@@ -25,7 +25,9 @@ Public Class POMatchingHandler
         If action = "sync_and_get" Then
             ' 1. ปุ่ม Sync SAP: ทำการ Sync ก่อน แล้วค่อยดึงข้อมูล
             SyncAndGetPOData(context)
-
+        ElseIf action = "sync_only" Then
+            ' 1.5 ปุ่ม Sync SAP (ใหม่): ทำการ Get July POs and Get DataDB Only
+            SyncAndGetPODataJuly(context)
         ElseIf action = "get_only" Then
             ' 2. ปุ่ม View (ใหม่): ดึงข้อมูลอย่างเดียว ไม่ Sync
             GetPOData(context)
@@ -227,8 +229,8 @@ Public Class POMatchingHandler
 
             Dim combinedPoList As New List(Of SapPOResultItem)()
 
-            'Dim filterDate As Date = Date.Today.AddDays(-1)
-            Dim filterDate As Date = New Date(2025, 11, 28)
+            Dim filterDate As Date = Date.Today
+            'Dim filterDate As Date = New Date(2025, 11, 28)
 
             Dim poList As List(Of SapPOResultItem) = Task.Run(Async Function()
                                                                   Return Await SapApiHelper.GetPOsAsync(filterDate)
@@ -253,34 +255,56 @@ Public Class POMatchingHandler
                     cmdMatch.Parameters.AddWithValue("@UpdateBy", updateBy)
                     cmdMatch.ExecuteNonQuery()
                 End Using
-
-                ' 4.2 [NEW LOGIC] อัปเดตสถานะเป็น 'Matching' (เฉพาะที่ยังไม่ Matched)
-                ' อัปเดตตาราง Draft_PO_Transaction
-                'Dim sqlUpdateDraft As String = "
-                '    UPDATE D
-                '    SET D.Status = 'Matching', D.Status_Date = GETDATE(), D.Status_By = @updateBy
-                '    FROM [BMS].[dbo].[Draft_PO_Transaction] D
-                '    WHERE D.Actual_PO_Ref IS NOT NULL 
-                '      AND ISNULL(D.Status, '') NOT IN ('Matched', 'Cancelled')
-                '"
-                'Using cmd As New SqlCommand(sqlUpdateDraft, conn)
-                '    cmd.Parameters.AddWithValue("@updateBy", updateBy)
-                '    cmd.ExecuteNonQuery()
-                'End Using
-
-                ' อัปเดตตาราง Actual_PO_Summary
-                'Dim sqlUpdateActual As String = "
-                '    UPDATE A
-                '    SET A.Status = 'Matching', A.Matching_Date = GETDATE(), A.Changed_By = @updateBy
-                '    FROM [BMS].[dbo].[Actual_PO_Summary] A
-                '    WHERE A.Draft_PO_Ref IS NOT NULL
-                '      AND ISNULL(A.Status, '') NOT IN ('Matched', 'Cancelled')
-                '"
-                'Using cmd As New SqlCommand(sqlUpdateActual, conn)
-                '    cmd.Parameters.AddWithValue("@updateBy", updateBy)
-                '    cmd.ExecuteNonQuery()
-                'End Using
             End Using
+
+            ' 5. [จุดสำคัญ] ดึงข้อมูลผลลัพธ์จากตาราง Actual_PO_Summary โดยตรง
+            Dim results As List(Of MatchedPOItem) = GetMatchedDataFromDB()
+
+            ' 6. ส่ง JSON กลับไปที่หน้าจอ
+            context.Response.ContentType = "application/json"
+            Dim successResponse = New With {
+                .success = True,
+                .count = results.Count,
+                .data = results,
+                .syncStats = upsertStats
+            }
+            context.Response.Write(JsonConvert.SerializeObject(successResponse))
+
+        Catch ex As Exception
+            context.Response.ContentType = "application/json"
+            context.Response.StatusCode = 500
+            Dim errorResponse As New With {
+                .success = False,
+                .message = ex.Message & If(ex.InnerException IsNot Nothing, " | Inner: " & ex.InnerException.Message, "")
+            }
+            context.Response.Write(JsonConvert.SerializeObject(errorResponse))
+        End Try
+    End Sub
+
+    Private Sub SyncAndGetPODataJuly(context As HttpContext)
+        Try
+            Dim updateBy As String = "System AutoMatchh"
+
+            ' (TODO: ควรดึง User จริงจาก Session)
+            If context.Session IsNot Nothing AndAlso context.Session("user") IsNot Nothing Then
+                updateBy = context.Session("user").ToString()
+            End If
+
+            Dim combinedPoList As New List(Of SapPOResultItem)()
+
+            Dim poList As List(Of SapPOResultItem) = Task.Run(Async Function()
+                                                                  Return Await SapApiHelper.GetPOJulysAsync()
+                                                              End Function).Result
+            If poList IsNot Nothing Then
+                combinedPoList.AddRange(poList)
+            End If
+
+            If combinedPoList.Count = 0 AndAlso poList Is Nothing Then
+                Throw New Exception("Failed to get any PO data from SAP (All requests returned Nothing).")
+            End If
+
+
+            Dim upsertStats As String = SyncPOsToStaging(combinedPoList)
 
             ' 5. [จุดสำคัญ] ดึงข้อมูลผลลัพธ์จากตาราง Actual_PO_Summary โดยตรง
             Dim results As List(Of MatchedPOItem) = GetMatchedDataFromDB()
@@ -552,25 +576,26 @@ Public Class POMatchingHandler
 
 
         Dim query As String = "
-          SELECT 
-                A.ActualPO_ID, A.OTB_Year, A.OTB_Month, A.Company_Code, A.Category_Code, 
-                CASE WHEN LEN(A.Segment_Code) > 2 THEN SUBSTRING(A.Segment_Code, 2, LEN(A.Segment_Code) - 2) ELSE A.Segment_Code END AS Segment_Code,
-                A.Brand_Code, A.Vendor_Code, A.PO_No AS ActualPONo, A.Actual_PO_Date,
-                ISNULL(A.Amount_THB, 0) AS ActualAmountTHB, ISNULL(A.Amount_CCY, 0) AS ActualAmountCCY,
-                A.CCY AS ActualCCY, ISNULL(A.Exchange_Rate, 0) AS ActualExRate,
-                A.Status AS ActualStatus, -- สถานะของ Actual PO
-                D.DraftPO_No, D.Created_Date AS DraftPODate,
-                ISNULL(D.Amount_THB, 0) AS DraftAmountTHB, ISNULL(D.Amount_CCY, 0) AS DraftAmountCCY,
-                D.Status AS DraftStatus -- สถานะของ Draft PO
-            FROM [dbo].[Actual_PO_Summary] A
-            LEFT JOIN [dbo].[Draft_PO_Transaction] D ON A.Draft_PO_Ref = D.DraftPO_No
-            WHERE (ISNULL(A.Status, '') NOT IN ('Cancelled','Matched')) AND (ISNULL(D.Status, '') NOT IN ('Matched','Cancelled'))
-              AND A.Company_Code IN ('1000','2000','3000')
-              AND LEN(TRIM(A.Segment_Code)) > 0
-			  AND LEN(TRIM(A.Brand_Code)) > 0
-			  AND ( ISNULL(A.Segment_Code, '') NOT IN ('000')  OR (ISNULL(A.Brand_Code, '') NOT IN ('','000')))
-              AND (CAST(A.OTB_Year AS INT) * 100 + CAST(A.OTB_Month AS INT)) >= 202512
-            ORDER BY A.Actual_PO_Date DESC
+              SELECT 
+                  A.ActualPO_ID, A.OTB_Year, A.OTB_Month, A.Company_Code, A.Category_Code, 
+                  CASE WHEN LEN(A.Segment_Code) > 2 THEN SUBSTRING(A.Segment_Code, 2, LEN(A.Segment_Code) - 2) ELSE A.Segment_Code END AS Segment_Code,
+                  A.Brand_Code, A.Vendor_Code, A.PO_No AS ActualPONo, A.Actual_PO_Date,
+                  ISNULL(A.Amount_THB, 0) AS ActualAmountTHB, ISNULL(A.Amount_CCY, 0) AS ActualAmountCCY,
+                  A.CCY AS ActualCCY, ISNULL(A.Exchange_Rate, 0) AS ActualExRate,
+                  A.Status AS ActualStatus, -- สถานะของ Actual PO
+                  D.DraftPO_No, D.Created_Date AS DraftPODate,
+                  ISNULL(D.Amount_THB, 0) AS DraftAmountTHB, ISNULL(D.Amount_CCY, 0) AS DraftAmountCCY,
+                  D.Status AS DraftStatus -- สถานะของ Draft PO
+              FROM [dbo].[Actual_PO_Summary] A
+              LEFT JOIN [dbo].[Draft_PO_Transaction] D ON A.Draft_PO_Ref = D.DraftPO_No
+              WHERE (ISNULL(A.Status, '') NOT IN ('Cancelled','Matched')) AND (ISNULL(D.Status, '') NOT IN ('Matched','Cancelled'))
+                AND a.Category_Code <> 'ZPA'
+                AND A.Company_Code IN ('1000','2000','3000')
+                AND LEN(A.Segment_Code) > 0
+		              AND LEN(A.Brand_Code) > 0
+		              AND ( ISNULL(A.Segment_Code, '') NOT IN ('000')  OR (ISNULL(A.Brand_Code, '') NOT IN ('','000')))
+                AND (CAST(A.OTB_Year AS INT) * 100 + CAST(A.OTB_Month AS INT)) >= 202512
+              ORDER BY A.Actual_PO_Date DESC
         "
 
         Using conn As New SqlConnection(connectionString)

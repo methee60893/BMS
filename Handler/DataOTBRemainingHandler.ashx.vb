@@ -65,7 +65,7 @@ Public Class DataOTBRemainingHandler
             context.Response.Write(jsonResult)
 
         Catch ex As Exception
-            context.Response.StatusCode = 500
+            context.Response.StatusCode = 200
             ' ส่ง Error กลับไปเป็น JSON
             Dim errorResponse As New With {
                 .success = False,

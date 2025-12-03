@@ -122,4 +122,33 @@ Public Module SapApiHelper
         End If
     End Function
 
+    ' --- (เพิ่มเข้ามาใหม่) ---
+    ''' <summary>
+    ''' [Get PO] - ดึงข้อมูล PO ตามเงื่อนไข OData
+    ''' </summary>
+    ''' <returns>JSON String ของผลลัพธ์ (OData)</returns>
+    Public Async Function GetPOJulysAsync() As Task(Of List(Of SapPOResultItem))
+        Dim startDate As Date = New Date(2025, 7, 8)
+        Dim filterDate As String = startDate.ToString("yyyy-MM-ddTHH:mm:ss")
+
+        Dim endpoint As String = $"/sap/opu/odata/SAP/ZBBIK_API_2_SRV/PoSet?$filter=ModifiedDate ge datetime'{filterDate}'"
+
+        ' 1. ยิง API (ได้เป็น String)
+        Dim jsonResponse As String = Await GetAsync(endpoint)
+
+        If String.IsNullOrEmpty(jsonResponse) Then
+            Return New List(Of SapPOResultItem)() ' คืนค่า List ว่าง
+        End If
+
+        ' 2. แปลง String JSON (จากไฟล์ txt ) ให้เป็น Object
+        Dim odataResponse = JsonConvert.DeserializeObject(Of ODataResponse(Of SapPOResultItem))(jsonResponse)
+
+        ' 3. ส่งเฉพาะ List ผลลัพธ์กลับไป
+        If odataResponse IsNot Nothing AndAlso odataResponse.Data IsNot Nothing Then
+            Return odataResponse.Data.Results
+        Else
+            Return New List(Of SapPOResultItem)() ' คืนค่า List ว่าง
+        End If
+    End Function
+
 End Module

@@ -109,7 +109,7 @@ Public Class MasterDataHandler
             End If
 
         Catch ex As Exception
-            context.Response.StatusCode = 500
+            context.Response.StatusCode = 200
             context.Response.Write($"<div class='alert alert-danger'>Error: {HttpUtility.HtmlEncode(ex.Message)}</div>")
         End Try
     End Sub
@@ -785,8 +785,10 @@ Public Class MasterDataHandler
             Dim editMode As String = context.Request.Form("editMode")
             Dim code As String = context.Request.Form("code")
             ' *** FIX: รับ OriginalCode สำหรับ Edit Mode ***
-            Dim vendorId As Int64 = context.Request.Form("vendorId")
-
+            Dim vendorId As Int64
+            If editMode = "edit" Then
+                vendorId = If(String.IsNullOrEmpty(context.Request.Form("vendorId")), 0, context.Request.Form("vendorId"))
+            End If
             Dim name As String = context.Request.Form("name")
             Dim ccy As String = context.Request.Form("ccy")
             Dim paymentTermCode As String = context.Request.Form("paymentTermCode")

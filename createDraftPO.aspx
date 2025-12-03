@@ -1108,9 +1108,9 @@
             document.getElementById("tsBrand").value = getSelectedText(brandDropdown);
             document.getElementById("tsVendor").value = getSelectedText(vendorDropdown);
             document.getElementById("tsPONO").value = txtPONO.value;
-            document.getElementById("tsAmtCCY").value = parseFloat(txtAmtCCY.value || 0).toFixed(2);
+            document.getElementById("tsAmtCCY").value = txtAmtCCY.value;
             document.getElementById("tsCCY").value = getSelectedText(ccyDropdown);
-            document.getElementById("tsExRate").value = parseFloat(txtExRate.value || 0).toFixed(4);
+            document.getElementById("tsExRate").value = txtExRate.value;
             document.getElementById("tsAmtTHB").value = txtAmtTHB.value;
             document.getElementById("tsRemark").value = txtRemark.value;
         }

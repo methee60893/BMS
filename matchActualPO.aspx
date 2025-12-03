@@ -151,7 +151,9 @@
                 <button type="button" id="btnViewNoSync" class="btn-submit me-3" style="background-color: #17a2b8;">
                     <i class="bi bi-table"></i> View Data
                 </button>
-
+                <button type="button" id="btnSyncSAPOnly" class="btn-danger me-3" style="display:none;">
+                    <i class="bi bi-arrow-clockwise"></i> Sync SAP Only
+                </button>
                 <button type="button" id="btnSyncSAP" class="btn-submit me-3" style="background-color: var(--primary-blue);">
                     <i class="bi bi-arrow-repeat"></i> Sync SAP & View
                 </button>
@@ -249,6 +251,7 @@
     <script>
         // (MODIFIED: Cache all buttons)
         let btnSyncSAP = document.getElementById("btnSyncSAP");
+        let btnSyncSAPOnly = document.getElementById("btnSyncSAPOnly");
         let btnSubmit = document.getElementById("btnSubmit");
         let btnViewNoSync = document.getElementById("btnViewNoSync");
         let tableBody = document.getElementById("matchTableBody");
@@ -648,6 +651,8 @@
             manualMatchModal = new bootstrap.Modal(document.getElementById('manualMatchModal'));
 
             btnSyncSAP.addEventListener('click', function () { loadMatchData('sync_and_get'); });
+
+            btnSyncSAPOnly.addEventListener('click', function () { loadMatchData('sync_only'); });
 
             // (MODIFIED: Add click listener for submit)
             btnViewNoSync.addEventListener('click', function () { loadMatchData('get_only'); });

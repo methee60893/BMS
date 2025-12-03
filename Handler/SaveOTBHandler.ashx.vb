@@ -25,7 +25,7 @@ Public Class SaveOTBHandler
             End If
         Catch ex As Exception
             ' ส่ง Error กลับเป็น JSON มาตรฐาน
-            context.Response.StatusCode = 500 ' Internal Server Error
+            context.Response.StatusCode = 200 ' Internal Server Error
             Dim errorResponse As New With {
                 .success = False,
                 .message = "Server error: " & ex.Message

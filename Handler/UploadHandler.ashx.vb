@@ -65,7 +65,7 @@ Public Class UploadHandler : Implements IHttpHandler
             End If
 
         Catch ex As Exception
-            context.Response.StatusCode = 500
+            context.Response.StatusCode = 200
             context.Response.Write($"<div class='alert alert-danger'>Error: {HttpUtility.HtmlEncode(ex.Message)}</div>")
         Finally
             If File.Exists(tempPath) Then File.Delete(tempPath)
