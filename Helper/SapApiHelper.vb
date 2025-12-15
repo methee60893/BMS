@@ -128,7 +128,7 @@ Public Module SapApiHelper
     ''' </summary>
     ''' <returns>JSON String ของผลลัพธ์ (OData)</returns>
     Public Async Function GetPOJulysAsync() As Task(Of List(Of SapPOResultItem))
-        Dim startDate As Date = New Date(2025, 7, 8)
+        Dim startDate As Date = New Date(2025, 12, 9)
         Dim filterDate As String = startDate.ToString("yyyy-MM-ddTHH:mm:ss")
 
         Dim endpoint As String = $"/sap/opu/odata/SAP/ZBBIK_API_2_SRV/PoSet?$filter=ModifiedDate ge datetime'{filterDate}'"

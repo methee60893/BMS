@@ -611,6 +611,7 @@ Public Class DataPOHandler
 
             ' ดึงข้อมูลจาก Form
             Dim draftPOID As Integer = Integer.Parse(context.Request.Form("draftPOID"))
+            Dim draftPOno As String = context.Request.Form("pono")
             Dim year As String = context.Request.Form("year")
             Dim month As String = context.Request.Form("month")
             Dim company As String = context.Request.Form("company")
@@ -627,7 +628,8 @@ Public Class DataPOHandler
             Using conn As New SqlConnection(connectionString)
                 conn.Open()
                 Dim query As String = "UPDATE [BMS].[dbo].[Draft_PO_Transaction] 
-                                       SET [PO_Year] = @year, 
+                                       SET [DraftPO_No] = @draftPono,
+                                           [PO_Year] = @year, 
                                            [PO_Month] = @month, 
                                            [Company_Code] = @company, 
                                            [Category_Code] = @category, 
@@ -645,6 +647,7 @@ Public Class DataPOHandler
                                        WHERE [DraftPO_ID] = @draftPOID"
 
                 Using cmd As New SqlCommand(query, conn)
+                    cmd.Parameters.AddWithValue("@draftPono", draftPOno)
                     cmd.Parameters.AddWithValue("@draftPOID", draftPOID)
                     cmd.Parameters.AddWithValue("@year", year)
                     cmd.Parameters.AddWithValue("@month", month)

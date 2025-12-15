@@ -151,7 +151,7 @@
                 <button type="button" id="btnViewNoSync" class="btn-submit me-3" style="background-color: #17a2b8;">
                     <i class="bi bi-table"></i> View Data
                 </button>
-                <button type="button" id="btnSyncSAPOnly" class="btn-danger me-3" style="display:none;">
+                <button type="button" id="btnSyncSAPOnly" class="btn-danger me-3" >  
                     <i class="bi bi-arrow-clockwise"></i> Sync SAP Only
                 </button>
                 <button type="button" id="btnSyncSAP" class="btn-submit me-3" style="background-color: var(--primary-blue);">

@@ -783,18 +783,21 @@ Public Class MasterDataHandler
         Try
             ' (ดึงข้อมูลจาก AJAX)
             Dim editMode As String = context.Request.Form("editMode")
-            Dim code As String = context.Request.Form("code")
+
             ' *** FIX: รับ OriginalCode สำหรับ Edit Mode ***
             Dim vendorId As Int64
             If editMode = "edit" Then
                 vendorId = If(String.IsNullOrEmpty(context.Request.Form("vendorId")), 0, context.Request.Form("vendorId"))
             End If
+
+            Dim code As String = context.Request.Form("code")
             Dim name As String = context.Request.Form("name")
-            Dim ccy As String = context.Request.Form("ccy")
-            Dim paymentTermCode As String = context.Request.Form("paymentTermCode")
-            Dim paymentTerm As String = context.Request.Form("paymentTerm")
             Dim segmentCode As String = context.Request.Form("segmentCode")
             Dim segment As String = context.Request.Form("segment")
+            Dim ccy As String = context.Request.Form("ccy")
+
+            Dim paymentTermCode As String = context.Request.Form("paymentTermCode")
+            Dim paymentTerm As String = context.Request.Form("paymentTerm")
             Dim incoterm As String = context.Request.Form("incoterm")
             ' (START) ADDED: Read isActive
             Dim isActive As Boolean = False
@@ -808,8 +811,8 @@ Public Class MasterDataHandler
 
                 If editMode = "create" Then
                     ' (Logic จาก btnCreate_Click)
-                    If CheckVendorCodeAndSectionExists(code, segmentCode) Then
-                        Throw New Exception($"Vendor Code '{code}' With SegmentCode '{segmentCode}' already exists!")
+                    If CheckVendorCodeAndSectionAndCCYExists(code, segmentCode, ccy) Then
+                        Throw New Exception($"Vendor Code '{code}' With SegmentCode '{segmentCode}' And CCY '{ccy}' already exists!")
                     End If
 
                     ' (MODIFIED) Added isActive
@@ -924,14 +927,15 @@ Public Class MasterDataHandler
         Return dt
     End Function
 
-    ' 5. (Helper) ฟังก์ชันตรวจสอบ (จาก CheckVendorCodeAndSectionExists)
-    Private Function CheckVendorCodeAndSectionExists(vendorCode As String, segmentCode As String) As Boolean
+    ' 5. (Helper) ฟังก์ชันตรวจสอบ (จาก CheckVendorCodeAndSectionAndCCYExists)
+    Private Function CheckVendorCodeAndSectionAndCCYExists(vendorCode As String, segmentCode As String, ccy As String) As Boolean
         Dim connectionString As String = ConfigurationManager.ConnectionStrings("BMSConnectionString").ConnectionString
-        Dim query As String = "SELECT COUNT(*) FROM MS_Vendor WHERE [VendorCode] = @code AND [SegmentCode] = @segmentCode"
+        Dim query As String = "SELECT COUNT(*) FROM MS_Vendor WHERE [VendorCode] = @code AND [SegmentCode] = @segmentCode AND [CCY] = @ccy"
         Using conn As New SqlConnection(connectionString)
             Using cmd As New SqlCommand(query, conn)
                 cmd.Parameters.AddWithValue("@code", vendorCode)
                 cmd.Parameters.AddWithValue("@segmentCode", segmentCode)
+                cmd.Parameters.AddWithValue("@ccy", ccy)
                 conn.Open()
                 Dim count As Integer = Convert.ToInt32(cmd.ExecuteScalar())
                 Return count > 0

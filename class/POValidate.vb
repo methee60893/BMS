@@ -12,6 +12,7 @@ Public Class POValidate
     Private dtSegments As DataTable
     Private dtBrands As DataTable
     Private dtVendors As DataTable
+    Private dtCCYs As DataTable
     Private dtCompanies As DataTable
 
     Private calculator As OTBBudgetCalculator
@@ -227,6 +228,13 @@ Public Class POValidate
                 Using cmd As New SqlCommand("SELECT [VendorCode],[Vendor],[SegmentCode],[CCY] FROM [BMS].[dbo].[MS_Vendor]", conn)
                     Using reader As SqlDataReader = cmd.ExecuteReader()
                         dtVendors.Load(reader)
+                    End Using
+                End Using
+
+                dtCCYs = New DataTable()
+                Using cmd As New SqlCommand("SELECT [CCY_Code] as 'CCY',[CCY_Name] FROM [BMS].[dbo].[MS_CCY]", conn)
+                    Using reader As SqlDataReader = cmd.ExecuteReader()
+                        dtCCYs.Load(reader)
                     End Using
                 End Using
 
@@ -649,34 +657,46 @@ Public Class POValidate
 
         Dim errors As New Dictionary(Of String, String)()
 
-        ' 1. ตรวจสอบ PO No. ซ้ำ (Duplicate Check)
-        ' ต้องไม่ซ้ำกับ Draft ที่มีอยู่ (ยกเว้น Cancelled)
-        Dim queryDup As String = "SELECT COUNT(1) FROM [BMS].[dbo].[Draft_PO_Transaction] WHERE [DraftPO_No] = @No AND ISNULL(Status, '') <> 'Cancelled'"
+        ' 1. ตรวจสอบ PO No. ซ้ำ (Duplicate Check - Composite Key)
+        ' ต้องเช็คให้ครบทุก Key (Year, Month, Company, Category, Segment, Brand, Vendor)
+        Dim queryDup As String = "SELECT COUNT(1) FROM [BMS].[dbo].[Draft_PO_Transaction] " &
+                                 "WHERE [DraftPO_No] = @No " &
+                                 "AND [PO_Year] = @Year " &
+                                 "AND [PO_Month] = @Month " &
+                                 "AND [Company_Code] = @Company " &
+                                 "AND [Category_Code] = @Category " &
+                                 "AND [Segment_Code] = @Segment " &
+                                 "AND [Brand_Code] = @Brand " &
+                                 "AND [Vendor_Code] = @Vendor " &
+                                 "AND ISNULL(Status, '') <> 'Cancelled'"
+
         Using conn As New SqlConnection(connectionString)
             conn.Open()
             Using cmd As New SqlCommand(queryDup, conn)
+                ' ส่ง Parameter ให้ครบทุกตัว
                 cmd.Parameters.AddWithValue("@No", poNo)
+                cmd.Parameters.AddWithValue("@Year", year)
+                cmd.Parameters.AddWithValue("@Month", month)
+                cmd.Parameters.AddWithValue("@Company", company)
+                cmd.Parameters.AddWithValue("@Category", category)
+                cmd.Parameters.AddWithValue("@Segment", segment)
+                cmd.Parameters.AddWithValue("@Brand", brand)
+                cmd.Parameters.AddWithValue("@Vendor", vendor)
+
                 If Convert.ToInt32(cmd.ExecuteScalar()) > 0 Then
-                    errors.Add("txtPONO", $"Draft PO No. '{poNo}' already exists.")
+                    errors.Add("txtPONO", $"Draft PO No. '{poNo}' already exists for this condition.")
                 End If
             End Using
         End Using
 
-        ' 2. ตรวจสอบงบประมาณ (Budget Check)
-        ' Logic: Available = Approved - (Total Draft Used + Total Actual Used)
-        ' Check: NewAmount <= Available
-
+        ' 2. ตรวจสอบงบประมาณ (Budget Check) - (ส่วนนี้ทำงานถูกต้องแล้ว ไม่ต้องแก้)
         Dim key As New POMatchKey With {
             .Year = year, .Month = month, .Company = company,
             .Category = category, .Segment = segment, .Brand = brand, .Vendor = vendor
         }
 
-        ' ดึงงบ Approved
         Dim approvedBudget As Decimal = calculator.CalculateCurrentApprovedBudget(key.Year, key.Month, key.Category, key.Company, key.Segment, key.Brand, key.Vendor)
-
-        ' ดึงยอดใช้ไปแล้ว (Draft + Actual) แบบ Real-time จาก DB
         Dim usedBudget As Decimal = GetTotalUsedBudget(key)
-
         Dim remainingBudget As Decimal = approvedBudget - usedBudget
 
         If amtTHB > remainingBudget Then
@@ -794,13 +814,8 @@ Public Class POValidate
 
     Public Function ValidateVendorCCY(vendor As String, ccy As String) As Boolean
         ' หา Vendor ใน DataTable
-        Dim rows() As DataRow = dtVendors.Select($"[VendorCode] = '{vendor.Replace("'", "''")}'")
-        If rows.Length > 0 Then
-            ' ตรวจสอบว่า CCY ตรงกับ Master หรือไม่ (Case Insensitive)
-            Dim masterCCY As String = rows(0)("CCY").ToString()
-            Return masterCCY.Equals(ccy, StringComparison.OrdinalIgnoreCase)
-        End If
-        Return False ' ไม่พบ Vendor หรือ CCY ไม่ตรง
+        Dim rows() As DataRow = dtVendors.Select($"[VendorCode] = '{vendor.Replace("'", "''")}' AND [CCY] = '{ccy.Replace("'", "''")}'")
+        Return rows.Length > 0 ' ไม่พบ Vendor หรือ CCY ไม่ตรง
     End Function
 
 End Class

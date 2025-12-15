@@ -1435,8 +1435,8 @@ Public Class DataOTBHandler
             Dim remaining As Decimal = totalBudget - totalUsage
 
             ' 4.3 Add Row (เฉพาะแถวที่มีค่าอย่างน้อย 1 อย่าง)
-            If totalBudget <> 0 OrElse totalUsage <> 0 Then
-                dtExport.Rows.Add(
+            'If totalBudget <> 0 OrElse totalUsage <> 0 Then
+            dtExport.Rows.Add(
                     kYear,
                     kMonthName,
                     kCate,
@@ -1464,7 +1464,7 @@ Public Class DataOTBHandler
                     totalUsage,
                     remaining
                 )
-            End If
+            'End If
         Next
 
         ' 5. สร้าง Excel File

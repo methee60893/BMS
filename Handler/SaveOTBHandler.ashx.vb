@@ -207,7 +207,7 @@ Public Class SaveOTBHandler
 
         Catch ex As Exception
             ' ส่ง Error กลับเป็น JSON
-            context.Response.StatusCode = 500
+            context.Response.StatusCode = 200
             Dim errorResponse As New With {
                 .success = False,
                 .message = ex.Message ' (ข้อความ Error จะถูกดักจับจาก SAP)

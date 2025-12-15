@@ -1521,8 +1521,8 @@
                 return;
             }
 
-            // Allow Ctrl+A (Select All)
-            if (key === 'a' && event.ctrlKey) {
+            // [BMS Gem Fix] Allow Ctrl+A, Ctrl+C, Ctrl+V, Ctrl+X
+            if ((key === 'a' || key === 'c' || key === 'v' || key === 'x') && event.ctrlKey) {
                 return;
             }
 

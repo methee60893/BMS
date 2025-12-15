@@ -164,7 +164,8 @@ Public Class POUploadHandler
         Next
 
         ' 2. ตรวจสอบข้อมูล (Validate)
-        Dim existingDbPOs As HashSet(Of String) = GetExistingPOs(poNosInFile.ToList())
+        'Dim existingDbPOs As HashSet(Of String) = GetExistingPOs(poNosInFile.ToList())
+        Dim existingDbKeys As HashSet(Of String) = GetExistingCompositeKeys(previewList)
         Dim budgetFailedKeys As New HashSet(Of POMatchKey)
 
         ' เช็ค Budget รวม
@@ -195,17 +196,37 @@ Public Class POUploadHandler
             Dim isDuplicate As Boolean = False
             Dim isBudgetFail As Boolean = False
 
-            ' Check Duplicate PO (Req 2)
-            If duplicateInFileCount.ContainsKey(item.DraftPONo) Then
-                duplicateInFileCount(item.DraftPONo) += 1
+            Dim currentKey As String = String.Format("{0}|{1}|{2}|{3}|{4}|{5}|{6}|{7}",
+                                              item.DraftPONo.Trim(), item.Year.Trim(), item.Month.Trim(),
+                                              item.Company.Trim(), item.Category.Trim(), item.Segment.Trim(),
+                                              item.Brand.Trim(), item.Vendor.Trim())
+
+            '' Check Duplicate PO (Req 2)
+            'If duplicateInFileCount.ContainsKey(item.DraftPONo) Then
+            '    duplicateInFileCount(item.DraftPONo) += 1
+            '    isDuplicate = True
+            '    errors.Add("Duplicate PO No. in file")
+            'Else
+            '    duplicateInFileCount.Add(item.DraftPONo, 1)
+            'End If
+            'If existingDbPOs.Contains(item.DraftPONo) Then
+            '    isDuplicate = True
+            '    errors.Add("PO No. already exists in Database")
+            'End If
+
+            ' Check Duplicate In File (เช็คซ้ำในไฟล์เดียวกันเอง)
+            If duplicateInFileCount.ContainsKey(currentKey) Then
+                duplicateInFileCount(currentKey) += 1
                 isDuplicate = True
-                errors.Add("Duplicate PO No. in file")
+                errors.Add("Duplicate Data in file")
             Else
-                duplicateInFileCount.Add(item.DraftPONo, 1)
+                duplicateInFileCount.Add(currentKey, 1)
             End If
-            If existingDbPOs.Contains(item.DraftPONo) Then
+
+            ' Check Duplicate In Database (เช็คซ้ำกับ DB โดยใช้ Composite Key)
+            If existingDbKeys.Contains(currentKey) Then
                 isDuplicate = True
-                errors.Add("PO No. already exists in Database")
+                errors.Add("Data already exists in Database") ' เปลี่ยนข้อความให้สื่อความหมาย
             End If
 
             ' Check Budget (Req 3 & 4)
@@ -363,6 +384,115 @@ Public Class POUploadHandler
         Return fields.ToArray()
     End Function
 
+    ' --- [BMS Gem MODIFICATION] ---
+    ' เปลี่ยนจากการเช็คแค่ PO No เป็นการเช็ค Composite Key (PO + 7 Keys)
+    Private Function GetExistingCompositeKeys(previewRows As List(Of POPreviewRow)) As HashSet(Of String)
+        Dim existingKeys As New HashSet(Of String)(StringComparer.OrdinalIgnoreCase)
+        If previewRows.Count = 0 Then Return existingKeys
+
+        ' 1. สร้าง DataTable สำหรับ Bulk Copy ไปยัง Temp Table
+        Dim dtCheck As New DataTable()
+        dtCheck.Columns.Add("DraftPO_No", GetType(String))
+        dtCheck.Columns.Add("PO_Year", GetType(String))
+        dtCheck.Columns.Add("PO_Month", GetType(String))
+        dtCheck.Columns.Add("Company_Code", GetType(String))
+        dtCheck.Columns.Add("Category_Code", GetType(String))
+        dtCheck.Columns.Add("Segment_Code", GetType(String))
+        dtCheck.Columns.Add("Brand_Code", GetType(String))
+        dtCheck.Columns.Add("Vendor_Code", GetType(String))
+
+        ' เติมข้อมูลลง DataTable (Distinct เพื่อลดปริมาณข้อมูล)
+        ' ใช้ Composite String เพื่อทำ Distinct ใน Memory ก่อนส่งไป DB
+        Dim uniqueRows As New HashSet(Of String)
+
+        For Each row In previewRows
+            ' Normalize ข้อมูล (Trim) เพื่อความแม่นยำ
+            Dim key As String = String.Format("{0}|{1}|{2}|{3}|{4}|{5}|{6}|{7}",
+                                              row.DraftPONo.Trim(), row.Year.Trim(), row.Month.Trim(),
+                                              row.Company.Trim(), row.Category.Trim(), row.Segment.Trim(),
+                                              row.Brand.Trim(), row.Vendor.Trim())
+
+            If Not uniqueRows.Contains(key) Then
+                uniqueRows.Add(key)
+                dtCheck.Rows.Add(row.DraftPONo.Trim(), row.Year.Trim(), row.Month.Trim(),
+                                 row.Company.Trim(), row.Category.Trim(), row.Segment.Trim(),
+                                 row.Brand.Trim(), row.Vendor.Trim())
+            End If
+        Next
+
+        Using conn As New SqlConnection(connectionString)
+            conn.Open()
+            Using transaction As SqlTransaction = conn.BeginTransaction()
+                Try
+                    ' 2. สร้าง Temp Table ที่มี structure ครบทุก Key
+                    Dim createSql As String = "CREATE TABLE #TempCheckFull (
+                                                [DraftPO_No] NVARCHAR(50),
+                                                [PO_Year] NVARCHAR(10),
+                                                [PO_Month] NVARCHAR(10),
+                                                [Company_Code] NVARCHAR(20),
+                                                [Category_Code] NVARCHAR(20),
+                                                [Segment_Code] NVARCHAR(20),
+                                                [Brand_Code] NVARCHAR(20),
+                                                [Vendor_Code] NVARCHAR(20)
+                                              )"
+                    Using cmdCreate As New SqlCommand(createSql, conn, transaction)
+                        cmdCreate.ExecuteNonQuery()
+                    End Using
+
+                    ' 3. Bulk Copy ข้อมูลที่ Upload เข้า Temp Table
+                    Using bulkCopy As New SqlBulkCopy(conn, SqlBulkCopyOptions.Default, transaction)
+                        bulkCopy.DestinationTableName = "#TempCheckFull"
+                        For Each col As DataColumn In dtCheck.Columns
+                            bulkCopy.ColumnMappings.Add(col.ColumnName, col.ColumnName)
+                        Next
+                        bulkCopy.WriteToServer(dtCheck)
+                    End Using
+
+                    ' 4. Query Join เพื่อหาตัวที่ซ้ำจริงๆ (Composite Key Match)
+                    ' ต้องไม่รวม Status = 'Cancelled'
+                    Dim query As String = "SELECT 
+                                                T.DraftPO_No, T.PO_Year, T.PO_Month, T.Company_Code, 
+                                                T.Category_Code, T.Segment_Code, T.Brand_Code, T.Vendor_Code
+                                           FROM [BMS].[dbo].[Draft_PO_Transaction] T 
+                                           INNER JOIN #TempCheckFull TMP 
+                                           ON T.DraftPO_No = TMP.DraftPO_No
+                                              AND T.PO_Year = TMP.PO_Year
+                                              AND T.PO_Month = TMP.PO_Month
+                                              AND T.Company_Code = TMP.Company_Code
+                                              AND T.Category_Code = TMP.Category_Code
+                                              AND T.Segment_Code = TMP.Segment_Code
+                                              AND T.Brand_Code = TMP.Brand_Code
+                                              AND T.Vendor_Code = TMP.Vendor_Code
+                                           WHERE ISNULL(T.Status, '') <> 'Cancelled'"
+
+                    Using cmd As New SqlCommand(query, conn, transaction)
+                        Using reader As SqlDataReader = cmd.ExecuteReader()
+                            While reader.Read()
+                                ' สร้าง Key จากผลลัพธ์ที่เจอใน DB กลับมาเพื่อเช็ค
+                                Dim dbKey As String = String.Format("{0}|{1}|{2}|{3}|{4}|{5}|{6}|{7}",
+                                              reader("DraftPO_No").ToString().Trim(),
+                                              reader("PO_Year").ToString().Trim(),
+                                              reader("PO_Month").ToString().Trim(),
+                                              reader("Company_Code").ToString().Trim(),
+                                              reader("Category_Code").ToString().Trim(),
+                                              reader("Segment_Code").ToString().Trim(),
+                                              reader("Brand_Code").ToString().Trim(),
+                                              reader("Vendor_Code").ToString().Trim())
+
+                                existingKeys.Add(dbKey)
+                            End While
+                        End Using
+                    End Using
+                    transaction.Commit()
+                Catch
+                    transaction.Rollback()
+                    Throw
+                End Try
+            End Using
+        End Using
+
+        Return existingKeys
+    End Function
     Private Function GetExistingPOs(poNos As List(Of String)) As HashSet(Of String)
         Dim existingPOs As New HashSet(Of String)(StringComparer.OrdinalIgnoreCase)
         If poNos.Count = 0 Then Return existingPOs
