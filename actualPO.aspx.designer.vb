@@ -12,4 +12,85 @@ Option Explicit On
 
 
 Partial Public Class actualPO
+
+    '''<summary>
+    '''menuDraftOTBPlan control.
+    '''</summary>
+    '''<remarks>
+    '''Auto-generated field.
+    '''To modify move field declaration from designer file to code-behind file.
+    '''</remarks>
+    Protected WithEvents menuDraftOTBPlan As Global.System.Web.UI.HtmlControls.HtmlGenericControl
+
+    '''<summary>
+    '''menuApprovedOTBPlan control.
+    '''</summary>
+    '''<remarks>
+    '''Auto-generated field.
+    '''To modify move field declaration from designer file to code-behind file.
+    '''</remarks>
+    Protected WithEvents menuApprovedOTBPlan As Global.System.Web.UI.HtmlControls.HtmlGenericControl
+
+    '''<summary>
+    '''menuCreateOTBSwitching control.
+    '''</summary>
+    '''<remarks>
+    '''Auto-generated field.
+    '''To modify move field declaration from designer file to code-behind file.
+    '''</remarks>
+    Protected WithEvents menuCreateOTBSwitching As Global.System.Web.UI.HtmlControls.HtmlGenericControl
+
+    '''<summary>
+    '''menuSwitchingTransaction control.
+    '''</summary>
+    '''<remarks>
+    '''Auto-generated field.
+    '''To modify move field declaration from designer file to code-behind file.
+    '''</remarks>
+    Protected WithEvents menuSwitchingTransaction As Global.System.Web.UI.HtmlControls.HtmlGenericControl
+
+    '''<summary>
+    '''menu control.
+    '''</summary>
+    '''<remarks>
+    '''Auto-generated field.
+    '''To modify move field declaration from designer file to code-behind file.
+    '''</remarks>
+    Protected WithEvents menu As Global.System.Web.UI.HtmlControls.HtmlGenericControl
+
+    '''<summary>
+    '''menu control.
+    '''</summary>
+    '''<remarks>
+    '''Auto-generated field.
+    '''To modify move field declaration from designer file to code-behind file.
+    '''</remarks>
+    Protected WithEvents menu As Global.System.Web.UI.HtmlControls.HtmlGenericControl
+
+    '''<summary>
+    '''menu control.
+    '''</summary>
+    '''<remarks>
+    '''Auto-generated field.
+    '''To modify move field declaration from designer file to code-behind file.
+    '''</remarks>
+    Protected WithEvents menu As Global.System.Web.UI.HtmlControls.HtmlGenericControl
+
+    '''<summary>
+    '''menu control.
+    '''</summary>
+    '''<remarks>
+    '''Auto-generated field.
+    '''To modify move field declaration from designer file to code-behind file.
+    '''</remarks>
+    Protected WithEvents menu As Global.System.Web.UI.HtmlControls.HtmlGenericControl
+
+    '''<summary>
+    '''menu control.
+    '''</summary>
+    '''<remarks>
+    '''Auto-generated field.
+    '''To modify move field declaration from designer file to code-behind file.
+    '''</remarks>
+    Protected WithEvents menu As Global.System.Web.UI.HtmlControls.HtmlGenericControl
 End Class

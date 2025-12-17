@@ -33,8 +33,8 @@
                     <i class="bi bi-chevron-down"></i>
                 </a>
                 <ul class="submenu" id="otbPlan">
-                    <li><a href="draftOTB.aspx" class="menu-link">Draft OTB Plan</a></li>
-                    <li><a href="approvedOTB.aspx" class="menu-link">Approved OTB Plan</a></li>
+                    <li id="menuDraftOTBPlan" runat="server" ><a href="draftOTB.aspx" class="menu-link">Draft OTB Plan</a></li>
+                    <li id="menuApprovedOTBPlan" runat="server" ><a href="approvedOTB.aspx" class="menu-link">Approved OTB Plan</a></li>
                 </ul>
             </li>
             <li class="menu-item">
@@ -44,8 +44,8 @@
                     <i class="bi bi-chevron-down"></i>
                 </a>
                 <ul class="submenu" id="otbSwitching">
-                    <li><a href="createOTBswitching.aspx" class="menu-link">Create OTB Switching</a></li>
-                    <li><a href="transactionOTBSwitching.aspx" class="menu-link">Switching Transaction</a></li>
+                    <li id="menuCreateOTBSwitching" runat="server" ><a href="createOTBswitching.aspx" class="menu-link">Create OTB Switching</a></li>
+                    <li id="menuSwitchingTransaction" runat="server" ><a href="transactionOTBSwitching.aspx" class="menu-link">Switching Transaction</a></li>
                 </ul>
             </li>
             <li class="menu-item">
@@ -55,13 +55,13 @@
                     <i class="bi bi-chevron-down"></i>
                 </a>
                 <ul class="submenu" id="po">
-                    <li><a href="createDraftPO.aspx" class="menu-link">Create Draft PO</a></li>
-                    <li><a href="draftPO.aspx" class="menu-link">Draft PO</a></li>
-                    <li><a href="matchActualPO.aspx" class="menu-link">Match Actual PO</a></li>
-                    <li><a href="actualPO.aspx" class="menu-link active">Actual PO</a></li>
+                    <li id="menu" runat="server" ><a href="createDraftPO.aspx" class="menu-link">Create Draft PO</a></li>
+                    <li id="menu" runat="server" ><a href="draftPO.aspx" class="menu-link">Draft PO</a></li>
+                    <li id="menu" runat="server" ><a href="matchActualPO.aspx" class="menu-link">Match Actual PO</a></li>
+                    <li id="menu" runat="server" ><a href="actualPO.aspx" class="menu-link active">Actual PO</a></li>
                 </ul>
             </li>
-            <li class="menu-item">
+            <li id="menu" runat="server" class="menu-item">
                 <a href="otbRemaining.aspx" class="menu-link">
                     <i class="bi bi-bar-chart-line"></i>
                     <span>OTB Remaining</span>

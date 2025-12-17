@@ -440,81 +440,146 @@ Public Class POValidate
         Return errors
     End Function
 
+    ''' <summary>
+    ''' Validate ข้อมูล Draft PO TXN (Logic สำหรับ Edit Mode - ปรับปรุงใหม่)
+    ''' </summary>
     Public Function ValidateDraftPOEditLogic(context As HttpContext) As Dictionary(Of String, String)
         Dim errors As New Dictionary(Of String, String)
 
-        ' --- (ส่วนการรับค่าจาก Form) ---
-        Dim idStr As String = context.Request.Form("draftPOID")
-        Dim draftPOID As Integer = If(Integer.TryParse(idStr, Nothing), Integer.Parse(idStr), 0)
+        ' ---------------------------------------------------------
+        ' 1. รับค่าจาก Form Data
+        ' ---------------------------------------------------------
+        Dim idStr As String = If(context.Request.Form("draftPOID"), "0")
+        Dim draftPOID As Integer = 0
+        Integer.TryParse(idStr, draftPOID)
 
-        Dim year As String = context.Request.Form("year")
-        Dim month As String = context.Request.Form("month")
-        Dim company As String = context.Request.Form("company")
-        Dim category As String = context.Request.Form("category")
-        Dim segment As String = context.Request.Form("segment")
-        Dim brand As String = context.Request.Form("brand")
-        Dim vendor As String = context.Request.Form("vendor")
-        Dim poNo As String = context.Request.Form("pono")
+        Dim year As String = If(context.Request.Form("year"), "").Trim()
+        Dim month As String = If(context.Request.Form("month"), "").Trim()
+        Dim company As String = If(context.Request.Form("company"), "").Trim()
+        Dim category As String = If(context.Request.Form("category"), "").Trim()
+        Dim segment As String = If(context.Request.Form("segment"), "").Trim()
+        Dim brand As String = If(context.Request.Form("brand"), "").Trim()
+        Dim vendor As String = If(context.Request.Form("vendor"), "").Trim()
+        Dim poNo As String = If(context.Request.Form("pono"), "").Trim()
+        Dim amtCCYStr As String = If(context.Request.Form("amtCCY"), "").Trim()
+        Dim ccy As String = If(context.Request.Form("ccy"), "").Trim()
+        Dim exRateStr As String = If(context.Request.Form("exRate"), "").Trim()
 
-        Dim amtCCYStr As String = context.Request.Form("amtCCY")
-        Dim exRateStr As String = context.Request.Form("exRate")
+        ' ---------------------------------------------------------
+        ' 2. ตรวจสอบค่าว่าง (Required Fields Check) - *เพิ่มส่วนนี้*
+        ' ---------------------------------------------------------
+        If draftPOID = 0 Then errors.Add("general", "DraftPO_ID is missing or invalid.")
+        If String.IsNullOrEmpty(year) Then errors.Add("DDYear", "Year is required")
+        If String.IsNullOrEmpty(month) Then errors.Add("DDMonth", "Month is required")
+        If String.IsNullOrEmpty(company) Then errors.Add("DDCompany", "Company is required")
+        If String.IsNullOrEmpty(category) Then errors.Add("DDCategory", "Category is required")
+        If String.IsNullOrEmpty(segment) Then errors.Add("DDSegment", "Segment is required")
+        If String.IsNullOrEmpty(brand) Then errors.Add("DDBrand", "Brand is required")
+        If String.IsNullOrEmpty(vendor) Then errors.Add("DDVendor", "Vendor is required")
+        If String.IsNullOrEmpty(poNo) Then errors.Add("txtPONO", "Draft PO No. is required")
+        If String.IsNullOrEmpty(ccy) Then errors.Add("DDCCY", "CCY is required")
+
+        ' ---------------------------------------------------------
+        ' 3. ตรวจสอบ Master Data (Existence Check) - *เพิ่มส่วนนี้*
+        ' ---------------------------------------------------------
+        If Not String.IsNullOrEmpty(year) AndAlso Not ValidateYear(year) Then errors.Add("DDYear", "Year not found in master")
+        If Not String.IsNullOrEmpty(month) AndAlso Not ValidateMonth(month) Then errors.Add("DDMonth", "Month not found in master")
+        If Not String.IsNullOrEmpty(company) AndAlso Not ValidateCompany(company) Then errors.Add("DDCompany", "Company not found in master")
+        If Not String.IsNullOrEmpty(category) AndAlso Not ValidateCategory(category) Then errors.Add("DDCategory", "Category not found in master")
+        If Not String.IsNullOrEmpty(brand) AndAlso Not ValidateBrand(brand) Then errors.Add("DDBrand", "Brand not found in master")
+        If Not String.IsNullOrEmpty(segment) AndAlso Not ValidateSegment(segment) Then errors.Add("DDSegment", "Segment not found in master")
+        ' เช็ค Vendor คู่กับ Segment
+        If Not String.IsNullOrEmpty(vendor) AndAlso Not String.IsNullOrEmpty(segment) AndAlso Not ValidateVendor(vendor, segment) Then
+            errors.Add("DDVendor", $"Vendor '{vendor}' not valid for segment '{segment}'")
+        End If
+
+        ' ---------------------------------------------------------
+        ' 4. ตรวจสอบตัวเลขและ Business Rules (Numeric & Logic)
+        ' ---------------------------------------------------------
         Dim amtCCY As Decimal = 0
+        If String.IsNullOrEmpty(amtCCYStr) Then
+            errors.Add("txtAmtCCY", "Amount is required")
+        ElseIf Not Decimal.TryParse(amtCCYStr, amtCCY) Then
+            errors.Add("txtAmtCCY", "Amount must be a number")
+        ElseIf amtCCY <= 0 Then
+            errors.Add("txtAmtCCY", "Amount must be greater than 0")
+        End If
+
         Dim exRate As Decimal = 0
-        Decimal.TryParse(amtCCYStr, amtCCY)
-        Decimal.TryParse(exRateStr, exRate)
+        If String.IsNullOrEmpty(exRateStr) Then
+            errors.Add("txtExRate", "Exchange rate is required")
+        ElseIf Not Decimal.TryParse(exRateStr, exRate) Then
+            errors.Add("txtExRate", "Exchange rate must be a number")
+        ElseIf exRate <= 0 Then
+            errors.Add("txtExRate", "Exchange rate must be greater than 0")
+        End If
 
-        Dim newAmountTHB As Decimal = amtCCY * exRate
+        ' กฎ: ถ้าสกุลเงินเป็น THB ต้องเป็น 1.00 เสมอ
+        If ccy = "THB" AndAlso exRate <> 1 Then
+            errors.Add("txtExRate", "Exchange rate must be 1.00 for THB")
+        End If
 
-        ' สร้าง Key สำหรับการตรวจสอบ
-        Dim newKey As New POMatchKey With {
-            .Year = year, .Month = month, .Company = company,
-            .Category = category, .Segment = segment,
-            .Brand = brand, .Vendor = vendor
-        }
+        ' ---------------------------------------------------------
+        ' 5. ตรวจสอบข้อมูลซ้ำ (Duplicate Check)
+        ' ---------------------------------------------------------
+        ' ถ้าข้อมูลพื้นฐานผ่านแล้ว ค่อยไปเช็ค Database
+        If errors.Count = 0 Then
+            Dim queryDup As String = "SELECT COUNT(1) FROM [BMS].[dbo].[Draft_PO_Transaction] " &
+                                     "WHERE [DraftPO_No] = @No " &
+                                     "AND [PO_Year] = @Year AND [PO_Month] = @Month " &
+                                     "AND [Category_Code] = @Cat AND [Company_Code] = @Com " &
+                                     "AND [Segment_Code] = @Seg AND [Brand_Code] = @Brand " &
+                                     "AND [Vendor_Code] = @Ven " &
+                                     "AND [DraftPO_ID] <> @ID " & ' สำคัญ: ต้องไม่นับตัวเอง
+                                     "AND ISNULL(Status, '') <> 'Cancelled'"
 
-        ' --- (ส่วนตรวจสอบ Duplicate ยังคงเดิม) ---
-        Dim queryDup As String = "SELECT COUNT(1) FROM [BMS].[dbo].[Draft_PO_Transaction] " &
-                                 "WHERE [DraftPO_No] = @No " &
-                                 "AND [PO_Year] = @Year AND [PO_Month] = @Month " &
-                                 "AND [Category_Code] = @Cat AND [Company_Code] = @Com " &
-                                 "AND [Segment_Code] = @Seg AND [Brand_Code] = @Brand " &
-                                 "AND [Vendor_Code] = @Ven " &
-                                 "AND [DraftPO_ID] <> @ID " &
-                                 "AND ISNULL(Status, '') <> 'Cancelled'"
+            Using conn As New SqlConnection(connectionString)
+                conn.Open()
+                Using cmd As New SqlCommand(queryDup, conn)
+                    cmd.Parameters.AddWithValue("@No", poNo)
+                    cmd.Parameters.AddWithValue("@Year", year)
+                    cmd.Parameters.AddWithValue("@Month", month)
+                    cmd.Parameters.AddWithValue("@Cat", category)
+                    cmd.Parameters.AddWithValue("@Com", company)
+                    cmd.Parameters.AddWithValue("@Seg", segment)
+                    cmd.Parameters.AddWithValue("@Brand", brand)
+                    cmd.Parameters.AddWithValue("@Ven", vendor)
+                    cmd.Parameters.AddWithValue("@ID", draftPOID)
 
-        Using conn As New SqlConnection(connectionString)
-            conn.Open()
-            Using cmd As New SqlCommand(queryDup, conn)
-                cmd.Parameters.AddWithValue("@No", poNo)
-                cmd.Parameters.AddWithValue("@Year", year)
-                cmd.Parameters.AddWithValue("@Month", month)
-                cmd.Parameters.AddWithValue("@Cat", category)
-                cmd.Parameters.AddWithValue("@Com", company)
-                cmd.Parameters.AddWithValue("@Seg", segment)
-                cmd.Parameters.AddWithValue("@Brand", brand)
-                cmd.Parameters.AddWithValue("@Ven", vendor)
-                cmd.Parameters.AddWithValue("@ID", draftPOID)
-
-                If Convert.ToInt32(cmd.ExecuteScalar()) > 0 Then
-                    errors.Add("general", "ข้อมูลซ้ำกับรายการอื่นในระบบ (Duplicate Data)")
-                    Return errors
-                End If
+                    If Convert.ToInt32(cmd.ExecuteScalar()) > 0 Then
+                        errors.Add("general", $"Duplicate Data: Draft PO No. {poNo} already exists for this condition.")
+                    End If
+                End Using
             End Using
-        End Using
+        End If
 
-        ' --- (ส่วนตรวจสอบ Budget แบบใหม่) ---
-        Try
-            ' 1. คำนวณงบที่เหลือจริง (Approved - Draftคนอื่น - Actual)
-            Dim actualAvailable As Decimal = GetRemainingBudgetExcludeSelf(newKey, draftPOID)
+        ' ---------------------------------------------------------
+        ' 6. ตรวจสอบงบประมาณ (Budget Logic - Exclude Self)
+        ' ---------------------------------------------------------
+        If errors.Count = 0 Then
+            Try
+                ' คำนวณยอด THB ใหม่ที่ต้องการ
+                Dim newAmountTHB As Decimal = amtCCY * exRate
 
-            ' 2. ตรวจสอบ: ยอดใหม่ที่ขอ (newAmountTHB) ต้องไม่เกิน งบที่เหลือ (actualAvailable)
-            If newAmountTHB > actualAvailable Then
-                errors.Add("amtCCY", $"งบประมาณไม่พอ (ต้องการ: {newAmountTHB:N2} THB, คงเหลือจริง: {actualAvailable:N2} THB)")
-            End If
+                ' สร้าง Key สำหรับค้นหางบ
+                Dim newKey As New POMatchKey With {
+                    .Year = year, .Month = month, .Company = company,
+                    .Category = category, .Segment = segment,
+                    .Brand = brand, .Vendor = vendor
+                }
 
-        Catch ex As Exception
-            errors.Add("general", "Error checking budget: " & ex.Message)
-        End Try
+                ' ใช้ฟังก์ชัน GetRemainingBudgetExcludeSelf ที่ท่านมีอยู่แล้ว
+                ' (ฟังก์ชันนี้จะดึง Approved - (Draftคนอื่น + Actual)) = งบที่เหลือให้เราใช้ได้จริง
+                Dim actualAvailable As Decimal = GetRemainingBudgetExcludeSelf(newKey, draftPOID)
+
+                If newAmountTHB > actualAvailable Then
+                    errors.Add("txtAmtCCY", $"งบประมาณไม่เพียงพอ (ต้องการ: {newAmountTHB:N2} THB, คงเหลือให้ใช้: {actualAvailable:N2} THB)")
+                End If
+
+            Catch ex As Exception
+                errors.Add("general", "System Error checking budget: " & ex.Message)
+            End Try
+        End If
 
         Return errors
     End Function
@@ -556,6 +621,11 @@ Public Class POValidate
         If String.IsNullOrEmpty(amtCCY) Then errors.Add("amtCCY", "Amount (CCY) is required")
         If String.IsNullOrEmpty(ccy) Then errors.Add("ccy", "CCY is required")
         If String.IsNullOrEmpty(exRate) Then errors.Add("exRate", "Exchange rate is required")
+
+        If Not String.IsNullOrEmpty(year) AndAlso Not ValidateYear(year) Then errors.Add("DDYear", "Year not found")
+        If Not String.IsNullOrEmpty(month) AndAlso Not ValidateMonth(month) Then errors.Add("DDMonth", "Month not found")
+        If Not String.IsNullOrEmpty(company) AndAlso Not ValidateCompany(company) Then errors.Add("DDCompany", "Company not found")
+        If Not String.IsNullOrEmpty(brand) AndAlso Not ValidateBrand(brand) Then errors.Add("DDBrand", "Brand not found")
 
         ' ========================================
         ' 2. ตรวจสอบตัวเลข
