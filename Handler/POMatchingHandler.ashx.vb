@@ -582,12 +582,20 @@ Public Class POMatchingHandler
                   A.Brand_Code, A.Vendor_Code, A.PO_No AS ActualPONo, A.Actual_PO_Date,
                   ISNULL(A.Amount_THB, 0) AS ActualAmountTHB, ISNULL(A.Amount_CCY, 0) AS ActualAmountCCY,
                   A.CCY AS ActualCCY, ISNULL(A.Exchange_Rate, 0) AS ActualExRate,
-                  A.Status AS ActualStatus, -- สถานะของ Actual PO
+                  A.Status AS ActualStatus, -- สถานะของ Actual PO 
                   D.DraftPO_No, D.Created_Date AS DraftPODate,
                   ISNULL(D.Amount_THB, 0) AS DraftAmountTHB, ISNULL(D.Amount_CCY, 0) AS DraftAmountCCY,
                   D.Status AS DraftStatus -- สถานะของ Draft PO
               FROM [dbo].[Actual_PO_Summary] A
-              LEFT JOIN [dbo].[Draft_PO_Transaction] D ON A.Draft_PO_Ref = D.DraftPO_No
+              LEFT JOIN [dbo].[Draft_PO_Transaction] D 
+              ON A.Draft_PO_Ref = D.DraftPO_No
+              AND A.Brand_Code = D.Brand_Code
+              AND A.Category_Code = D.Category_Code
+              AND A.Company_Code = D.Company_Code
+              AND A.OTB_Year = D.PO_Year
+              AND A.OTB_Month = D.PO_Month
+              AND CASE WHEN LEN(A.Segment_Code) > 2 THEN SUBSTRING(A.Segment_Code, 2, LEN(A.Segment_Code) - 2) ELSE A.Segment_Code END = D.Segment_Code
+              AND A.Vendor_Code = D.Vendor_Code
               WHERE (ISNULL(A.Status, '') NOT IN ('Cancelled','Matched')) AND (ISNULL(D.Status, '') NOT IN ('Matched','Cancelled'))
                 AND a.Category_Code <> 'ZPA'
                 AND A.Company_Code IN ('1000','2000','3000')
@@ -689,15 +697,7 @@ Public Class POMatchingHandler
 
         Dim syncTime As DateTime = DateTime.Now
 
-        'ตรงส่วนนี้ ให้ เพิ่มเงื่อนไข การตรวจสอบ เอา เฉพาะข้อมูล ที่ OTBYear ตั้งแต่ 2025 OTBMonth ตั้งแต่ เดือน 12 เป็นต้นไป และ ไม่เอาข้อมูลที่ไม่มี ค่า Fund และ ไม่มีค่า Brand
-        ' กรอง poList ตามเงื่อนไขที่กำหนด
-        'poList = poList.Where(Function(po)
-        '                          Dim yearValid As Boolean = Integer.TryParse(po.OtbYear, Nothing) AndAlso Integer.Parse(po.OtbYear) >= 2025
-        '                          Dim monthValid As Boolean = Integer.TryParse(po.OtbMonth, Nothing) AndAlso Integer.Parse(po.OtbMonth) >= 12
-        '                          Dim fundValid As Boolean = Not String.IsNullOrEmpty(po.Fund)
-        '                          Dim brandValid As Boolean = Not String.IsNullOrEmpty(po.Brand)
-        '                          Return yearValid AndAlso monthValid AndAlso fundValid AndAlso brandValid
-        '                      End Function).ToList()
+
 
         ' 2. วนลูป List จาก SAP มาใส่ DataTable
         For Each po In poList
