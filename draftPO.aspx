@@ -32,8 +32,8 @@
                     <i class="bi bi-chevron-down"></i>
                 </a>
                 <ul class="submenu" id="otbPlan">
-                    <li><a href="draftOTB.aspx" class="menu-link">Draft OTB Plan</a></li>
-                    <li><a href="approvedOTB.aspx" class="menu-link">Approved OTB Plan</a></li>
+                    <li  id="menuDraftOTBPlan" runat="server" ><a href="draftOTB.aspx" class="menu-link">Draft OTB Plan</a></li>
+                    <li id="menuApprovedOTBPlan" runat="server" ><a href="approvedOTB.aspx" class="menu-link">Approved OTB Plan</a></li>
                 </ul>
             </li>
             <li class="menu-item">
@@ -43,21 +43,21 @@
                     <i class="bi bi-chevron-down"></i>
                 </a>
                 <ul class="submenu" id="otbSwitching">
-                    <li><a href="createOTBswitching.aspx" class="menu-link">Create OTB Switching</a></li>
-                    <li><a href="transactionOTBSwitching.aspx" class="menu-link">Switching Transaction</a></li>
+                   <li id="menuCreateOTBSwitching" runat="server" ><a href="createOTBswitching.aspx" class="menu-link">Create OTB Switching</a></li>
+                    <li id="menuSwitchingTransaction" runat="server" ><a href="transactionOTBSwitching.aspx" class="menu-link">Switching Transaction</a></li>
                 </ul>
             </li>
-            <li class="menu-item">
+            <li class="menu-item"  id="grpmenuPO" runat="server" >
                 <a href="#" class="menu-link" onclick="toggleSubmenu(event, 'po')">
                     <i class="bi bi-file-earmark-text"></i>
                     <span>PO</span>
                     <i class="bi bi-chevron-down"></i>
                 </a>
                 <ul class="submenu" id="po">
-                    <li><a href="createDraftPO.aspx" class="menu-link">Create Draft PO</a></li>
-                    <li><a href="draftPO.aspx" class="menu-link active">Draft PO</a></li>
-                    <li><a href="matchActualPO.aspx" class="menu-link">Match Actual PO</a></li>
-                    <li><a href="actualPO.aspx" class="menu-link">Actual PO</a></li>
+                    <li id="menuCreateDraftPO" runat="server"><a href="createDraftPO.aspx" class="menu-link">Create Draft PO</a></li>
+                    <li id="menuDraftPO" runat="server" ><a href="draftPO.aspx" class="menu-link">Draft PO</a></li>
+                    <li id="menuMatchActualPO" runat="server" ><a href="matchActualPO.aspx" class="menu-link">Match Actual PO</a></li>
+                    <li id="menuActualPO" runat="server" ><a href="actualPO.aspx" class="menu-link">Actual PO</a></li>
                 </ul>
             </li>
             <li class="menu-item">
@@ -66,16 +66,16 @@
                     <span>OTB Remaining</span>
                 </a>
             </li>
-            <li class="menu-item">
+            <li class="menu-item" id="grpmenuMaster" runat="server">
                 <a href="#" class="menu-link" onclick="toggleSubmenu(event, 'master')">
                     <i class="bi bi-database"></i>
                     <span>Master File</span>
                     <i class="bi bi-chevron-down"></i>
                 </a>
                 <ul class="submenu" id="master">
-                    <li><a href="master_vendor.aspx" class="menu-link">Master Vendor</a></li>
-                    <li><a href="master_brand.aspx" class="menu-link">Master Brand</a></li>
-                    <li><a href="master_category.aspx" class="menu-link">Master Category</a></li>
+                     <li id="menuVendor" runat="server" ><a href="master_vendor.aspx" class="menu-link">Master Vendor</a></li>
+                 <li id="menuBrand" runat="server" ><a href="master_brand.aspx" class="menu-link">Master Brand</a></li>
+                 <li id="menuCategory" runat="server" ><a href="master_category.aspx" class="menu-link">Master Category</a></li>
                 </ul>
             </li>
             <li class="menu-item"><a href="default.aspx" class="menu-link"><i class="bi bi-box-arrow-left"></i> Logout</a></li>

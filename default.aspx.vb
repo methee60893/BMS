@@ -19,7 +19,6 @@ Public Class _default
             Dim username As String = ""
             Dim fullName As String = ""
             Dim userEmail As String = ""
-            'adddblog()
 
             If authen_by_ad(email, password) Then
                 'Dim chkauthen = CheckADAccess(email)
@@ -40,6 +39,16 @@ Public Class _default
                     Console.WriteLine("Sync User Error: " & exSync.Message)
                 End Try
                 'If chkauthen Then
+
+                Dim role = getRoleByUser(email)
+
+                If role.Rows.Count > 0 Then
+
+                    Session("UserRole") = role.Rows(0)("RoleName").ToString()
+                Else
+                    Session("UserRole") = "Buyer" ' ไม่มีบทบาท
+                End If
+
                 Session("Login") = True
                 Session("user") = username
                 Session("fullname") = fullName
@@ -102,6 +111,31 @@ Public Class _default
             Console.WriteLine(ex.Message)
         End Try
     End Sub
+
+    Public Function getRoleByUser(email As String) As DataTable
+        Dim dt As New DataTable()
+        Try
+            Using conn As New SqlConnection(connectionStringLocal)
+                Dim cmd As New SqlCommand("
+                    SELECT 
+                       [UserID]
+                      ,[RoleID]
+                      ,[RoleName]
+                    FROM [BMS].[dbo].[View_UserRole]
+                    WHERE Email = @Email
+                ", conn)
+                cmd.Parameters.AddWithValue("@Email", email)
+                conn.Open()
+                Using reader As SqlDataReader = cmd.ExecuteReader()
+                    dt.Load(reader)
+                End Using
+                conn.Close()
+            End Using
+        Catch ex As Exception
+            dt = Nothing
+        End Try
+        Return dt
+    End Function
 
     Public Function CheckADAccess(username As String) As Boolean
 

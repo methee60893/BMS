@@ -20,12 +20,28 @@
                 Response.End()
             End If
 
-            ' 3. ควบคุมปุ่มต่างๆ ตามสิทธิ์
-            ' (สมมติหน้าจอมีปุ่ม btnSave, btnDelete, btnApprove)
-            ' btnSave.Visible = rights.CanEdit
-            ' btnDelete.Visible = rights.CanDelete
-            ' btnApprove.Visible = rights.CanApprove
+            CheckMenuPermissions()
         End If
+    End Sub
+
+    Private Sub CheckMenuPermissions()
+
+        Dim currentRole As String = Session("UserRole")
+
+
+        If currentRole = "Buyer" Then
+            grpmenuPO.Visible = False
+            grpmenuMaster.Visible = False
+            menuCreateOTBSwitching.Visible = False
+            menuDraftOTBPlan.Visible = False
+        Else
+            grpmenuPO.Visible = True
+            grpmenuMaster.Visible = True
+            menuCreateOTBSwitching.Visible = True
+            menuDraftOTBPlan.Visible = True
+        End If
+
+
     End Sub
 
 End Class

@@ -19,37 +19,27 @@
                 Response.End()
             End If
 
-            ' 3. ควบคุมปุ่มต่างๆ ตามสิทธิ์
-            ' (สมมติหน้าจอมีปุ่ม btnSave, btnDelete, btnApprove)
-            ' btnSave.Visible = rights.CanEdit
-            ' btnDelete.Visible = rights.CanDelete
-            ' btnApprove.Visible = rights.CanApprove
+            CheckMenuPermissions()
         End If
     End Sub
 
     Private Sub CheckMenuPermissions()
-        ' ดึง Role ของ User ปัจจุบัน (ตัวอย่าง: ดึงจาก Session)
+
         Dim currentRole As String = Session("UserRole")
 
-        ' หรือถ้าใช้ PermissionHelper ที่มีอยู่
-        ' Dim hasApproveRight As Boolean = PermissionHelper.CheckPermission(CurrentUserID, "APPROVE_PO")
 
-        ' --- ตัวอย่าง Logic การปิดเมนู ---
-
-        ' กรณี: คนทั่วไป (User) -> ห้ามเห็นเมนูอนุมัติ
-        If currentRole = "User" Then
-            'menuApprovePO.Visible = False  ' ซ่อนเมนูนี้ทันที
+        If currentRole = "Buyer" Then
+            grpmenuPO.Visible = False
+            grpmenuMaster.Visible = False
+            menuCreateOTBSwitching.Visible = False
+            menuDraftOTBPlan.Visible = False
+        Else
+            grpmenuPO.Visible = True
+            grpmenuMaster.Visible = True
+            menuCreateOTBSwitching.Visible = True
+            menuDraftOTBPlan.Visible = True
         End If
 
-        ' กรณี: ผู้บริหาร (Manager) -> เห็นได้ทุกเมนู
-        If currentRole = "Manager" Then
-            'menuApprovePO.Visible = True
-            'menuCreatePO.Visible = True
-        End If
-
-        ' เทคนิค: ถ้า Logic ซับซ้อน ให้ Default เป็น False ไว้ก่อน แล้วเปิดเฉพาะที่มีสิทธิ์
-        ' menuAdminPanel.Visible = False
-        ' If PermissionHelper.IsAdmin(CurrentUserID) Then menuAdminPanel.Visible = True
 
     End Sub
 

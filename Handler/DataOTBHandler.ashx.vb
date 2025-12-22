@@ -84,7 +84,7 @@ Public Class DataOTBHandler
                 End If
             End If
         Catch ex As Exception
-            context.Response.StatusCode = 500
+            context.Response.StatusCode = 200
             context.Response.Write($"<div class='alert alert-danger'>Error: {HttpUtility.HtmlEncode(ex.Message)}</div>")
         End Try
 
@@ -1198,7 +1198,7 @@ Public Class DataOTBHandler
             responseJson("success") = False
             responseJson("action") = "error" ' General error
             responseJson("message") = "Error approving records: " & ex.Message
-            context.Response.StatusCode = 500
+            context.Response.StatusCode = 200
             context.Response.Write(JsonConvert.SerializeObject(responseJson))
         End Try
     End Sub

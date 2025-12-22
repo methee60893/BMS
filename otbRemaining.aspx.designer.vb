@@ -12,4 +12,121 @@ Option Explicit On
 
 
 Partial Public Class otbRemaining
+
+    '''<summary>
+    '''menuDraftOTBPlan control.
+    '''</summary>
+    '''<remarks>
+    '''Auto-generated field.
+    '''To modify move field declaration from designer file to code-behind file.
+    '''</remarks>
+    Protected WithEvents menuDraftOTBPlan As Global.System.Web.UI.HtmlControls.HtmlGenericControl
+
+    '''<summary>
+    '''menuApprovedOTBPlan control.
+    '''</summary>
+    '''<remarks>
+    '''Auto-generated field.
+    '''To modify move field declaration from designer file to code-behind file.
+    '''</remarks>
+    Protected WithEvents menuApprovedOTBPlan As Global.System.Web.UI.HtmlControls.HtmlGenericControl
+
+    '''<summary>
+    '''menuCreateOTBSwitching control.
+    '''</summary>
+    '''<remarks>
+    '''Auto-generated field.
+    '''To modify move field declaration from designer file to code-behind file.
+    '''</remarks>
+    Protected WithEvents menuCreateOTBSwitching As Global.System.Web.UI.HtmlControls.HtmlGenericControl
+
+    '''<summary>
+    '''menuSwitchingTransaction control.
+    '''</summary>
+    '''<remarks>
+    '''Auto-generated field.
+    '''To modify move field declaration from designer file to code-behind file.
+    '''</remarks>
+    Protected WithEvents menuSwitchingTransaction As Global.System.Web.UI.HtmlControls.HtmlGenericControl
+
+    '''<summary>
+    '''grpmenuPO control.
+    '''</summary>
+    '''<remarks>
+    '''Auto-generated field.
+    '''To modify move field declaration from designer file to code-behind file.
+    '''</remarks>
+    Protected WithEvents grpmenuPO As Global.System.Web.UI.HtmlControls.HtmlGenericControl
+
+    '''<summary>
+    '''menuCreateDraftPO control.
+    '''</summary>
+    '''<remarks>
+    '''Auto-generated field.
+    '''To modify move field declaration from designer file to code-behind file.
+    '''</remarks>
+    Protected WithEvents menuCreateDraftPO As Global.System.Web.UI.HtmlControls.HtmlGenericControl
+
+    '''<summary>
+    '''menuDraftPO control.
+    '''</summary>
+    '''<remarks>
+    '''Auto-generated field.
+    '''To modify move field declaration from designer file to code-behind file.
+    '''</remarks>
+    Protected WithEvents menuDraftPO As Global.System.Web.UI.HtmlControls.HtmlGenericControl
+
+    '''<summary>
+    '''menuMatchActualPO control.
+    '''</summary>
+    '''<remarks>
+    '''Auto-generated field.
+    '''To modify move field declaration from designer file to code-behind file.
+    '''</remarks>
+    Protected WithEvents menuMatchActualPO As Global.System.Web.UI.HtmlControls.HtmlGenericControl
+
+    '''<summary>
+    '''menuActualPO control.
+    '''</summary>
+    '''<remarks>
+    '''Auto-generated field.
+    '''To modify move field declaration from designer file to code-behind file.
+    '''</remarks>
+    Protected WithEvents menuActualPO As Global.System.Web.UI.HtmlControls.HtmlGenericControl
+
+    '''<summary>
+    '''grpmenuMaster control.
+    '''</summary>
+    '''<remarks>
+    '''Auto-generated field.
+    '''To modify move field declaration from designer file to code-behind file.
+    '''</remarks>
+    Protected WithEvents grpmenuMaster As Global.System.Web.UI.HtmlControls.HtmlGenericControl
+
+    '''<summary>
+    '''menuVendor control.
+    '''</summary>
+    '''<remarks>
+    '''Auto-generated field.
+    '''To modify move field declaration from designer file to code-behind file.
+    '''</remarks>
+    Protected WithEvents menuVendor As Global.System.Web.UI.HtmlControls.HtmlGenericControl
+
+    '''<summary>
+    '''menuBrand control.
+    '''</summary>
+    '''<remarks>
+    '''Auto-generated field.
+    '''To modify move field declaration from designer file to code-behind file.
+    '''</remarks>
+    Protected WithEvents menuBrand As Global.System.Web.UI.HtmlControls.HtmlGenericControl
+
+    '''<summary>
+    '''menuCategory control.
+    '''</summary>
+    '''<remarks>
+    '''Auto-generated field.
+    '''To modify move field declaration from designer file to code-behind file.
+    '''</remarks>
+    Protected WithEvents menuCategory As Global.System.Web.UI.HtmlControls.HtmlGenericControl
 End Class
