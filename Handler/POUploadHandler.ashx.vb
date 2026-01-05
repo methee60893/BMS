@@ -178,7 +178,7 @@ Public Class POUploadHandler
         Dim sb As New StringBuilder()
         sb.Append("<table class='table table-bordered table-hover' id='tblPreview'>")
         sb.Append("<thead class='table-light'><tr>")
-        sb.Append("<th><input type='checkbox' id='selectAll' onclick='toggleAll(this)'></th>")
+        sb.Append("<th><input type='checkbox' id='selectAll' onclick='toggleAll(this)' checked ></th>")
         sb.Append("<th>#</th><th>Status</th><th>Message</th>")
         sb.Append("<th>PO No.</th><th>Year</th><th>Month</th><th>Vendor</th>")
         sb.Append("<th>Amount (THB)</th>")
@@ -199,7 +199,7 @@ Public Class POUploadHandler
                                       $"data-amountthb='{item.Amount_THB}'"
 
             sb.Append($"<tr class='{rowClass}'>")
-            sb.Append($"<td class='text-center'><input type='checkbox' name='selectedRows' {disabled} {dataAttrs}></td>")
+            sb.Append($"<td class='text-center'><input type='checkbox' name='selectedRows' {disabled} {dataAttrs} checked ></td>")
             sb.Append($"<td>{item.RowIndex}</td>")
             sb.Append($"<td class='text-center'>{statusIcon}</td>")
             sb.Append($"<td>{msg}</td>")
