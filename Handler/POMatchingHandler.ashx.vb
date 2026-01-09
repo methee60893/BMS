@@ -229,46 +229,57 @@ Public Class POMatchingHandler
 
             Dim combinedPoList As New List(Of SapPOResultItem)()
 
-            Dim filterDate As Date = Date.Today
-            'Dim filterDate As Date = New Date(2025, 11, 28)
+            Dim runningDate As DateTime = GetLastSyncDate()
+            Dim currentDate As DateTime = DateTime.Now.Date
 
-            Dim poList As List(Of SapPOResultItem) = Task.Run(Async Function()
-                                                                  Return Await SapApiHelper.GetPOsAsync(filterDate)
-                                                              End Function).Result
-            If poList IsNot Nothing Then
-                combinedPoList.AddRange(poList)
-            End If
+            While runningDate.Date <= currentDate.Date
 
-            If combinedPoList.Count = 0 AndAlso poList Is Nothing Then
-                Throw New Exception("Failed to get any PO data from SAP (All requests returned Nothing).")
-            End If
+                Dim loopDate As DateTime = runningDate ' สร้างตัวแปร Local เพื่อใช้ใน Task
 
+                Dim dailyList As List(Of SapPOResultItem) = Task.Run(Async Function()
+                                                                         ' ยิง API ของวันที่ loopDate
+                                                                         Return Await SapApiHelper.GetPOsAsync(loopDate)
+                                                                     End Function).Result
 
-            Dim upsertStats As String = SyncPOsToStaging(combinedPoList)
+                If dailyList IsNot Nothing Then
+                    combinedPoList.AddRange(dailyList)
+                End If
 
-            Using conn As New SqlConnection(connectionString)
-                conn.Open()
+                ' ขยับไปวันถัดไป
+                runningDate = runningDate.AddDays(1)
+            End While
 
-                ' 4.1 เรียก SP Auto Match (เพื่อจับคู่ Reference)
-                Using cmdMatch As New SqlCommand("SP_Auto_Match_Actual_Draft", conn)
-                    cmdMatch.CommandType = CommandType.StoredProcedure
-                    cmdMatch.Parameters.AddWithValue("@UpdateBy", updateBy)
-                    cmdMatch.ExecuteNonQuery()
+            If combinedPoList.Count > 0 Then
+
+                Dim upsertStats As String = SyncPOsToStaging(combinedPoList)
+
+                Using conn As New SqlConnection(connectionString)
+                    conn.Open()
+
+                    ' 4.1 เรียก SP Auto Match (เพื่อจับคู่ Reference)
+                    Using cmdMatch As New SqlCommand("SP_Auto_Match_Actual_Draft", conn)
+                        cmdMatch.CommandType = CommandType.StoredProcedure
+                        cmdMatch.Parameters.AddWithValue("@UpdateBy", updateBy)
+                        cmdMatch.ExecuteNonQuery()
+                    End Using
                 End Using
-            End Using
 
-            ' 5. [จุดสำคัญ] ดึงข้อมูลผลลัพธ์จากตาราง Actual_PO_Summary โดยตรง
-            Dim results As List(Of MatchedPOItem) = GetMatchedDataFromDB()
+                ' 5. [จุดสำคัญ] ดึงข้อมูลผลลัพธ์จากตาราง Actual_PO_Summary โดยตรง
+                Dim results As List(Of MatchedPOItem) = GetMatchedDataFromDB()
 
-            ' 6. ส่ง JSON กลับไปที่หน้าจอ
-            context.Response.ContentType = "application/json"
-            Dim successResponse = New With {
-                .success = True,
-                .count = results.Count,
-                .data = results,
-                .syncStats = upsertStats
-            }
-            context.Response.Write(JsonConvert.SerializeObject(successResponse))
+                ' 6. ส่ง JSON กลับไปที่หน้าจอ
+                context.Response.ContentType = "application/json"
+                Dim successResponse = New With {
+                    .success = True,
+                    .count = results.Count,
+                    .data = results,
+                    .syncStats = upsertStats
+                }
+                context.Response.Write(JsonConvert.SerializeObject(successResponse))
+
+
+            End If
+
 
         Catch ex As Exception
             context.Response.ContentType = "application/json"
@@ -602,8 +613,8 @@ Public Class POMatchingHandler
                 AND LEN(A.Segment_Code) > 0
 		              AND LEN(A.Brand_Code) > 0
 		              AND ( ISNULL(A.Segment_Code, '') NOT IN ('000')  OR (ISNULL(A.Brand_Code, '') NOT IN ('','000')))
-                AND (CAST(A.OTB_Year AS INT) * 100 + CAST(A.OTB_Month AS INT)) >= 202512
-              ORDER BY A.Actual_PO_Date DESC
+                      AND ( (A.OTB_Year >= 2026)  OR EOMONTH(DATEFROMPARTS(A.OTB_Year, A.OTB_Month, 1)) > '2025-12-01' )
+                ORDER BY A.Actual_PO_Date DESC
         "
 
         Using conn As New SqlConnection(connectionString)
@@ -1047,5 +1058,54 @@ Public Class POMatchingHandler
             Return False
         End Get
     End Property
+
+    ' --- (เพิ่ม Function ใหม่: หา Start Date ตามเงื่อนไข Gap > 1 วัน) ---
+    Private Function GetLastSyncDate() As DateTime
+        ' Default: ย้อนหลัง 30 วัน กรณีไม่มีข้อมูลเลย
+        Dim resultDate As DateTime = DateTime.Now.AddDays(-30)
+
+        Dim dateList As New List(Of DateTime)()
+
+        Using conn As New SqlConnection(connectionString)
+            conn.Open()
+
+            ' ดึงวันที่ Modified_Date ล่าสุด 2 อันดับแรก
+            Dim sql As String = "SELECT DISTINCT TOP 2 [Modified_Date] " &
+                                "FROM [BMS].[dbo].[Actual_PO_Staging] " &
+                                "ORDER BY [Modified_Date] DESC"
+
+            Using cmd As New SqlCommand(sql, conn)
+                Using reader As SqlDataReader = cmd.ExecuteReader()
+                    While reader.Read()
+                        If Not IsDBNull(reader("Modified_Date")) Then
+                            dateList.Add(Convert.ToDateTime(reader("Modified_Date")))
+                        End If
+                    End While
+                End Using
+            End Using
+        End Using
+
+        ' Logic ตรวจสอบ Gap
+        If dateList.Count >= 2 Then
+            Dim maxDate As DateTime = dateList(0)  ' ล่าสุด (เช่น วันที่ 5)
+            Dim prevDate As DateTime = dateList(1) ' รองลงมา (เช่น วันที่ 1)
+
+            ' หาความห่างของวัน (ตัดเวลาออก)
+            Dim dayDiff As Double = (maxDate.Date - prevDate.Date).TotalDays
+
+            If dayDiff > 1 Then
+                ' ถ้าห่างกันเกิน 1 วัน ให้เริ่มที่ตัวรอง (ย้อนกลับไปเก็บช่วงที่กระโดดข้าม)
+                resultDate = prevDate
+            Else
+                ' ถ้าปกติ ให้เริ่มที่ตัวล่าสุด
+                resultDate = maxDate
+            End If
+
+        ElseIf dateList.Count = 1 Then
+            resultDate = dateList(0)
+        End If
+
+        Return resultDate
+    End Function
 
 End Class
