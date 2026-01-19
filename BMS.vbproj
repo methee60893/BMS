@@ -191,6 +191,7 @@
     <Content Include="master_brand.aspx" />
     <Content Include="master_category.aspx" />
     <Content Include="master_vendor.aspx" />
+    <Content Include="admin_matchPO.aspx" />
     <Content Include="matchActualPO.aspx" />
     <Content Include="otbRemaining.aspx" />
     <Content Include="style\theme.css" />
@@ -336,6 +337,13 @@
     </Compile>
     <Compile Include="master_vendor.aspx.vb">
       <DependentUpon>master_vendor.aspx</DependentUpon>
+      <SubType>ASPXCodebehind</SubType>
+    </Compile>
+    <Compile Include="admin_matchPO.aspx.designer.vb">
+      <DependentUpon>admin_matchPO.aspx</DependentUpon>
+    </Compile>
+    <Compile Include="admin_matchPO.aspx.vb">
+      <DependentUpon>admin_matchPO.aspx</DependentUpon>
       <SubType>ASPXCodebehind</SubType>
     </Compile>
     <Compile Include="matchActualPO.aspx.designer.vb">

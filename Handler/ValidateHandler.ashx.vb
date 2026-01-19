@@ -93,7 +93,7 @@ Public Class ValidateHandler
     End Sub
 
     ' =========================================================
-    ' VALIDATE DRAFT PO EDIT (Edit Mode)
+    ' VALIDATE DRAFT PO EDIT (Edit Mode) - UPDATED FOR CHANGE DETECTION
     ' =========================================================
     Private Sub ValidateDraftPOEdit(context As HttpContext)
         Dim errors As New Dictionary(Of String, String)
@@ -102,32 +102,94 @@ Public Class ValidateHandler
             ' 1. แปลงข้อมูลจาก Form เป็น Object
             Dim item As POValidate.DraftPOItem = ParseDraftPOItem(context)
 
-            ' 2. ดึง ID จาก Form (สำคัญมากสำหรับ Edit Mode)
+            ' 2. ดึง ID จาก Form
             Dim draftPOID As Integer = 0
             Integer.TryParse(context.Request.Form("draftPOID"), draftPOID)
-            item.DraftPO_ID = draftPOID ' *** ส่ง ID ไปเพื่อให้ Logic Exclude Self ทำงาน ***
+            item.DraftPO_ID = draftPOID
 
-            ' 3. เรียกใช้ POValidate (ValidateBatch)
-            Dim Validator As New POValidate()
-            Dim items As New List(Of POValidate.DraftPOItem)
-            items.Add(item)
+            ' ---------------------------------------------------------
+            ' STEP 3: Change Detection (ตรวจสอบว่ามีการเปลี่ยนค่าที่มีผลกับ OTB หรือไม่)
+            ' ---------------------------------------------------------
+            Dim needOTBValidation As Boolean = True
+            Dim currentData As DataTable = New DataTable()
 
-            Dim result As POValidate.ValidationResult = Validator.ValidateBatch(items)
+            Using conn As New SqlConnection(connectionString)
+                conn.Open()
+                ' ดึงข้อมูลปัจจุบันจาก DB เพื่อมาเทียบ
+                Dim queryGetOld As String = "SELECT * FROM [BMS].[dbo].[Draft_PO_Transaction] WHERE DraftPO_ID = @ID"
+                Using cmdGet As New SqlCommand(queryGetOld, conn)
+                    cmdGet.Parameters.AddWithValue("@ID", draftPOID)
+                    Using adapter As New SqlDataAdapter(cmdGet)
+                        adapter.Fill(currentData)
+                    End Using
+                End Using
+            End Using
 
-            ' 4. ตรวจสอบผลลัพธ์
-            If Not result.IsValid Then
-                Dim msgList As New List(Of String)
+            If currentData.Rows.Count > 0 Then
+                Dim oldRow As DataRow = currentData.Rows(0)
 
-                If Not String.IsNullOrEmpty(result.GlobalError) Then
-                    msgList.Add(result.GlobalError)
+                ' --- Helper 1: เปรียบเทียบ String ---
+                Dim IsStringChanged = Function(colName As String, newVal As String) As Boolean
+                                          Dim oldVal As String = If(oldRow(colName) Is DBNull.Value, "", oldRow(colName).ToString())
+                                          Return Not oldVal.Trim().Equals(newVal.Trim(), StringComparison.OrdinalIgnoreCase)
+                                      End Function
+
+                ' --- Helper 2: เปรียบเทียบตัวเลข แบบมี Tolerance (แก้ปัญหาทศนิยม) ---
+                Dim IsDecimalChanged = Function(colName As String, newVal As Decimal) As Boolean
+                                           Dim oldVal As Decimal = If(oldRow(colName) Is DBNull.Value, 0D, Convert.ToDecimal(oldRow(colName)))
+                                           ' ถ้าต่างกันน้อยกว่า 0.0001 ให้ถือว่าเท่ากัน (Ignore Floating Point Error)
+                                           Return Math.Abs(oldVal - newVal) > 0.0001D
+                                       End Function
+
+                ' ตรวจสอบ Dimension (ถ้าเปลี่ยน ต้อง Validate ใหม่)
+                Dim isYearChanged As Boolean = IsStringChanged("PO_Year", item.PO_Year)
+                Dim isMonthChanged As Boolean = IsStringChanged("PO_Month", item.PO_Month)
+                Dim isCompanyChanged As Boolean = IsStringChanged("Company_Code", item.Company_Code)
+                Dim isCategoryChanged As Boolean = IsStringChanged("Category_Code", item.Category_Code)
+                Dim isSegmentChanged As Boolean = IsStringChanged("Segment_Code", item.Segment_Code)
+                Dim isBrandChanged As Boolean = IsStringChanged("Brand_Code", item.Brand_Code)
+                Dim isVendorChanged As Boolean = IsStringChanged("Vendor_Code", item.Vendor_Code)
+                Dim isCCYChanged As Boolean = IsStringChanged("CCY", item.Currency)
+
+                ' *** ตรวจสอบยอดเงิน: เช็คเฉพาะ Amount_CCY และ ExRate (ตัด Amount_THB ออก) ***
+                Dim isAmtCCYChanged As Boolean = IsDecimalChanged("Amount_CCY", item.Amount_CCY)
+                Dim isExRateChanged As Boolean = IsDecimalChanged("Exchange_Rate", item.ExchangeRate)
+
+                ' สรุป: ถ้า Dimension เดิม และ Input การเงิน (CCY, Rate) เดิม -> ถือว่าไม่เปลี่ยน
+                If Not isYearChanged AndAlso Not isMonthChanged AndAlso
+                   Not isCompanyChanged AndAlso Not isCategoryChanged AndAlso
+                   Not isSegmentChanged AndAlso Not isBrandChanged AndAlso
+                   Not isVendorChanged AndAlso Not isCCYChanged AndAlso
+                   Not isAmtCCYChanged AndAlso Not isExRateChanged Then
+
+                    needOTBValidation = False ' *** SKIP VALIDATION ***
                 End If
+            End If
 
-                If result.RowErrors.ContainsKey(item.RowIndex) Then
-                    msgList.AddRange(result.RowErrors(item.RowIndex))
-                End If
+            ' ---------------------------------------------------------
+            ' STEP 4: Perform Validation (Only if needed)
+            ' ---------------------------------------------------------
+            If needOTBValidation Then
+                Dim Validator As New POValidate()
+                Dim items As New List(Of POValidate.DraftPOItem)
+                items.Add(item)
 
-                If msgList.Count > 0 Then
-                    errors.Add("summary", String.Join("<br/>", msgList))
+                Dim result As POValidate.ValidationResult = Validator.ValidateBatch(items)
+
+                If Not result.IsValid Then
+                    Dim msgList As New List(Of String)
+
+                    If Not String.IsNullOrEmpty(result.GlobalError) Then
+                        msgList.Add(result.GlobalError)
+                    End If
+
+                    If result.RowErrors.ContainsKey(item.RowIndex) Then
+                        msgList.AddRange(result.RowErrors(item.RowIndex))
+                    End If
+
+                    If msgList.Count > 0 Then
+                        errors.Add("summary", String.Join("<br/>", msgList))
+                    End If
                 End If
             End If
 

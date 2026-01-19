@@ -21,13 +21,13 @@ Public Class POMatchingHandler
 
     Sub ProcessRequest(ByVal context As HttpContext) Implements IHttpHandler.ProcessRequest
         Dim action As String = If(context.Request("action"), "").ToLower().Trim()
-
+        Dim dateStr As String = If(context.Request("date"), "")
         If action = "sync_and_get" Then
             ' 1. ปุ่ม Sync SAP: ทำการ Sync ก่อน แล้วค่อยดึงข้อมูล
             SyncAndGetPOData(context)
         ElseIf action = "sync_only" Then
             ' 1.5 ปุ่ม Sync SAP (ใหม่): ทำการ Get July POs and Get DataDB Only
-            SyncAndGetPODataJuly(context)
+            SyncAndGetPODataByDate(context, dateStr)
         ElseIf action = "get_only" Then
             ' 2. ปุ่ม View (ใหม่): ดึงข้อมูลอย่างเดียว ไม่ Sync
             GetPOData(context)
@@ -292,9 +292,15 @@ Public Class POMatchingHandler
         End Try
     End Sub
 
-    Private Sub SyncAndGetPODataJuly(context As HttpContext)
+    Private Sub SyncAndGetPODataByDate(context As HttpContext, dateStr As String)
         Try
             Dim updateBy As String = "System AutoMatchh"
+
+            Dim targetDate As DateTime
+            ' ตรวจสอบว่าวันที่ถูกต้องหรือไม่
+            If String.IsNullOrEmpty(dateStr) OrElse Not DateTime.TryParse(dateStr, targetDate) Then
+                Throw New Exception("Invalid Date Format or Date not provided.")
+            End If
 
             ' (TODO: ควรดึง User จริงจาก Session)
             If context.Session IsNot Nothing AndAlso context.Session("user") IsNot Nothing Then
@@ -304,8 +310,9 @@ Public Class POMatchingHandler
             Dim combinedPoList As New List(Of SapPOResultItem)()
 
             Dim poList As List(Of SapPOResultItem) = Task.Run(Async Function()
-                                                                  Return Await SapApiHelper.GetPOJulysAsync()
+                                                                  Return Await SapApiHelper.GetPOsAsync(targetDate)
                                                               End Function).Result
+
             If poList IsNot Nothing Then
                 combinedPoList.AddRange(poList)
             End If

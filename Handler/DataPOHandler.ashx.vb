@@ -164,7 +164,7 @@ Public Class DataPOHandler
     End Sub
 
     ' =================================================
-    ' ===== SAVE DRAFT PO EDIT (Update) =====
+    ' ===== SAVE DRAFT PO EDIT (Update) - SOLVED =====
     ' =================================================
     Private Sub SaveDraftPOEdit(context As HttpContext)
         context.Response.ContentType = "application/json"
@@ -176,9 +176,9 @@ Public Class DataPOHandler
                 statusBy = context.Session("user").ToString()
             End If
 
-            ' 1. รับค่า
+            ' 1. รับค่าจาก Form
             Dim draftPOID As Integer = Integer.Parse(context.Request.Form("draftPOID"))
-            Dim draftPOno As String = context.Request.Form("pono")
+            Dim draftPOno As String = context.Request.Form("pono").Trim()
             Dim year As String = context.Request.Form("year")
             Dim month As String = context.Request.Form("month")
             Dim company As String = context.Request.Form("company")
@@ -197,42 +197,108 @@ Public Class DataPOHandler
 
             Dim amtTHB As Decimal = amtCCY * exRate
 
-            ' 2. Validate (สำคัญ: ส่ง ID เพื่อ Exclude Self)
-            Dim editItem As New POValidate.DraftPOItem With {
-                .RowIndex = 1,
-                .DraftPO_ID = draftPOID, ' *** ส่ง ID เดิมเพื่อให้ระบบรู้ว่าเป็น Edit และ Exclude ยอดเดิม ***
-                .PO_Year = year,
-                .PO_Month = month,
-                .Company_Code = company,
-                .Category_Code = category,
-                .Segment_Code = segment,
-                .Brand_Code = brand,
-                .Vendor_Code = vendor,
-                .PO_No = draftPOno,
-                .Currency = ccy,
-                .Amount_CCY = amtCCY,
-                .ExchangeRate = exRate,
-                .Amount_THB = amtTHB
-            }
+            ' ---------------------------------------------------------
+            ' STEP 2: Change Detection (จุดสำคัญที่แก้ไข)
+            ' ---------------------------------------------------------
+            Dim needOTBValidation As Boolean = True
+            Dim currentData As DataTable = New DataTable()
 
-            Dim Validator As New POValidate()
-            Dim items As New List(Of POValidate.DraftPOItem)
-            items.Add(editItem)
+            Using conn As New SqlConnection(connectionString)
+                conn.Open()
+                ' ดึงข้อมูลปัจจุบันจาก DB เพื่อมาเทียบ
+                Dim queryGetOld As String = "SELECT * FROM [BMS].[dbo].[Draft_PO_Transaction] WHERE DraftPO_ID = @ID"
+                Using cmdGet As New SqlCommand(queryGetOld, conn)
+                    cmdGet.Parameters.AddWithValue("@ID", draftPOID)
+                    Using adapter As New SqlDataAdapter(cmdGet)
+                        adapter.Fill(currentData)
+                    End Using
+                End Using
+            End Using
 
-            Dim result As POValidate.ValidationResult = Validator.ValidateBatch(items)
+            If currentData.Rows.Count > 0 Then
+                Dim oldRow As DataRow = currentData.Rows(0)
 
-            If Not result.IsValid Then
-                response("success") = False
-                Dim errorMsg As String = result.GlobalError
-                If result.RowErrors.ContainsKey(1) Then
-                    errorMsg = String.Join(", ", result.RowErrors(1))
+                ' --- Helper 1: เปรียบเทียบ String ---
+                Dim IsStringChanged = Function(colName As String, newVal As String) As Boolean
+                                          Dim oldVal As String = If(oldRow(colName) Is DBNull.Value, "", oldRow(colName).ToString())
+                                          Return Not oldVal.Trim().Equals(newVal.Trim(), StringComparison.OrdinalIgnoreCase)
+                                      End Function
+
+                ' --- Helper 2: เปรียบเทียบตัวเลข แบบมี Tolerance (แก้ปัญหาทศนิยมไม่เท่ากันเป๊ะๆ) ---
+                Dim IsDecimalChanged = Function(colName As String, newVal As Decimal) As Boolean
+                                           Dim oldVal As Decimal = If(oldRow(colName) Is DBNull.Value, 0D, Convert.ToDecimal(oldRow(colName)))
+                                           ' *** แก้ไขจุดนี้: ถ้าต่างกันน้อยกว่า 0.0001 ให้ถือว่าเท่ากัน ***
+                                           Return Math.Abs(oldVal - newVal) > 0.0001D
+                                       End Function
+
+                ' ตรวจสอบ Dimension (ถ้าเปลี่ยน ต้อง Validate ใหม่)
+                Dim isYearChanged As Boolean = IsStringChanged("PO_Year", year)
+                Dim isMonthChanged As Boolean = IsStringChanged("PO_Month", month)
+                Dim isCompanyChanged As Boolean = IsStringChanged("Company_Code", company)
+                Dim isCategoryChanged As Boolean = IsStringChanged("Category_Code", category)
+                Dim isSegmentChanged As Boolean = IsStringChanged("Segment_Code", segment)
+                Dim isBrandChanged As Boolean = IsStringChanged("Brand_Code", brand)
+                Dim isVendorChanged As Boolean = IsStringChanged("Vendor_Code", vendor)
+                Dim isCCYChanged As Boolean = IsStringChanged("CCY", ccy)
+
+                ' *** แก้ไขจุดนี้: ตรวจสอบเฉพาะ Amount_CCY และ ExRate ***
+                ' (ตัดการเช็ค Amount_THB ออก เพราะค่าจากการคำนวณมักมีเศษไม่ตรงกัน)
+                Dim isAmtCCYChanged As Boolean = IsDecimalChanged("Amount_CCY", amtCCY)
+                Dim isExRateChanged As Boolean = IsDecimalChanged("Exchange_Rate", exRate)
+
+                ' สรุป: ถ้า Dimension เดิม และ Input การเงิน (CCY, Rate) เดิม -> ถือว่าไม่เปลี่ยน
+                If Not isYearChanged AndAlso Not isMonthChanged AndAlso
+                   Not isCompanyChanged AndAlso Not isCategoryChanged AndAlso
+                   Not isSegmentChanged AndAlso Not isBrandChanged AndAlso
+                   Not isVendorChanged AndAlso Not isCCYChanged AndAlso
+                   Not isAmtCCYChanged AndAlso Not isExRateChanged Then
+
+                    needOTBValidation = False ' *** SKIP VALIDATION ***
                 End If
-                response("message") = "Update Failed: " & errorMsg
-                context.Response.Write(JsonConvert.SerializeObject(response))
-                Return
             End If
 
-            ' 3. Update DB
+            ' ---------------------------------------------------------
+            ' STEP 3: Validation (ข้ามถ้ายอดไม่เปลี่ยน)
+            ' ---------------------------------------------------------
+            If needOTBValidation Then
+                Dim editItem As New POValidate.DraftPOItem With {
+                    .RowIndex = 1,
+                    .DraftPO_ID = draftPOID,
+                    .PO_Year = year,
+                    .PO_Month = month,
+                    .Company_Code = company,
+                    .Category_Code = category,
+                    .Segment_Code = segment,
+                    .Brand_Code = brand,
+                    .Vendor_Code = vendor,
+                    .PO_No = draftPOno,
+                    .Currency = ccy,
+                    .Amount_CCY = amtCCY,
+                    .ExchangeRate = exRate,
+                    .Amount_THB = amtTHB
+                }
+
+                Dim Validator As New POValidate()
+                Dim items As New List(Of POValidate.DraftPOItem)
+                items.Add(editItem)
+
+                Dim result As POValidate.ValidationResult = Validator.ValidateBatch(items)
+
+                If Not result.IsValid Then
+                    response("success") = False
+                    Dim errorMsg As String = result.GlobalError
+                    If result.RowErrors.ContainsKey(1) Then
+                        errorMsg = String.Join(", ", result.RowErrors(1))
+                    End If
+                    response("message") = "Update Failed: " & errorMsg
+                    context.Response.Write(JsonConvert.SerializeObject(response))
+                    Return
+                End If
+            End If
+
+            ' ---------------------------------------------------------
+            ' STEP 4: Update DB
+            ' ---------------------------------------------------------
             Using conn As New SqlConnection(connectionString)
                 conn.Open()
                 Dim query As String = "UPDATE [BMS].[dbo].[Draft_PO_Transaction] SET " &
