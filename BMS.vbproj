@@ -292,6 +292,9 @@
     <Compile Include="Handler\SaveOTBHandler.ashx.vb">
       <DependentUpon>SaveOTBHandler.ashx</DependentUpon>
     </Compile>
+    <Compile Include="Handler\SwitchUploadHandler.ashx.vb">
+      <DependentUpon>SwitchUploadHandler.ashx</DependentUpon>
+    </Compile>
     <Compile Include="Handler\UserHandler.ashx.vb">
       <DependentUpon>UserHandler.ashx</DependentUpon>
     </Compile>
@@ -409,6 +412,7 @@
     <Content Include="Handler\POMatchingHandler.ashx" />
     <Content Include="Handler\DataOTBRemainingHandler.ashx" />
     <Content Include="Handler\UserHandler.ashx" />
+    <Content Include="Handler\SwitchUploadHandler.ashx" />
     <None Include="My Project\Application.myapp">
       <Generator>MyApplicationCodeGenerator</Generator>
       <LastGenOutput>Application.Designer.vb</LastGenOutput>

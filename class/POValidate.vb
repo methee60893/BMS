@@ -16,7 +16,7 @@ Public Class POValidate
     Private dtBrands As DataTable
     Private dtVendors As DataTable
     Private dtCompanies As DataTable
-    Private dtCCYs As DataTable ' <--- (สำคัญ) ประกาศตัวแปรนี้ไว้เพื่อไม่ให้ Error
+    Private dtCCYs As DataTable
 
     ' Calculator Class
     Private calculator As OTBBudgetCalculator
@@ -79,17 +79,19 @@ Public Class POValidate
         End If
 
         ' 1. Basic Validation (Format & Master Data)
+        '    เช็คเบื้องต้นก่อน ถ้ารายการไหนข้อมูลผิด format ก็แจ้ง error ไปก่อน
         For Each item In items
             ValidateItemBasic(item, result)
         Next
 
         ' 2. Duplicate Check (Composite Key Check)
+        '    เช็คว่า PO ซ้ำในระบบหรือไม่
         ValidateDuplicates(items, result)
 
-        ' 3. Budget Check (ตรวจสอบงบประมาณ)
-        If result.IsValid Then
-            ValidateBudgetAggregate(items, result)
-        End If
+        ' 3. Budget Check (ตรวจสอบงบประมาณ แบบ Aggregate)
+        '    จะทำก็ต่อเมื่อข้อมูลผ่าน Basic Validate แล้ว (ถ้าข้อมูล Master ผิด ก็เช็ค Budget ไม่ได้อยู่ดี)
+        '    แต่เรายอมให้เช็ค Budget ได้แม้จะมี Error อื่นๆ เพื่อให้ User เห็น Error ครบถ้วนทีเดียว
+        ValidateBudgetAggregate(items, result)
 
         Return result
     End Function
@@ -126,7 +128,7 @@ Public Class POValidate
         If Not CheckMasterExists(dtBrands, "Brand Code", item.Brand_Code) Then result.AddError(r, $"Brand '{item.Brand_Code}' not found")
         If Not CheckMasterExists(dtSegments, "SegmentCode", item.Segment_Code) Then result.AddError(r, $"Segment '{item.Segment_Code}' not found")
 
-        ' ตรวจสอบ Currency (ป้องกัน Error ถ้า dtCCYs เป็น Nothing หรือหาไม่เจอ)
+        ' ตรวจสอบ Currency
         If Not CheckMasterExists(dtCCYs, "CCY", item.Currency) Then result.AddError(r, $"Currency '{item.Currency}' not found")
 
         ' ตรวจสอบ Vendor คู่กับ Segment
@@ -135,67 +137,45 @@ Public Class POValidate
         End If
     End Sub
 
-    ' --- Part 2: Duplicate Validation (Composite Key: PO+Year+Month+Comp+Cat+Seg+Brand+Ven) ---
+    ' --- Part 2: Duplicate Validation ---
     Private Sub ValidateDuplicates(items As List(Of DraftPOItem), result As ValidationResult)
-        ' 2.1 Internal Check: ห้ามซ้ำกันเองใน List (ใช้ Composite Key ครบทุกตัว)
-        Dim internalDups = items.GroupBy(Function(x) New With {
-            x.PO_No,
-            x.PO_Year,
-            x.PO_Month,
-            x.Company_Code,
-            x.Category_Code,
-            x.Segment_Code,
-            x.Brand_Code,
-            x.Vendor_Code
-        }).Where(Function(g) g.Count() > 1)
+        ' 2.1 Internal Check: ห้ามซ้ำกันเองใน List (ใช้ PO No เป็นหลัก)
+        Dim internalDups = items.GroupBy(Function(x) x.PO_No).Where(Function(g) g.Count() > 1)
 
         For Each grp In internalDups
             For Each item In grp
-                result.AddError(item.RowIndex, $"Duplicate Entry in this batch (PO: {item.PO_No}, Brand: {item.Brand_Code})")
+                result.AddError(item.RowIndex, $"Duplicate PO No. '{item.PO_No}' in this batch")
             Next
         Next
 
-        ' 2.2 Database Check: ห้ามซ้ำกับ DB (ใช้ Composite Key ครบทุกตัว)
+        ' 2.2 Database Check: ห้ามซ้ำกับ DB
         Using conn As New SqlConnection(connectionString)
             conn.Open()
             For Each item In items
-                ' Logic: ต้องซ้ำกัน "ทุกฟิลด์" ถึงจะนับว่าเป็น Duplicate
-                ' ยกเว้น ID ตัวเอง (กรณี Edit)
+                ' Logic: เช็ค PO No. ซ้ำในระบบ (ยกเว้น ID ตัวเอง กรณี Edit)
+                ' (ถ้า Business Logic อนุญาตให้ PO No ซ้ำได้แต่ต้องต่าง Vendor/Brand ให้ปรับ WHERE clause ตรงนี้)
                 Dim sql As String = "SELECT COUNT(1) FROM [BMS].[dbo].[Draft_PO_Transaction] " &
                                     "WHERE DraftPO_No = @No " &
-                                    "AND PO_Year = @Year " &
-                                    "AND PO_Month = @Month " &
-                                    "AND Company_Code = @Company " &
-                                    "AND Category_Code = @Category " &
-                                    "AND Segment_Code = @Segment " &
-                                    "AND Brand_Code = @Brand " &
-                                    "AND Vendor_Code = @Vendor " &
                                     "AND ISNULL(Status, '') <> 'Cancelled' " &
                                     "AND DraftPO_ID <> @SelfID"
 
                 Using cmd As New SqlCommand(sql, conn)
                     cmd.Parameters.AddWithValue("@No", item.PO_No)
-                    cmd.Parameters.AddWithValue("@Year", item.PO_Year)
-                    cmd.Parameters.AddWithValue("@Month", item.PO_Month)
-                    cmd.Parameters.AddWithValue("@Company", item.Company_Code)
-                    cmd.Parameters.AddWithValue("@Category", item.Category_Code)
-                    cmd.Parameters.AddWithValue("@Segment", item.Segment_Code)
-                    cmd.Parameters.AddWithValue("@Brand", item.Brand_Code)
-                    cmd.Parameters.AddWithValue("@Vendor", item.Vendor_Code)
                     cmd.Parameters.AddWithValue("@SelfID", item.DraftPO_ID)
 
                     Dim count As Integer = Convert.ToInt32(cmd.ExecuteScalar())
                     If count > 0 Then
-                        result.AddError(item.RowIndex, $"รายการนี้มีอยู่แล้วในระบบ (PO: {item.PO_No}, Brand: {item.Brand_Code}, Vendor: {item.Vendor_Code})")
+                        result.AddError(item.RowIndex, $"PO No. '{item.PO_No}' already exists in system")
                     End If
                 End Using
             Next
         End Using
     End Sub
 
-    ' --- Part 3: Budget Validation ---
+    ' --- Part 3: Budget Validation (AGGREGATE LOGIC) ---
     Private Sub ValidateBudgetAggregate(items As List(Of DraftPOItem), result As ValidationResult)
-        ' Group Items ตาม Budget Key (เพราะ Budget ตัดตาม Year+Month+Brand+...)
+        ' Group Items ตาม Budget Key เดียวกัน (Year+Month+Brand+...)
+        ' เพื่อรวมยอดเงิน (Amount_THB) ของทุกรายการที่ใช้ Key นี้ในไฟล์เดียวกัน
         Dim groups = items.GroupBy(Function(x) New With {
             .Year = x.PO_Year,
             .Month = x.PO_Month,
@@ -209,31 +189,40 @@ Public Class POValidate
         For Each grp In groups
             Dim key = grp.Key
 
-            ' A. ยอด Request ทั้งหมดใน Batch นี้สำหรับ Key นี้
+            ' A. ยอด Request ทั้งหมดใน Batch นี้สำหรับ Key นี้ (รวมกันทุกแถว)
             Dim requestTotal As Decimal = grp.Sum(Function(x) x.Amount_THB)
 
             ' B. รายการ ID ที่อยู่ใน Batch (เพื่อเอาไป Exclude ออกจาก DB ถ้าเป็นการ Edit)
             Dim excludeIDs As List(Of Integer) = grp.Select(Function(x) x.DraftPO_ID).ToList()
 
-            ' C. ดึงยอด Approved Budget (จาก OTB Calculator)
-            Dim approved As Decimal = calculator.CalculateCurrentApprovedBudget(
-                key.Year, key.Month, key.Category, key.Company, key.Segment, key.Brand, key.Vendor
-            )
+            Try
+                ' C. ดึงยอด Approved Budget (จาก OTB Calculator)
+                Dim approved As Decimal = calculator.CalculateCurrentApprovedBudget(
+                    key.Year, key.Month, key.Category, key.Company, key.Segment, key.Brand, key.Vendor
+                )
 
-            ' D. ดึงยอด Used Budget จาก DB (Draft + Actual) *โดยหักรายการที่กำลัง Edit ออก*
-            Dim usedInDB As Decimal = GetUsedBudgetFromDB(
-                key.Year, key.Month, key.Category, key.Company, key.Segment, key.Brand, key.Vendor, excludeIDs
-            )
+                ' D. ดึงยอด Used Budget จาก DB (Draft + Actual) *โดยหักรายการที่กำลัง Edit ออก*
+                Dim usedInDB As Decimal = GetUsedBudgetFromDB(
+                    key.Year, key.Month, key.Category, key.Company, key.Segment, key.Brand, key.Vendor, excludeIDs
+                )
 
-            ' E. งบคงเหลือ
-            Dim available As Decimal = approved - usedInDB
+                ' E. งบคงเหลือ (ก่อนหักยอดใน Batch นี้)
+                Dim availableBeforeBatch As Decimal = approved - usedInDB
 
-            ' F. ตรวจสอบ
-            If requestTotal > available Then
+                ' F. ตรวจสอบ (ถ้ายอดรวมใน Batch มากกว่างบที่เหลือ)
+                If requestTotal > availableBeforeBatch Then
+                    ' แจ้ง Error ทุกรายการใน Group นี้
+                    For Each item In grp
+                        result.AddError(item.RowIndex, $"Budget Limit Exceeded! (Total Request in Batch: {requestTotal:N2}, Available: {availableBeforeBatch:N2})")
+                    Next
+                End If
+
+            Catch ex As Exception
+                ' กรณีเกิด Error ตอนเช็ค Budget (เช่น Master Data ผิด) ให้แจ้ง Error แต่ไม่หยุดทำงาน
                 For Each item In grp
-                    result.AddError(item.RowIndex, $"Budget Limit Exceeded! Request: {requestTotal:N2}, Available: {available:N2}")
+                    result.AddError(item.RowIndex, "Budget Check Error: " & ex.Message)
                 Next
-            End If
+            End Try
         Next
     End Sub
 
@@ -277,7 +266,8 @@ Public Class POValidate
                 If res IsNot DBNull.Value Then totalUsed += Convert.ToDecimal(res)
             End Using
 
-            ' 2. Sum Actual PO (Matched/Matching)
+            ' 2. Sum Actual PO (Matched/Matching) - (ถ้า OTB Calculator คำนวณ Actual ให้แล้ว อาจไม่ต้องรวมตรงนี้)
+            ' แต่ตาม Logic เดิมที่เคยเห็น น่าจะรวม Actual ด้วยเพื่อความชัวร์
             Dim sqlActual As String = "SELECT SUM(ISNULL(Amount_THB, 0)) FROM [BMS].[dbo].[Actual_PO_Summary] " &
                                       "WHERE OTB_Year = @Y AND OTB_Month = @M AND Company_Code = @Com " &
                                       "AND Category_Code = @Cat " &
@@ -310,7 +300,7 @@ Public Class POValidate
                 dtSegments = LoadTable(conn, "SELECT [SegmentCode],[SegmentName] FROM [BMS].[dbo].[MS_Segment]")
                 dtBrands = LoadTable(conn, "SELECT [Brand Code],[Brand Name] FROM [BMS].[dbo].[MS_Brand]")
                 dtVendors = LoadTable(conn, "SELECT [VendorCode],[Vendor],[SegmentCode],[CCY] FROM [BMS].[dbo].[MS_Vendor]")
-                dtCCYs = LoadTable(conn, "SELECT [CCY_Code] as 'CCY',[CCY_Name] FROM [BMS].[dbo].[MS_CCY]") ' <--- โหลด CCY แล้ว
+                dtCCYs = LoadTable(conn, "SELECT [CCY_Code] as 'CCY',[CCY_Name] FROM [BMS].[dbo].[MS_CCY]")
                 dtCompanies = LoadTable(conn, "SELECT [CompanyCode],[CompanyNameShort] FROM [BMS].[dbo].[MS_Company]")
             End Using
         Catch ex As Exception
