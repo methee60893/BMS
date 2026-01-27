@@ -107,7 +107,7 @@ Public Class POMatchingHandler
                 Using transaction As SqlTransaction = conn.BeginTransaction()
                     Try
                         ' Update Actual PO Summary
-                        Dim updateActual As String = "UPDATE [BMS].[dbo].[Actual_PO_Summary] SET [Draft_PO_Ref] = @DraftPONo, [Status] = 'Matching', [Matching_Date] = GETDATE(), [Changed_By] = @UpdateBy, [Changed_date] = GETDATE() WHERE [ActualPO_ID] = @ActualPOID"
+                        Dim updateActual As String = "UPDATE [BMS].[dbo].[Actual_PO_Summary] SET [Draft_PO_Ref] = @DraftPONo, [Status] = 'ForceMatching', [Matching_Date] = GETDATE(), [Changed_By] = @UpdateBy, [Changed_date] = GETDATE() WHERE [ActualPO_ID] = @ActualPOID"
                         Using cmd As New SqlCommand(updateActual, conn, transaction)
                             cmd.Parameters.AddWithValue("@DraftPONo", draftPONo)
                             cmd.Parameters.AddWithValue("@ActualPOID", actualPO_ID)
@@ -116,7 +116,7 @@ Public Class POMatchingHandler
                         End Using
 
                         ' Update Draft PO Transaction
-                        Dim updateDraft As String = "UPDATE [BMS].[dbo].[Draft_PO_Transaction] SET [Actual_PO_Ref] = @ActualPONo, [Status] = 'Matching', [Status_Date] = GETDATE(), [Status_By] = @UpdateBy WHERE [DraftPO_No] = @DraftPONo"
+                        Dim updateDraft As String = "UPDATE [BMS].[dbo].[Draft_PO_Transaction] SET [Actual_PO_Ref] = @ActualPONo, [Status] = 'ForceMatching', [Status_Date] = GETDATE(), [Status_By] = @UpdateBy WHERE [DraftPO_No] = @DraftPONo"
                         Using cmd As New SqlCommand(updateDraft, conn, transaction)
                             cmd.Parameters.AddWithValue("@DraftPONo", draftPONo)
                             cmd.Parameters.AddWithValue("@ActualPONo", actualPONo)
@@ -348,76 +348,6 @@ Public Class POMatchingHandler
         End Try
     End Sub
 
-    ' ฟังก์ชันกลางสำหรับดึงข้อมูล Matching (ไม่รับ Parameter)
-    Private Sub GetMatchingReportData(context As HttpContext)
-        Try
-            Dim dt As New DataTable()
-
-            Using conn As New SqlConnection(connectionString)
-                conn.Open()
-                Using cmd As New SqlCommand("SP_Get_Actual_PO_Matching_Report", conn)
-                    cmd.CommandType = CommandType.StoredProcedure
-
-                    ' *** KEY POINT: ส่ง DBNull ไปทุกตัว เพื่อดึงข้อมูลทั้งหมด ***
-                    cmd.Parameters.AddWithValue("@Year", DBNull.Value)
-                    cmd.Parameters.AddWithValue("@Month", DBNull.Value)
-                    cmd.Parameters.AddWithValue("@Company", DBNull.Value)
-                    cmd.Parameters.AddWithValue("@Category", DBNull.Value)
-                    cmd.Parameters.AddWithValue("@Segment", DBNull.Value)
-                    cmd.Parameters.AddWithValue("@Brand", DBNull.Value)
-                    cmd.Parameters.AddWithValue("@Vendor", DBNull.Value)
-
-                    Using adapter As New SqlDataAdapter(cmd)
-                        adapter.Fill(dt)
-                    End Using
-                End Using
-            End Using
-
-            ' แปลง DataTable เป็น JSON Response
-            Dim results As New List(Of Dictionary(Of String, Object))
-            For Each row As DataRow In dt.Rows
-                Dim item As New Dictionary(Of String, Object)
-
-                ' 1. Key Columns
-                item("Year") = row("Year")
-                item("Month") = row("Month")
-                item("Company") = row("Company")
-                item("Category") = row("Category")
-                item("Segment") = row("Segment")
-                item("Brand") = row("Brand")
-                item("Vendor") = row("Vendor")
-
-                ' 2. Actual Data
-                item("Actual_PO_List") = row("Actual_PO_List")
-                item("Actual_Amount_THB") = row("Actual_Amount_THB")
-                item("Actual_Amount_CCY") = row("Actual_Amount_CCY")
-                ' เพิ่ม 2 ตัวนี้ เพื่อให้แสดงในหน้าจอได้
-                item("Actual_CCY") = row("Actual_CCY")
-                item("Actual_ExRate") = row("Actual_ExRate")
-
-                ' 3. Draft Data
-                item("Draft_PO_List") = row("Draft_PO_List")
-                item("Draft_Amount_THB") = row("Draft_Amount_THB")
-                ' เพิ่มตัวนี้ (ถ้าใน SP มีการ Select มา)
-                item("Draft_Amount_CCY") = row("Draft_Amount_CCY")
-
-                ' 4. Matching Status
-                item("Match_Status") = row("Match_Status")
-
-                results.Add(item)
-            Next
-
-            context.Response.ContentType = "application/json"
-            context.Response.Write(JsonConvert.SerializeObject(New With {
-            .success = True,
-            .data = results
-        }))
-
-        Catch ex As Exception
-            context.Response.StatusCode = 500
-            context.Response.Write(JsonConvert.SerializeObject(New With {.success = False, .message = "Data Error: " & ex.Message}))
-        End Try
-    End Sub
 
     ' (เพิ่ม) Sub ใหม่สำหรับ Submit
     Private Sub SubmitMatches(context As HttpContext)
@@ -461,8 +391,8 @@ Public Class POMatchingHandler
                                     [Status_By] = @StatusBy
                                 WHERE 
                                     [DraftPO_No] = @DraftPONo
-                                    AND ISNULL([Status], '') <> 'Cancelled'
-                                    -- อัปเดตได้ทั้ง Matching และ Draft (กรณี Manual) แต่ถ้า Matched แล้วจะไม่กระทบ
+                                    AND ISNULL([Status], '') = 'Matching'
+
                             "
                             Using cmd As New SqlCommand(updateDraftQuery, conn, transaction)
                                 cmd.Parameters.AddWithValue("@ActualPO", actualPoRef)
@@ -482,7 +412,7 @@ Public Class POMatchingHandler
                                 [Changed_date] = GETDATE()
                             WHERE 
                                 [PO_No] = @ActualPONo
-                                AND ISNULL([Status], '') <> 'Cancelled'
+                                AND ISNULL([Status], '') = 'Matching'
                         "
                         Using cmdAct As New SqlCommand(updateActualQuery, conn, transaction)
                             cmdAct.Parameters.AddWithValue("@ActualPONo", actualPoRef)
@@ -870,173 +800,6 @@ Public Class POMatchingHandler
             End Using
         End Using
     End Function
-
-    ' --- (อัปเดต Function) ---
-    ' Function สำหรับดึงและ Group ข้อมูล Draft PO จากฐานข้อมูล
-    Private Function GetGroupedDraftPOs() As Dictionary(Of POMatchKey, GroupedDraftPO)
-        Dim results As New Dictionary(Of POMatchKey, GroupedDraftPO)()
-
-        ' (ดึง Draft PO ที่ยังไม่ถูก Match และยังไม่ Cancelled)
-        ' *** (แก้ไข) เปลี่ยนจาก STRING_AGG เป็น FOR XML PATH ***
-        Dim query As String = "
-            SELECT 
-                T1.PO_Year, 
-                T1.PO_Month, 
-                T1.Company_Code, 
-                T1.Category_Code, 
-                T1.Segment_Code AS Segment,  
-                T1.Brand_Code AS Brand,      
-                T1.Vendor_Code AS Vendor,    
-                CAST(SUM(ISNULL(T1.Amount_THB, 0)) AS DECIMAL(38, 2)) AS Sum_Amount_THB,
-                CAST(SUM(ISNULL(T1.Amount_CCY, 0)) AS DECIMAL(38, 2)) AS Sum_Amount_CCY,
-                MIN(T1.Created_Date) AS Min_Created_Date,
-                STUFF((
-                    SELECT ', ' + T2.DraftPO_No
-                    FROM [BMS].[dbo].[Draft_PO_Transaction] T2
-                    WHERE T2.PO_Year = T1.PO_Year 
-                        AND T2.PO_Month = T1.PO_Month
-                        AND T2.Company_Code = T1.Company_Code
-                        AND T2.Category_Code = T1.Category_Code
-                        AND T2.Segment_Code = T1.Segment_Code
-                        AND T2.Brand_Code = T1.Brand_Code
-                        AND T2.Vendor_Code = T1.Vendor_Code
-                        AND ISNULL(T2.Status, '') <> 'Cancelled' 
-                        AND ISNULL(T2.Actual_PO_Ref, '') = ''
-                    FOR XML PATH(''), TYPE
-                ).value('.', 'NVARCHAR(MAX)'), 1, 2, '') AS Agg_DraftPO_No
-            FROM 
-                [BMS].[dbo].[Draft_PO_Transaction] T1
-            WHERE 
-                ISNULL(T1.Status, '') <> 'Cancelled' 
-                AND ISNULL(T1.Actual_PO_Ref, '') = ''
-            GROUP BY
-                T1.PO_Year, 
-                T1.PO_Month, 
-                T1.Company_Code, 
-                T1.Category_Code, 
-                T1.Segment_Code, 
-                T1.Brand_Code, 
-                T1.Vendor_Code
-        "
-
-        Using conn As New SqlConnection(connectionString)
-            Using cmd As New SqlCommand(query, conn)
-                conn.Open()
-                Using reader As SqlDataReader = cmd.ExecuteReader()
-                    While reader.Read()
-                        ' *** (แก้ไข) ทำความสะอาด Key ก่อนสร้าง Object ***
-                        Dim key As New POMatchKey With {
-                            .Year = reader("PO_Year").ToString().Trim(),
-                            .Month = reader("PO_Month").ToString().Trim(),
-                            .Company = reader("Company_Code").ToString().Trim(),
-                            .Category = reader("Category_Code").ToString().Trim(),
-                            .Segment = reader("Segment").ToString().Trim(),
-                            .Brand = reader("Brand").ToString().Trim(),
-                            .Vendor = reader("Vendor").ToString().Trim()
-                        }
-
-                        Dim draft As New GroupedDraftPO With {
-                            .Key = key,
-                            .DraftAmountTHB = Convert.ToDecimal(reader("Sum_Amount_THB")),
-                            .DraftAmountCCY = Convert.ToDecimal(reader("Sum_Amount_CCY")),
-                            .DraftPONo = reader("Agg_DraftPO_No").ToString(),
-                            .DraftPODate = Convert.ToDateTime(reader("Min_Created_Date")).ToString("dd/MM/yyyy")
-                        }
-                        If Not results.ContainsKey(key) Then
-                            results.Add(key, draft)
-                        End If
-                    End While
-                End Using
-            End Using
-        End Using
-
-        Return results
-    End Function
-
-    ' --- (เพิ่ม Function) ---
-    ' Function สำหรับดึงและ Group ข้อมูล Actual PO (จาก Staging Table)
-    Private Function GetGroupedActualPOsFromStaging() As Dictionary(Of POMatchKey, GroupedActualPO)
-        Dim results As New Dictionary(Of POMatchKey, GroupedActualPO)()
-
-        ' *** (แก้ไข) เปลี่ยนจาก STRING_AGG เป็น FOR XML PATH ***
-        Dim query As String = "
-            SELECT 
-                T1.Otb_Year, 
-                T1.Otb_Month, 
-                T1.Company_Code, 
-                T1.Category, 
-                T1.Fund AS Segment,      
-                T1.Brand, 
-                T1.Supplier AS Vendor,   
-                CAST(SUM(ISNULL(T1.PO_Local_Amount, 0)) AS DECIMAL(38, 2)) AS Sum_Amount_THB,
-                CAST(SUM(ISNULL(T1.PO_Amount, 0)) AS DECIMAL(38, 2)) AS Sum_Amount_CCY,
-                MIN(T1.Create_On) AS Min_Created_Date,
-                STUFF((
-                    SELECT ', ' + T2.PO
-                    FROM [BMS].[dbo].[Actual_PO_Staging] T2
-                    WHERE T2.Otb_Year = T1.Otb_Year 
-                        AND T2.Otb_Month = T1.Otb_Month
-                        AND T2.Company_Code = T1.Company_Code
-                        AND T2.Category = T1.Category
-                        AND T2.Fund = T1.Fund
-                        AND T2.Brand = T1.Brand
-                        AND T2.Supplier = T1.Supplier
-                        AND ISNULL(T2.Deletion_Flag, '') <> 'L'
-                    FOR XML PATH(''), TYPE
-                ).value('.', 'NVARCHAR(MAX)'), 1, 2, '') AS Agg_ActualPO_No,
-                MIN(T1.PO_Currency) AS First_CCY,
-                CAST(AVG(ISNULL(T1.Exchange_Rate, 0)) AS DECIMAL(38, 6)) AS Avg_ExRate
-            FROM 
-                [BMS].[dbo].[Actual_PO_Staging] T1
-            WHERE 
-                ISNULL(T1.Deletion_Flag, '') <> 'L'
-            GROUP BY
-                T1.Otb_Year, 
-                T1.Otb_Month, 
-                T1.Company_Code, 
-                T1.Category, 
-                T1.Fund, 
-                T1.Brand, 
-                T1.Supplier
-        "
-
-        Using conn As New SqlConnection(connectionString)
-            Using cmd As New SqlCommand(query, conn)
-                conn.Open()
-                Using reader As SqlDataReader = cmd.ExecuteReader()
-                    While reader.Read()
-                        ' *** (แก้ไข) ทำความสะอาด Key ก่อนสร้าง Object ***
-                        Dim key As New POMatchKey With {
-                            .Year = reader("Otb_Year").ToString().Trim(),
-                            .Month = reader("Otb_Month").ToString().Trim(), ' *** (แก้ไข) ***
-                            .Company = reader("Company_Code").ToString().Trim(),
-                            .Category = reader("Category").ToString().Trim(),
-                            .Segment = reader("Segment").ToString().Trim(),
-                            .Brand = reader("Brand").ToString().Trim(),
-                            .Vendor = reader("Vendor").ToString().Trim()
-                        }
-
-                        Dim actual As New GroupedActualPO With {
-                            .Key = key,
-                            .ActualAmountTHB = Convert.ToDecimal(reader("Sum_Amount_THB")),
-                            .ActualAmountCCY = Convert.ToDecimal(reader("Sum_Amount_CCY")),
-                            .ActualPONo = reader("Agg_ActualPO_No").ToString(),
-                            .ActualPODate = If(reader("Min_Created_Date") Is DBNull.Value, "", Convert.ToDateTime(reader("Min_Created_Date")).ToString("dd/MM/yyyy")),
-                            .ActualCCY = reader("First_CCY").ToString(),
-                            .ActualExRate = Convert.ToDecimal(reader("Avg_ExRate"))
-                        }
-
-                        If Not results.ContainsKey(key) Then
-                            results.Add(key, actual)
-                        End If
-                    End While
-                End Using
-            End Using
-        End Using
-
-        Return results
-    End Function
-
 
 
     ' --- (เพิ่ม Helper) ---

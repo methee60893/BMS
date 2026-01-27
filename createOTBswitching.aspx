@@ -108,9 +108,11 @@
                 <button class="tab-button" onclick="switchTab('extra')">
                     <i class="bi bi-plus-circle"></i> Extra Budget
                 </button>
+                <!--Start Button Bulk Upload-->
                 <button class="tab-button" onclick="switchTab('bulk')">
                     <i class="bi bi-file-earmark-spreadsheet"></i> Bulk Upload
                 </button>
+                <!--End Button Bulk Upload-->
             </div>
 
             <div class="tab-content-area">
@@ -206,8 +208,8 @@
                         </div>
                     </div>
                 </div>
-
-                <div class="tab-content" id="bulkTab">
+             <!-- Start Bulk Upload -->
+             <div class="tab-content" id="bulkTab">
                     <div class="form-container">
                         <div class="row">
                             <div class="col-12">
@@ -255,6 +257,7 @@
                         </div>
                     </div>
                 </div>
+             <!-- End of Bulk -->
             </div>
         </div>
     </div>

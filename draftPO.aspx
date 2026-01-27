@@ -747,7 +747,7 @@
                 const isMatched = statusLower === 'matched';
                 const isCancelled = statusLower === 'cancelled';
 
-                const canDelete = (statusLower === 'draft' || statusLower === 'matching' || statusLower === 'edited');
+                const canDelete = (statusLower === 'draft' || statusLower === 'matching' || statusLower === 'forcematching' || statusLower === 'edited');
 
                 // กำหนด Class สีสถานะ
                 let statusClass = '';

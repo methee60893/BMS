@@ -296,7 +296,7 @@ Public Class SwitchUploadHandler
             Dim rows As List(Of Dictionary(Of String, Object)) = New JavaScriptSerializer().Deserialize(Of List(Of Dictionary(Of String, Object)))(json)
 
             Dim sapRequest As New OtbSwitchRequest()
-            sapRequest.TestMode = "X"
+            sapRequest.TestMode = ""
 
             Dim pendingDbInserts As New List(Of Dictionary(Of String, Object))
 
