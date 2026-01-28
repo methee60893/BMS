@@ -135,7 +135,9 @@ Public Class SwitchUploadHandler
         sb.Append("<div class='table-responsive' style='max-height: 500px;'>")
         sb.Append("<table class='table table-bordered table-sm table-hover' id='tblBulkPreview' style='font-size: 0.85rem;'>")
         sb.Append("<thead class='table-dark sticky-top'><tr>")
-        sb.Append("<th style='width:30px;'>No.</th><th style='width:60px;'>Type</th>")
+        sb.Append("<th style='width:30px;'>No.</th>")
+        sb.Append("<th style='width:60px;'>Function</th>")
+        sb.Append("<th style='width:60px;'>Type</th>")
         sb.Append("<th>From Details (Source)</th>")
         sb.Append("<th class='text-end' style='width:100px;'>Amount</th>")
         sb.Append("<th>To Details (Destination)</th>")
@@ -148,7 +150,8 @@ Public Class SwitchUploadHandler
             Dim errors As New List(Of String)()
 
             ' --- 1. Read Data ---
-            Dim type As String = GetVal(row, "Type")
+            Dim _function As String = GetVal(row, "Function")
+            Dim type As String = ""
             Dim amtStr As String = GetVal(row, "Amount")
             Dim remark As String = GetVal(row, "Remark")
 
@@ -172,12 +175,12 @@ Public Class SwitchUploadHandler
 
             ' --- 2. Validation ---
             Dim amount As Decimal = 0
-            If String.IsNullOrEmpty(type) Then errors.Add("Missing Type")
+            If String.IsNullOrEmpty(_function) Then errors.Add("Missing Type")
             If Not Decimal.TryParse(amtStr, amount) OrElse amount <= 0 Then errors.Add("Invalid Amount")
-            If String.IsNullOrEmpty(fYear) OrElse String.IsNullOrEmpty(fMonth) OrElse String.IsNullOrEmpty(fVend) Then errors.Add("Missing Source")
+            If String.IsNullOrEmpty(fYear) OrElse String.IsNullOrEmpty(fMonth) OrElse String.IsNullOrEmpty(fComp) OrElse String.IsNullOrEmpty(fCate) OrElse String.IsNullOrEmpty(fSeg) OrElse String.IsNullOrEmpty(fBrand) OrElse String.IsNullOrEmpty(fVend) Then errors.Add("Missing Source")
 
-            If type.Equals("Switch", StringComparison.OrdinalIgnoreCase) Then
-                If String.IsNullOrEmpty(tYear) OrElse String.IsNullOrEmpty(tMonth) OrElse String.IsNullOrEmpty(tVend) Then errors.Add("Missing Dest")
+            If _function.Equals("Switch", StringComparison.OrdinalIgnoreCase) Then
+                If String.IsNullOrEmpty(tYear) OrElse String.IsNullOrEmpty(tMonth) OrElse String.IsNullOrEmpty(tComp) OrElse String.IsNullOrEmpty(tCate) OrElse String.IsNullOrEmpty(tSeg) OrElse String.IsNullOrEmpty(tBrand) OrElse String.IsNullOrEmpty(tVend) Then errors.Add("Missing Dest")
                 If fYear = tYear AndAlso fMonth = tMonth AndAlso fComp = tComp AndAlso fCate = tCate AndAlso fSeg = tSeg AndAlso fBrand = tBrand AndAlso fVend = tVend Then
                     errors.Add("Source=Dest")
                 End If
@@ -204,13 +207,27 @@ Public Class SwitchUploadHandler
             Dim isError As Boolean = (errors.Count > 0)
             If isError Then allValid = False
 
+
+
             ' --- 4. Serialize Data for Save ---
             Dim rowDataObj As New Dictionary(Of String, Object) From {
-                {"Type", type}, {"Amount", amount}, {"Remark", remark},
+                {"Function", _function}, {"Amount", amount}, {"Remark", remark},
                 {"From", New Dictionary(Of String, String) From {{"Year", fYear}, {"Month", fMonth}, {"Company", fComp}, {"Category", fCate}, {"Segment", fSeg}, {"Brand", fBrand}, {"Vendor", fVend}}},
                 {"To", New Dictionary(Of String, String) From {{"Year", tYear}, {"Month", tMonth}, {"Company", tComp}, {"Category", tCate}, {"Segment", tSeg}, {"Brand", tBrand}, {"Vendor", tVend}}}
             }
             Dim rowJson As String = If(isError, "", HttpUtility.HtmlAttributeEncode(New JavaScriptSerializer().Serialize(rowDataObj)))
+
+            Dim typeName As String = ""
+            If _function.Equals("Switch", StringComparison.OrdinalIgnoreCase) Then
+                typeName = "Switch+"
+                Dim dFrom As New Date(Convert.ToInt32(fYear), Convert.ToInt32(fMonth), 1)
+                Dim dTo As New Date(Convert.ToInt32(tYear), Convert.ToInt32(tMonth), 1)
+                If dFrom > dTo Then typeName = "Carry+"
+                If dFrom < dTo Then typeName = "Balance+"
+            ElseIf _function.Equals("Extra", StringComparison.OrdinalIgnoreCase) Then
+                typeName = "Extra+"
+            End If
+
 
             ' --- 5. Prepare Display Strings (With Names) ---
             Dim fCompName As String = GetName(dtCompany, "CompanyCode", "CompanyNameShort", fComp)
@@ -227,7 +244,7 @@ Public Class SwitchUploadHandler
                                   $"Seg: {fSeg}:{fSegName} | Cat: {fCate}:{fCateName}</small>"
 
             Dim tHtml As String = "-"
-            If type.Equals("Switch", StringComparison.OrdinalIgnoreCase) Then
+            If _function.Equals("Switch", StringComparison.OrdinalIgnoreCase) Then
                 Dim tCompName As String = GetName(dtCompany, "CompanyCode", "CompanyNameShort", tComp)
                 Dim tCateName As String = GetName(dtCategory, "Cate", "Category", tCate)
                 Dim tSegName As String = GetName(dtSegment, "SegmentCode", "SegmentName", tSeg)
@@ -245,7 +262,9 @@ Public Class SwitchUploadHandler
             Dim trClass As String = If(isError, "table-danger", "")
             sb.AppendFormat("<tr class='{0}'>", trClass)
             sb.AppendFormat("<td class='text-center'>{0}<input type='hidden' class='row-data' value='{1}'></td>", i + 1, rowJson)
-            sb.AppendFormat("<td class='text-center fw-bold'>{0}</td>", type)
+
+            sb.AppendFormat("<td class='text-center fw-bold'>{0}</td>", _function)
+            sb.AppendFormat("<td class='text-center fw-bold'>{0}</td>", typeName)
 
             ' From Column
             sb.AppendFormat("<td>{0}</td>", fHtml)
@@ -301,7 +320,7 @@ Public Class SwitchUploadHandler
             Dim pendingDbInserts As New List(Of Dictionary(Of String, Object))
 
             For Each row In rows
-                Dim type As String = row("Type").ToString()
+                Dim type As String = row("Function").ToString()
                 Dim amt As Decimal = Convert.ToDecimal(row("Amount"))
                 Dim f = TryCast(row("From"), Dictionary(Of String, Object))
                 Dim t = TryCast(row("To"), Dictionary(Of String, Object))

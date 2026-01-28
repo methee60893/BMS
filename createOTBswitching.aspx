@@ -595,7 +595,7 @@
                 var toTxt = r.Type === 'Switch' ? (r.To.Year + '/' + r.To.Month + ' (' + r.To.Vendor + ')') : '-';
 
                 var html = `<tr class="${cls}">
-                    <td>${index + 1}</td>
+                    <td>${index + 2}</td>
                     <td>${r.Type}</td>
                     <td>${fromTxt}</td>
                     <td>${toTxt}</td>
