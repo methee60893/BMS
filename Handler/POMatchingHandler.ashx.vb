@@ -15,19 +15,30 @@ Public Class POMatchingHandler
     Private Shared connectionString As String = ConfigurationManager.ConnectionStrings("BMSConnectionString")?.ConnectionString
     ' (เพิ่ม) Class สำหรับรับข้อมูลตอน Submit
     Private Class MatchPayload
-        Public Property DraftPOs As String ' "PO-001, PO-002"
-        Public Property ActualPO As String ' "SAP-12345"
+        Public Property DraftPOs As String
+        Public Property ActualPO As String
+        Public Property Year As String
+        Public Property Month As String
+        Public Property Company As String
+        Public Property Category As String
+        Public Property Segment As String
+        Public Property Brand As String
+        Public Property Vendor As String
     End Class
 
     Sub ProcessRequest(ByVal context As HttpContext) Implements IHttpHandler.ProcessRequest
         Dim action As String = If(context.Request("action"), "").ToLower().Trim()
         Dim dateStr As String = If(context.Request("date"), "")
+        Dim poNoStr As String = If(context.Request("pono"), "")
         If action = "sync_and_get" Then
             ' 1. ปุ่ม Sync SAP: ทำการ Sync ก่อน แล้วค่อยดึงข้อมูล
             SyncAndGetPOData(context)
         ElseIf action = "sync_only" Then
             ' 1.5 ปุ่ม Sync SAP (ใหม่): ทำการ Get July POs and Get DataDB Only
             SyncAndGetPODataByDate(context, dateStr)
+        ElseIf action = "sync_po_only" Then
+            ' 1.5 ปุ่ม Sync SAP (ใหม่): ทำการ Get July POs and Get DataDB Only
+            SyncAndGetPODataByPoNo(context, poNoStr)
         ElseIf action = "get_only" Then
             ' 2. ปุ่ม View (ใหม่): ดึงข้อมูลอย่างเดียว ไม่ Sync
             GetPOData(context)
@@ -348,24 +359,71 @@ Public Class POMatchingHandler
         End Try
     End Sub
 
+    Private Sub SyncAndGetPODataByPoNo(context As HttpContext, poNo As String)
+        Try
+            Dim updateBy As String = "System AutoMatchh"
+
+
+            ' (TODO: ควรดึง User จริงจาก Session)
+            If context.Session IsNot Nothing AndAlso context.Session("user") IsNot Nothing Then
+                updateBy = context.Session("user").ToString()
+            End If
+
+            Dim combinedPoList As New List(Of SapPOResultItem)()
+
+            Dim poList As List(Of SapPOResultItem) = Task.Run(Async Function()
+                                                                  Return Await SapApiHelper.GetPOsByPONOAsync(poNo)
+                                                              End Function).Result
+
+            If poList IsNot Nothing Then
+                combinedPoList.AddRange(poList)
+            End If
+
+            If combinedPoList.Count = 0 AndAlso poList Is Nothing Then
+                Throw New Exception("Failed to get any PO data from SAP (All requests returned Nothing).")
+            End If
+
+
+            Dim upsertStats As String = SyncPOsToStaging(combinedPoList)
+
+            ' 5. [จุดสำคัญ] ดึงข้อมูลผลลัพธ์จากตาราง Actual_PO_Summary โดยตรง
+            Dim results As List(Of MatchedPOItem) = GetMatchedDataFromDB()
+
+            ' 6. ส่ง JSON กลับไปที่หน้าจอ
+            context.Response.ContentType = "application/json"
+            Dim successResponse = New With {
+                .success = True,
+                .count = results.Count,
+                .data = results,
+                .syncStats = upsertStats
+            }
+            context.Response.Write(JsonConvert.SerializeObject(successResponse))
+
+        Catch ex As Exception
+            context.Response.ContentType = "application/json"
+            context.Response.StatusCode = 500
+            Dim errorResponse As New With {
+                .success = False,
+                .message = ex.Message & If(ex.InnerException IsNot Nothing, " | Inner: " & ex.InnerException.Message, "")
+            }
+            context.Response.Write(JsonConvert.SerializeObject(errorResponse))
+        End Try
+    End Sub
+
 
     ' (เพิ่ม) Sub ใหม่สำหรับ Submit
     Private Sub SubmitMatches(context As HttpContext)
         context.Response.ContentType = "application/json"
-        Dim statusBy As String = "System_Matcher" ' (TODO: ควรดึงจาก Session ถ้ามี)
+        Dim statusBy As String = "System_Matcher"
         If context.Session("user") IsNot Nothing Then
             statusBy = context.Session("user").ToString()
         End If
 
         Dim jsonPayload As String = context.Request.Form("matches")
-        If String.IsNullOrEmpty(jsonPayload) Then
-            Throw New Exception("No match data received.")
-        End If
+        If String.IsNullOrEmpty(jsonPayload) Then Throw New Exception("No match data received.")
 
         Dim matches As List(Of MatchPayload) = JsonConvert.DeserializeObject(Of List(Of MatchPayload))(jsonPayload)
-        If matches Is Nothing OrElse matches.Count = 0 Then
-            Throw New Exception("No matches were selected.")
-        End If
+        If matches Is Nothing OrElse matches.Count = 0 Then Throw New Exception("No matches were selected.")
 
         Dim totalRowsAffected As Integer = 0
 
@@ -377,66 +435,84 @@ Public Class POMatchingHandler
                         Dim actualPoRef As String = match.ActualPO.Trim()
                         Dim draftPoList As String() = match.DraftPOs.Split(New Char() {","c}, StringSplitOptions.RemoveEmptyEntries)
 
+                        Dim successfulDraftUpdates As Integer = 0
+
                         For Each po As String In draftPoList
                             Dim draftPoNo As String = po.Trim()
                             If String.IsNullOrEmpty(draftPoNo) Then Continue For
 
-                            ' 1. Update Draft PO (Matching -> Matched)
+                            ' 1. Update Draft PO (Matching -> Matched) ด้วย Key 
                             Dim updateDraftQuery As String = "
-                                UPDATE [BMS].[dbo].[Draft_PO_Transaction]
-                                SET 
-                                    [Actual_PO_Ref] = @ActualPO,
-                                    [Status] = 'Matched',
-                                    [Status_Date] = GETDATE(),
-                                    [Status_By] = @StatusBy
-                                WHERE 
-                                    [DraftPO_No] = @DraftPONo
-                                    AND ISNULL([Status], '') = 'Matching'
-
-                            "
+                            UPDATE [BMS].[dbo].[Draft_PO_Transaction]
+                            SET [Actual_PO_Ref] = @ActualPO, [Status] = 'Matched', [Status_Date] = GETDATE(), [Status_By] = @StatusBy
+                            WHERE [DraftPO_No] = @DraftPONo
+                              AND [PO_Year] = @Year
+                              AND (@Month IS NULL OR [PO_Month] = @Month)
+                              AND [Company_Code] = @Company AND [Category_Code] = @Category AND [Segment_Code] = @Segment
+                              AND [Brand_Code] = @Brand AND [Vendor_Code] = @Vendor
+                              AND ISNULL([Status], '') IN ('Matching', 'ForceMatching')
+                        "
                             Using cmd As New SqlCommand(updateDraftQuery, conn, transaction)
                                 cmd.Parameters.AddWithValue("@ActualPO", actualPoRef)
                                 cmd.Parameters.AddWithValue("@StatusBy", statusBy)
                                 cmd.Parameters.AddWithValue("@DraftPONo", draftPoNo)
-                                totalRowsAffected += cmd.ExecuteNonQuery()
+                                cmd.Parameters.AddWithValue("@Year", match.Year)
+                                cmd.Parameters.AddWithValue("@Month", If(String.IsNullOrEmpty(match.Month), DBNull.Value, match.Month))
+                                cmd.Parameters.AddWithValue("@Company", match.Company)
+                                cmd.Parameters.AddWithValue("@Category", match.Category)
+                                cmd.Parameters.AddWithValue("@Segment", match.Segment)
+                                cmd.Parameters.AddWithValue("@Brand", match.Brand)
+                                cmd.Parameters.AddWithValue("@Vendor", match.Vendor)
+
+                                Dim rows As Integer = cmd.ExecuteNonQuery()
+                                If rows > 0 Then
+                                    successfulDraftUpdates += 1
+                                    totalRowsAffected += rows
+                                End If
                             End Using
                         Next
 
-                        ' 2. Update Actual PO (Matching -> Matched) [NEW Logic]
+                        If successfulDraftUpdates = 0 Then
+                            Throw New Exception($"Cannot match Actual PO '{actualPoRef}'. The selected Draft POs Keys do not match or status changed.")
+                        End If
+
+                        ' 2. Update Actual PO (Matching -> Matched) ด้วย Key และ Logic การจัดการ Segment_Code
                         Dim updateActualQuery As String = "
-                            UPDATE [BMS].[dbo].[Actual_PO_Summary]
-                            SET 
-                                [Status] = 'Matched',
-                                [Matching_Date] = GETDATE(),
-                                [Changed_By] = @StatusBy,
-                                [Changed_date] = GETDATE()
-                            WHERE 
-                                [PO_No] = @ActualPONo
-                                AND ISNULL([Status], '') = 'Matching'
-                        "
+                        UPDATE [BMS].[dbo].[Actual_PO_Summary]
+                        SET [Status] = 'Matched', [Matching_Date] = GETDATE(), [Changed_By] = @StatusBy, [Changed_date] = GETDATE()
+                        WHERE [PO_No] = @ActualPONo
+                          AND [OTB_Year] = @Year
+                          AND (@Month IS NULL OR [OTB_Month] = @Month)
+                          AND [Company_Code] = @Company AND [Category_Code] = @Category
+                          AND CASE WHEN LEN([Segment_Code]) > 2 THEN SUBSTRING([Segment_Code], 2, LEN([Segment_Code]) - 2) ELSE [Segment_Code] END = @Segment
+                          AND [Brand_Code] = @Brand AND [Vendor_Code] = @Vendor
+                          AND ISNULL([Status], '') IN ('Matching', 'ForceMatching')
+                    "
                         Using cmdAct As New SqlCommand(updateActualQuery, conn, transaction)
                             cmdAct.Parameters.AddWithValue("@ActualPONo", actualPoRef)
                             cmdAct.Parameters.AddWithValue("@StatusBy", statusBy)
-                            cmdAct.ExecuteNonQuery()
+                            cmdAct.Parameters.AddWithValue("@Year", match.Year)
+                            cmdAct.Parameters.AddWithValue("@Month", If(String.IsNullOrEmpty(match.Month), DBNull.Value, match.Month))
+                            cmdAct.Parameters.AddWithValue("@Company", match.Company)
+                            cmdAct.Parameters.AddWithValue("@Category", match.Category)
+                            cmdAct.Parameters.AddWithValue("@Segment", match.Segment)
+                            cmdAct.Parameters.AddWithValue("@Brand", match.Brand)
+                            cmdAct.Parameters.AddWithValue("@Vendor", match.Vendor)
+
+                            Dim actRows As Integer = cmdAct.ExecuteNonQuery()
+                            If actRows = 0 Then
+                                Throw New Exception($"Actual PO '{actualPoRef}' key dimensions (Segment, Brand, etc.) do not match the Draft PO.")
+                            End If
                         End Using
                     Next
 
                     transaction.Commit()
-
-                    Dim successResponse = New With {
-                        .success = True,
-                        .message = $"Successfully confirmed {totalRowsAffected} Draft PO(s) and updated related Actual PO(s) to 'Matched'."
-                    }
+                    Dim successResponse = New With {.success = True, .message = $"Successfully matched {totalRowsAffected} Draft PO(s)."}
                     context.Response.Write(JsonConvert.SerializeObject(successResponse))
 
                 Catch ex As Exception
                     transaction.Rollback()
-                    context.Response.StatusCode = 500
-                    Dim errorResponse As New With {
-                        .success = False,
-                        .message = ex.Message
-                    }
-                    context.Response.Write(JsonConvert.SerializeObject(errorResponse))
+                    context.Response.Write(JsonConvert.SerializeObject(New With {.success = False, .message = ex.Message}))
                 End Try
             End Using
         End Using
@@ -524,7 +600,7 @@ Public Class POMatchingHandler
 
 
         Dim query As String = "
-              SELECT 
+              SELECT DISTINCT
                   A.ActualPO_ID, A.OTB_Year, A.OTB_Month, A.Company_Code, A.Category_Code, 
                   CASE WHEN LEN(A.Segment_Code) > 2 THEN SUBSTRING(A.Segment_Code, 2, LEN(A.Segment_Code) - 2) ELSE A.Segment_Code END AS Segment_Code,
                   A.Brand_Code, A.Vendor_Code, A.PO_No AS ActualPONo, A.Actual_PO_Date,
@@ -566,6 +642,7 @@ Public Class POMatchingHandler
                             .Year = r("OTB_Year").ToString(),
                             .Month = r("OTB_Month").ToString(),
                             .Company = masterinstance.GetCompanyName(r("Company_Code").ToString()),
+                            .CompanyCode = r("Company_Code").ToString(),
                             .Category = r("Category_Code").ToString(),
                             .Segment = r("Segment_Code").ToString(),
                             .Brand = r("Brand_Code").ToString(),

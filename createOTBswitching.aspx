@@ -530,16 +530,12 @@
             });
         }
 
+        // แก้ไขฟังก์ชัน saveBulkData ใน createOTBswitching.aspx
         function saveBulkData() {
             var dataPayload = [];
-            
-            // ดึงข้อมูลจาก Hidden Input (.row-data) ในตาราง Preview
-            // (ใช้ .row-data แทน checkbox เพราะเราบังคับว่าต้องผ่านหมดถึงจะกดปุ่มได้)
-            $('.row-data').each(function() {
+            $('.row-data').each(function () {
                 var val = $(this).val();
-                if (val) {
-                    dataPayload.push(JSON.parse(val));
-                }
+                if (val) { dataPayload.push(JSON.parse(val)); }
             });
 
             if (dataPayload.length === 0) {
@@ -547,35 +543,34 @@
                 return;
             }
 
-            if (!confirm('Are you sure you want to process ' + dataPayload.length + ' transactions? This will update SAP directly.')) {
-                return;
-            }
+            if (!confirm('ยืนยันการบันทึก ' + dataPayload.length + ' รายการลง SAP?')) return;
 
-            showLoading(true, "Sending Batch to SAP... (Please wait)");
-
+            showLoading(true, "Sending Batch to SAP...");
             $.ajax({
                 url: 'Handler/SwitchUploadHandler.ashx?action=save',
                 type: 'POST',
                 data: { data: JSON.stringify(dataPayload) },
-                success: function(res) {
+                success: function (res) {
                     showLoading(false);
                     if (res.success) {
                         alert(res.message);
+
+                        // 1. ดึงข้อมูล Results มาแสดงในตารางสรุป (Success/Error รายบรรทัด)
                         renderBulkResults(res.results);
-                        
-                        // สำเร็จ -> ซ่อนปุ่ม Save และเคลียร์ Preview
-                        $('#divBulkActions').hide();
-                        $('#bulkPreviewContainer').html('<div class="alert alert-success">Transaction Completed Successfully!</div>');
-                        document.getElementById('fileBulkSwitch').value = ""; // Clear file
+
+                        // 2. เคลียร์ข้อมูลและสถานะหน้าจอ
+                        $('#divBulkActions').hide(); // ซ่อนปุ่ม Confirm
+                        $('#bulkPreviewContainer').empty(); // ลบตาราง Preview ออก 
+                        document.getElementById('fileBulkSwitch').value = ""; // เคลียร์ไฟล์ที่เลือก 
+
+                        // 3. แสดงส่วนผลลัพธ์จาก SAP
+                        $('#bulkResultContainer').fadeIn();
                     } else {
-                        // ไม่สำเร็จ (All-or-Nothing)
                         alert('Batch Failed: ' + res.message);
-                        // อาจจะแสดง Error Detail ที่ด้านล่างก็ได้
-                        $('#bulkResultContainer').show();
-                        $('#tblBulkResult tbody').html('<tr><td colspan="7" class="text-danger text-center fw-bold">BATCH FAILED: ' + res.message + '</td></tr>');
+                        if (res.results) renderBulkResults(res.results);
                     }
                 },
-                error: function(err) {
+                error: function (err) {
                     showLoading(false);
                     alert('System Error: ' + err.statusText);
                 }
@@ -585,28 +580,45 @@
         function renderBulkResults(results) {
             var tbody = $('#tblBulkResult tbody');
             tbody.empty();
-            
-            results.forEach(function(item, index) {
-                var r = item.row; // Original data
-                var cls = item.status === 'Success' ? '' : 'table-danger';
-                var statusBadge = item.status === 'Success' ? '<span class="badge bg-success">Success</span>' : '<span class="badge bg-danger">Error</span>';
-                
-                var fromTxt = r.From.Year + '/' + r.From.Month + ' (' + r.From.Vendor + ')';
-                var toTxt = r.Type === 'Switch' ? (r.To.Year + '/' + r.To.Month + ' (' + r.To.Vendor + ')') : '-';
 
+            results.forEach(function (item, index) {
+                var r = item.row; // ข้อมูลที่ Mapping ชื่อมาแล้วจาก Backend
+                var cls = item.status === 'Success' ? '' : 'table-danger';
+                var statusBadge = item.status === 'Success' ?
+                    '<span class="badge bg-success"><i class="bi bi-check-circle"></i> Success</span>' :
+                    '<span class="badge bg-danger"><i class="bi bi-x-circle"></i> Error</span>';
+
+                // --- ส่วนที่ 1: จัดการข้อมูลฝั่ง FROM (Source) ---
+                var fromTxt = `<strong>${r.From.Year}/${r.From.Month}</strong><br/>` +
+                    `<small class="text-muted">Comp: ${r.From.Company}:${r.From.CompanyName}<br/>` +
+                    `Vend: ${r.From.Vendor}:${r.From.VendorName}</small>`;
+
+                // --- ส่วนที่ 2: จัดการข้อมูลฝั่ง TO (Destination) ---
+                // เช็คเงื่อนไข: ต้องเป็น Switch และต้องมี Object To (ถ้าเป็น Extra จะขึ้น -)
+                var toTxt = '<div class="text-center text-muted">-</div>';
+
+                if (r.Function.toLowerCase() === 'switch' && r.To) {
+                    toTxt = `<strong>${r.To.Year}/${r.To.Month}</strong><br/>` +
+                        `<small class="text-muted">Comp: ${r.To.Company}:${r.To.CompanyName}<br/>` +
+                        `Vend: ${r.To.Vendor}:${r.To.VendorName}</small>`;
+                }
+
+                // --- ส่วนที่ 3: สร้าง HTML Row ---
                 var html = `<tr class="${cls}">
-                    <td>${index + 2}</td>
-                    <td>${r.Type}</td>
-                    <td>${fromTxt}</td>
-                    <td>${toTxt}</td>
-                    <td class="text-end">${parseFloat(r.Amount).toLocaleString('en-US', {minimumFractionDigits: 2})}</td>
-                    <td>${statusBadge}</td>
-                    <td>${item.message}</td>
+                    <td class="text-center align-middle">${index + 2}</td>
+                    <td class="text-center align-middle fw-bold text-primary">${r.Type}</td>
+                    <td class="align-middle">${fromTxt}</td>
+                    <td class="text-end align-middle fw-bold">${parseFloat(r.Amount).toLocaleString('en-US', { minimumFractionDigits: 2 })}</td>
+                    <td class="align-middle">${toTxt}</td>
+                    <td class="text-center align-middle">${statusBadge}</td>
+                    <td class="align-middle"><small class="text-wrap">${item.message}</small></td>
                 </tr>`;
+
                 tbody.append(html);
             });
 
-            $('#bulkResultContainer').show();
+            // แสดงตารางผลลัพธ์
+            $('#bulkResultContainer').fadeIn();
         }
 
         // ==========================================

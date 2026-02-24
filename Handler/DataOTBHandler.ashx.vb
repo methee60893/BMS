@@ -1476,14 +1476,17 @@ Public Class DataOTBHandler
         Dim dt As New DataTable()
         Using conn As New SqlConnection(connectionString)
             conn.Open()
-            ' ดึง Draft PO ทั้งหมดที่ยังไม่ Cancelled และยังไม่ Match กับ Actual (หรือจะรวมหมดแล้วแต่ Business Rule)
-            ' ปกติถ้า Match แล้ว มูลค่าจะไปอยู่ที่ Actual PO, ถ้ายังไม่ Match อยู่ที่ Draft
-            ' กรณีนี้เราจะดึงเฉพาะ Draft ที่ Status != 'Cancelled' และ Actual_PO_Ref IS NULL
+
+
             Dim query As String = "
                 SELECT PO_Year AS Year, PO_Month AS Month, Company_Code AS Company, Category_Code AS Category, 
                        Segment_Code AS Segment, Brand_Code AS Brand, Vendor_Code AS Vendor, Amount_THB AS Amount
-                FROM [BMS].[dbo].[Draft_PO_Transaction]
-                WHERE ISNULL(Status, '') IN ('Draft', 'Edited')
+                FROM [BMS].[dbo].[Draft_PO_Transaction] d
+                WHERE ISNULL([Status], 'Draft') NOT IN ('Matched', 'ForceMatching', 'Matching', 'Cancelled')
+                 AND NOT EXISTS (
+                          SELECT 1 FROM [dbo].[Actual_PO_Summary] a 
+                          WHERE a.[Status] = 'Matched' AND (a.Draft_PO_Ref = d.DraftPO_No OR a.PO_No = d.Actual_PO_No)
+                      )
                 AND (@Year IS NULL OR PO_Year = @Year)
                 AND (@Month IS NULL OR PO_Month = @Month)
                 AND (@Company IS NULL OR Company_Code = @Company)
@@ -1518,7 +1521,7 @@ Public Class DataOTBHandler
                 SELECT Otb_Year AS Year, Otb_Month AS Month, Company_Code AS Company, Category_Code As Category, 
                        SUBSTRING(Segment_Code, 2, CASE WHEN LEN(ISNULL(Segment_Code, '')) > 2 THEN LEN(Segment_Code) - 2 ELSE 0 END) As Segment,Brand_Code As Brand,Vendor_Code As Vendor, Amount_THB AS Amount
                 FROM [BMS].[dbo].[Actual_PO_Summary]
-                WHERE ISNULL(Status, '') IN ('Matching','Matched' )
+                WHERE ISNULL(Status, '') IN ('Matching','ForceMatching','Matched' )
                 AND (@Year IS NULL OR Otb_Year = @Year)
                 AND (@Month IS NULL OR Otb_Month = @Month)
                 AND (@Company IS NULL OR Company_Code = @Company)

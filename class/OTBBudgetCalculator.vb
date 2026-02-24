@@ -119,19 +119,12 @@ Public Class OTBBudgetCalculator
             Dim filter As String = BuildKeyFilter(year, month, category, company, segment, brand, vendor)
             filter &= " AND [Type] = 'Revise'"
 
-            Dim reviseRows As DataRow() = dtOtbTransaction.Select(filter, "Version ASC")
 
-            Dim totalRevDiff As Decimal = 0
-            Dim previousAmount As Decimal = originalAmount
+            ' ใช้ Logic เดียวกับ Report คือ SUM(RevisedDiff) ทื่อๆ เลย ป้องกันการคำนวณพลาดจากการวน Loop
+            Dim totalRevDiff As Object = dtOtbTransaction.Compute("SUM(RevisedDiff)", filter)
 
-            For Each row As DataRow In reviseRows
-                Dim reviseAmount As Decimal = If(row("Amount") IsNot DBNull.Value, Convert.ToDecimal(row("Amount")), 0)
-                Dim diff As Decimal = reviseAmount - previousAmount
-                totalRevDiff += diff
-                previousAmount = reviseAmount
-            Next
+            Return If(totalRevDiff IsNot DBNull.Value, Convert.ToDecimal(totalRevDiff), 0)
 
-            Return totalRevDiff
         Catch ex As Exception
             System.Diagnostics.Debug.WriteLine("Error in GetRevisionDiff (In-Memory): " & ex.Message)
             Return 0

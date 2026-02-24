@@ -148,17 +148,27 @@
             </div>
             <!-- Submit Section -->
             <div class="submit-section">
-                <div class="submit-section d-flex align-items-center gap-2 mb-3">
+                <div class="submit-section d-flex align-items-center gap-1 mb-3">
                     <div class="input-group">
                         <span class="input-group-text">Select Date:</span>
                         <input type="date" id="txtSyncDate" class="form-control" />
                     </div>
-
+                    
                     <button type="button" id="btnSyncSAPOnly" class="btn btn-danger me-3" >  
                         <i class="bi bi-arrow-clockwise"></i> Sync SAP Only
                     </button>
                 </div>
-            </div>
+                <div class="submit-section d-flex align-items-center gap-1 mb-3">
+                    <div class="input-group">
+                        <span class="input-group-text">PoNo:</span>
+                        <input type="text" id="txtPoNo" class="form-control" />
+                    </div>
+    
+                    <button type="button" id="btnSyncSAPWithPoOnly" class="btn btn-danger me-3" >  
+                        <i class="bi bi-arrow-clockwise"></i> Sync SAP With PO Only
+                    </button>
+                </div>
+           </div>
             <!-- Review Section -->
             
             <!-- Data Table -->
@@ -249,6 +259,7 @@
         // (MODIFIED: Cache all buttons)
     
         let btnSyncSAPOnly = document.getElementById("btnSyncSAPOnly");
+        let btnSyncSAPWithPoOnly = document.getElementById("btnSyncSAPWithPoOnly");
         let tableBody = document.getElementById("matchTableBody");
         let loadingOverlay = document.getElementById("loadingOverlay");
         var manualMatchModal;
@@ -530,6 +541,7 @@
         function loadMatchData(actionType) {
 
             let selectedDate = '';
+            let poNo = '';
 
             if (actionType === 'sync_only') {
                 if (!txtSyncDate || !txtSyncDate.value) {
@@ -537,6 +549,13 @@
                     return;
                 }
                 selectedDate = txtSyncDate.value;
+            } else if (actionType === 'sync_po_only') {
+                    if (!txtPoNo || !txtPoNo.value) {
+                        alert("Please select a PoNo.");
+                        return;
+                    }
+                poNo = txtPoNo.value;
+                
             }
 
             let loadingMsg = actionType === 'sync_and_get' ? 'Syncing SAP & Loading...' : 'Loading Data...';
@@ -544,12 +563,13 @@
 
             // ปิดปุ่มกันกดซ้ำ
             if (btnSyncSAPOnly) btnSyncSAPOnly.disabled = true;
+            if (btnSyncSAPWithPoOnly) btnSyncSAPWithPoOnly.disabled = true;
 
 
             // *** KEY POINT: ไม่ต้องสร้าง FormData จาก Filter แล้ว ***
 
             $.ajax({
-                url: 'Handler/POMatchingHandler.ashx?action=' + actionType + '&date=' + selectedDate,
+                url: 'Handler/POMatchingHandler.ashx?action=' + actionType + '&date=' + selectedDate + '&pono=' + poNo,
                 type: 'POST',
                 processData: false,
                 contentType: false,
@@ -557,6 +577,7 @@
                 success: function (response) {
                     showLoading(false);
                     if (btnSyncSAPOnly) btnSyncSAPOnly.disabled = false;
+                    if (btnSyncSAPWithPoOnly) btnSyncSAPWithPoOnly.disabled = false;
                     if (response.success) {
                         buildTable(response.data);
                     } else {
@@ -567,11 +588,13 @@
                 error: function (xhr, status, error) {
                     showLoading(false);
                     if (btnSyncSAPOnly) btnSyncSAPOnly.disabled = false;
+                    if (btnSyncSAPWithPoOnly) btnSyncSAPWithPoOnly.disabled = false;
                     console.error(error);
                     alert('Fatal error: ' + xhr.responseText);
                 }
             });
         }
+
         function openManualMatchModal(actualPOID, actualPONo, rowIndex) {
             document.getElementById('hdnMatchActualPOID').value = actualPOID; // Store ID
             document.getElementById('hdnMatchActualPONo').value = actualPONo;
@@ -652,6 +675,7 @@
             manualMatchModal = new bootstrap.Modal(document.getElementById('manualMatchModal'));
 
             btnSyncSAPOnly.addEventListener('click', function () { loadMatchData('sync_only'); });
+            btnSyncSAPWithPoOnly.addEventListener('click', function () { loadMatchData('sync_po_only'); });
 
 
         }

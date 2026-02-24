@@ -2,6 +2,7 @@
     Public Property Year As String
     Public Property Month As String
     Public Property Company As String
+    Public Property CompanyCode As String
     Public Property Category As String
     Public Property Segment As String ' (มาจาก SAP Fund)
     Public Property Brand As String
@@ -14,6 +15,7 @@
         Return Year.ToLower() = other.Year.ToLower() AndAlso
                Convert.ToInt32(Month).ToString().ToLower() = Convert.ToInt32(other.Month).ToString().ToLower() AndAlso
                Company.ToLower() = other.Company.ToLower() AndAlso
+               CompanyCode.ToLower() = other.CompanyCode.ToLower() AndAlso
                Category.ToLower() = other.Category.ToLower() AndAlso
                Segment.ToLower() = other.Segment.ToLower() AndAlso
                Brand.ToLower() = other.Brand.ToLower() AndAlso
@@ -21,6 +23,6 @@
     End Function
     Public Overrides Function GetHashCode() As Integer
         ' ใช้วิธีง่ายๆ ในการ Combine HashCode
-        Return String.Concat(Year.ToLower(), Convert.ToInt32(Month).ToString().ToLower(), Company.ToLower(), Category.ToLower(), Segment.ToLower(), Brand.ToLower(), Vendor.ToLower()).GetHashCode()
+        Return String.Concat(Year.ToLower(), Convert.ToInt32(Month).ToString().ToLower(), Company.ToLower(), CompanyCode.ToLower(), Category.ToLower(), Segment.ToLower(), Brand.ToLower(), Vendor.ToLower()).GetHashCode()
     End Function
 End Class

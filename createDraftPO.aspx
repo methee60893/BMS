@@ -1276,12 +1276,7 @@
 
                     showUploadResults(response);
 
-                    // ตรวจสอบว่ามี error message กลับมาหรือไม่
-                    //if (response.toLowerCase().includes("error") || response.includes("alert-danger")) {
-                    //    showErrorSaveModal(response, 'Save Error');
-                    //} else {
-                    //    showSuccessModal('Success', response);
-                    //}
+
                 },
                 error: function (xhr, status, error) {
                     showLoading(false);
@@ -1397,7 +1392,7 @@
 
                 let tr = `
                 <tr class="${rowClass}">
-                    <td class="text-center">${index + 1}</td>
+                    <td class="text-center">${index + 2}</td>
                     <td>${row.DraftPONo || '-'}</td>
                     <td class="text-center">${icon} ${row.Status}</td>
                     <td>${row.Message}</td>

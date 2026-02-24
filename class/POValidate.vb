@@ -140,11 +140,11 @@ Public Class POValidate
     ' --- Part 2: Duplicate Validation ---
     Private Sub ValidateDuplicates(items As List(Of DraftPOItem), result As ValidationResult)
         ' 2.1 Internal Check: ห้ามซ้ำกันเองใน List (ใช้ PO No เป็นหลัก)
-        Dim internalDups = items.GroupBy(Function(x) x.PO_No).Where(Function(g) g.Count() > 1)
+        Dim internalDups = items.GroupBy(Function(x) {x.PO_No, x.PO_Month, x.PO_Year, x.Company_Code, x.Category_Code, x.Segment_Code, x.Brand_Code, x.Vendor_Code}).Where(Function(g) g.Count() > 1)
 
         For Each grp In internalDups
             For Each item In grp
-                result.AddError(item.RowIndex, $"Duplicate PO No. '{item.PO_No}' in this batch")
+                result.AddError(item.RowIndex, $"Duplicate PO No. '{item.PO_No}' (Year:{item.PO_Year}, Month:{item.PO_Month}, CompCode:{item.Company_Code}, Cate:{item.Category_Code}, Segment:{item.Segment_Code},  Brand:{item.Brand_Code}, Vendor:{item.Vendor_Code}) in this batch")
             Next
         Next
 
@@ -156,11 +156,25 @@ Public Class POValidate
                 ' (ถ้า Business Logic อนุญาตให้ PO No ซ้ำได้แต่ต้องต่าง Vendor/Brand ให้ปรับ WHERE clause ตรงนี้)
                 Dim sql As String = "SELECT COUNT(1) FROM [BMS].[dbo].[Draft_PO_Transaction] " &
                                     "WHERE DraftPO_No = @No " &
-                                    "AND ISNULL(Status, '') <> 'Cancelled' " &
+                                    "AND PO_Month = @Month " &
+                                    "AND PO_Year = @Year " &
+                                    "AND Company_Code = @Company " &
+                                    "AND Category_Code = @Category " &
+                                    "AND Segment_Code = @Segment " &
+                                    "AND Brand_Code = @Brand " &
+                                    "AND Vendor_Code = @Vendor " &
+                                    " And ISNULL(Status, '') <> 'Cancelled' " &
                                     "AND DraftPO_ID <> @SelfID"
 
                 Using cmd As New SqlCommand(sql, conn)
                     cmd.Parameters.AddWithValue("@No", item.PO_No)
+                    cmd.Parameters.AddWithValue("@Month", item.PO_Month)
+                    cmd.Parameters.AddWithValue("@Year", item.PO_Year)
+                    cmd.Parameters.AddWithValue("@Company", item.Company_Code)
+                    cmd.Parameters.AddWithValue("@Category", item.Category_Code)
+                    cmd.Parameters.AddWithValue("@Segment", item.Segment_Code)
+                    cmd.Parameters.AddWithValue("@Brand", item.Brand_Code)
+                    cmd.Parameters.AddWithValue("@Vendor", item.Vendor_Code)
                     cmd.Parameters.AddWithValue("@SelfID", item.DraftPO_ID)
 
                     Dim count As Integer = Convert.ToInt32(cmd.ExecuteScalar())
@@ -238,11 +252,18 @@ Public Class POValidate
             conn.Open()
 
             ' 1. Sum Draft PO (Exclude Cancelled AND Exclude Self IDs)
-            Dim sqlDraft As String = "SELECT SUM(ISNULL(Amount_THB, 0)) FROM [BMS].[dbo].[Draft_PO_Transaction] " &
-                                     "WHERE PO_Year = @Y AND PO_Month = @M AND Company_Code = @Com " &
-                                     "AND Category_Code = @Cat AND Segment_Code = @Seg " &
-                                     "AND Brand_Code = @Brand AND Vendor_Code = @Ven " &
-                                     "AND ISNULL(Status, 'Draft') IN ('Draft', 'Edited')"
+            Dim sqlDraft As String = "
+                                        SELECT SUM(ISNULL(Amount_THB, 0)) 
+                                        FROM [BMS].[dbo].[Draft_PO_Transaction] d
+                                        WHERE d.PO_Year = @Y AND d.PO_Month = @M AND d.Company_Code = @Com 
+                                          AND d.Category_Code = @Cat AND d.Segment_Code = @Seg 
+                                          AND d.Brand_Code = @Brand AND d.Vendor_Code = @Ven 
+                                          AND ISNULL(d.Status, 'Draft') IN ('Draft', 'Edited')
+                                          AND NOT EXISTS (
+                                              SELECT 1 FROM [BMS].[dbo].[Actual_PO_Summary] a 
+                                              WHERE a.[Status] = 'Matched' 
+                                                AND (a.Draft_PO_Ref = d.DraftPO_No OR a.PO_No = d.Actual_PO_No)
+                                          )"
 
             ' ถ้ามี ID ที่ต้อง Exclude (เช่นกำลัง Edit) ให้ใส่เงื่อนไข
             If excludeIDs IsNot Nothing AndAlso excludeIDs.Count > 0 Then
@@ -273,7 +294,66 @@ Public Class POValidate
                                       "AND Category_Code = @Cat " &
                                       "AND (Segment_Code = @Seg OR SUBSTRING(ISNULL(Segment_Code, ''), 2, CASE WHEN LEN(ISNULL(Segment_Code, '')) > 2 THEN LEN(Segment_Code) - 2 ELSE 0 END) = @Seg) " &
                                       "AND Brand_Code = @Brand AND Vendor_Code = @Ven " &
-                                      "AND [Status] IN ('Matched', 'Matching')"
+                                      "AND [Status] IN ('Matched', 'Matching', 'ForceMatching')"
+
+            Using cmd As New SqlCommand(sqlActual, conn)
+                cmd.Parameters.AddWithValue("@Y", year)
+                cmd.Parameters.AddWithValue("@M", month)
+                cmd.Parameters.AddWithValue("@Com", com)
+                cmd.Parameters.AddWithValue("@Cat", cat)
+                cmd.Parameters.AddWithValue("@Seg", seg)
+                cmd.Parameters.AddWithValue("@Brand", brand)
+                cmd.Parameters.AddWithValue("@Ven", ven)
+
+                Dim res = cmd.ExecuteScalar()
+                If res IsNot DBNull.Value Then totalUsed += Convert.ToDecimal(res)
+            End Using
+        End Using
+
+        Return totalUsed
+    End Function
+
+    Public Function GetUsedBudgetFromDBForOTB(year As String, month As String, cat As String, com As String,
+                                         seg As String, brand As String, ven As String) As Decimal
+        Dim totalUsed As Decimal = 0
+        Using conn As New SqlConnection(connectionString)
+            conn.Open()
+
+            ' 1. Sum Draft PO (Exclude Cancelled AND Exclude Self IDs)
+            Dim sqlDraft As String = "
+                                        SELECT SUM(ISNULL(Amount_THB, 0)) 
+                                        FROM [BMS].[dbo].[Draft_PO_Transaction] d
+                                        WHERE d.PO_Year = @Y AND d.PO_Month = @M AND d.Company_Code = @Com 
+                                          AND d.Category_Code = @Cat AND d.Segment_Code = @Seg 
+                                          AND d.Brand_Code = @Brand AND d.Vendor_Code = @Ven 
+                                          AND ISNULL(d.Status, 'Draft') IN ('Draft', 'Edited')
+                                          AND NOT EXISTS (
+                                              SELECT 1 FROM [BMS].[dbo].[Actual_PO_Summary] a 
+                                              WHERE a.[Status] = 'Matched' 
+                                                AND (a.Draft_PO_Ref = d.DraftPO_No OR a.PO_No = d.Actual_PO_No)
+                                          )"
+
+            Using cmd As New SqlCommand(sqlDraft, conn)
+                cmd.Parameters.AddWithValue("@Y", year)
+                cmd.Parameters.AddWithValue("@M", month)
+                cmd.Parameters.AddWithValue("@Com", com)
+                cmd.Parameters.AddWithValue("@Cat", cat)
+                cmd.Parameters.AddWithValue("@Seg", seg)
+                cmd.Parameters.AddWithValue("@Brand", brand)
+                cmd.Parameters.AddWithValue("@Ven", ven)
+
+                Dim res = cmd.ExecuteScalar()
+                If res IsNot DBNull.Value Then totalUsed += Convert.ToDecimal(res)
+            End Using
+
+            ' 2. Sum Actual PO (Matched/Matching) - (ถ้า OTB Calculator คำนวณ Actual ให้แล้ว อาจไม่ต้องรวมตรงนี้)
+            ' แต่ตาม Logic เดิมที่เคยเห็น น่าจะรวม Actual ด้วยเพื่อความชัวร์
+            Dim sqlActual As String = "SELECT SUM(ISNULL(Amount_THB, 0)) FROM [BMS].[dbo].[Actual_PO_Summary] " &
+                                      "WHERE OTB_Year = @Y AND OTB_Month = @M AND Company_Code = @Com " &
+                                      "AND Category_Code = @Cat " &
+                                      "AND (Segment_Code = @Seg OR SUBSTRING(ISNULL(Segment_Code, ''), 2, CASE WHEN LEN(ISNULL(Segment_Code, '')) > 2 THEN LEN(Segment_Code) - 2 ELSE 0 END) = @Seg) " &
+                                      "AND Brand_Code = @Brand AND Vendor_Code = @Ven " &
+                                      "AND [Status] IN ('Matched', 'Matching', 'ForceMatching')"
 
             Using cmd As New SqlCommand(sqlActual, conn)
                 cmd.Parameters.AddWithValue("@Y", year)

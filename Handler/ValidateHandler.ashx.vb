@@ -51,6 +51,42 @@ Public Class ValidateHandler
             Dim item As POValidate.DraftPOItem = ParseDraftPOItem(context)
             item.DraftPO_ID = 0 ' Create New: ID = 0 เสมอ
 
+            ' ---------------------------------------------------------
+            ' [NEW] STEP 1.5: Duplicate Draft PO No Validation
+            ' ตรวจสอบในฐานข้อมูลว่าเลข PO นี้ถูกใช้ไปแล้วด้วยมิติธุรกิจชุดนี้หรือไม่
+            ' ---------------------------------------------------------
+            Using conn As New SqlConnection(connectionString)
+                conn.Open()
+                ' เช็คว่ามี PO_No นี้อยู่แล้ว และดึงมิติธุรกิจมาเทียบ
+                Dim queryDup As String = "SELECT PO_Year, PO_Month, Company_Code, Category_Code, Segment_Code, Brand_Code, Vendor_Code " &
+                                         "FROM [dbo].[Draft_PO_Transaction] " &
+                                         "WHERE DraftPO_No = @PONo AND Status <> 'Cancelled'"
+
+                Using cmdDup As New SqlCommand(queryDup, conn)
+                    cmdDup.Parameters.AddWithValue("@PONo", item.PO_No)
+                    Using reader As SqlDataReader = cmdDup.ExecuteReader()
+                        While reader.Read()
+                            ' ตรวจสอบคีย์รวมทั้งหมด
+                            If reader("PO_Year").ToString() = item.PO_Year AndAlso
+                               reader("PO_Month").ToString() = item.PO_Month AndAlso
+                               reader("Company_Code").ToString() = item.Company_Code AndAlso
+                               reader("Category_Code").ToString() = item.Category_Code AndAlso
+                               reader("Segment_Code").ToString() = item.Segment_Code AndAlso
+                               reader("Brand_Code").ToString() = item.Brand_Code AndAlso
+                               reader("Vendor_Code").ToString() = item.Vendor_Code Then
+
+                                errors.Add("summary", $"เลข Draft PO '{item.PO_No}' ซ้ำกับข้อมูลเดิมที่มีมิติธุรกิจ (Year, Month, Co, Cat, Seg, Brand, Vendor) ตรงกันหมด")
+                                Exit While
+                            End If
+                        End While
+                    End Using
+                End Using
+            End Using
+
+            ' ถ้าติด Error เรื่องซ้ำ ให้ข้ามการเช็ค OTB และส่ง Response ทันที
+            If errors.Count > 0 Then GoTo SendResponse
+
+
             ' 2. เรียกใช้ POValidate (ValidateBatch)
             Dim Validator As New POValidate()
             Dim items As New List(Of POValidate.DraftPOItem)
@@ -81,6 +117,7 @@ Public Class ValidateHandler
             errors.Add("exception", "Error: " & ex.Message)
         End Try
 
+SendResponse:
         Dim isValid As Boolean = (errors.Count = 0)
 
         Dim response As New With {
@@ -106,6 +143,40 @@ Public Class ValidateHandler
             Dim draftPOID As Integer = 0
             Integer.TryParse(context.Request.Form("draftPOID"), draftPOID)
             item.DraftPO_ID = draftPOID
+
+            ' ---------------------------------------------------------
+            ' [NEW] STEP 2.5: Duplicate Draft PO No Validation (Composite Key Logic)
+            ' ---------------------------------------------------------
+            Using conn As New SqlConnection(connectionString)
+                conn.Open()
+                Dim queryDup As String = "SELECT PO_Year, PO_Month, Company_Code, Category_Code, Segment_Code, Brand_Code, Vendor_Code " &
+                                         "FROM [dbo].[Draft_PO_Transaction] " &
+                                         "WHERE DraftPO_No = @PONo AND DraftPO_ID <> @ID AND Status <> 'Cancelled'"
+
+                Using cmdDup As New SqlCommand(queryDup, conn)
+                    cmdDup.Parameters.AddWithValue("@PONo", item.PO_No)
+                    cmdDup.Parameters.AddWithValue("@ID", draftPOID)
+                    Using reader As SqlDataReader = cmdDup.ExecuteReader()
+                        While reader.Read()
+                            ' ถ้าคีย์รวมทุกตัวตรงกันหมด ถึงจะถือว่าซ้ำ
+                            If reader("PO_Year").ToString() = item.PO_Year AndAlso
+                               reader("PO_Month").ToString() = item.PO_Month AndAlso
+                               reader("Company_Code").ToString() = item.Company_Code AndAlso
+                               reader("Category_Code").ToString() = item.Category_Code AndAlso
+                               reader("Segment_Code").ToString() = item.Segment_Code AndAlso
+                               reader("Brand_Code").ToString() = item.Brand_Code AndAlso
+                               reader("Vendor_Code").ToString() = item.Vendor_Code Then
+
+                                errors.Add("summary", $"ไม่สามารถใช้เลข Draft PO '{item.PO_No}' นี้ได้ เนื่องจากมีข้อมูลชุดเดิมที่ใช้มิติธุรกิจเดียวกันอยู่ในระบบแล้ว")
+                                Exit While
+                            End If
+                        End While
+                    End Using
+                End Using
+            End Using
+
+            ' ถ้าเจอ Error เรื่องข้อมูลซ้ำ ให้หยุดและส่ง Response กลับทันที
+            If errors.Count > 0 Then GoTo SendResponse
 
             ' ---------------------------------------------------------
             ' STEP 3: Change Detection (ตรวจสอบว่ามีการเปลี่ยนค่าที่มีผลกับ OTB หรือไม่)
@@ -197,13 +268,14 @@ Public Class ValidateHandler
             errors.Add("exception", "Error: " & ex.Message)
         End Try
 
+SendResponse:
         Dim isValid As Boolean = (errors.Count = 0)
 
         Dim response As New With {
-            .success = isValid,
-            .message = If(isValid, "Validation passed", "Validation failed"),
-            .errors = errors
-        }
+                .success = isValid,
+                .message = If(isValid, "Validation passed", "Validation failed"),
+                .errors = errors
+            }
 
         context.Response.Write(JsonConvert.SerializeObject(response))
     End Sub

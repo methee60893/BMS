@@ -17,6 +17,7 @@ Public Class SwitchUploadHandler
     Private Shared connectionString As String = ConfigurationManager.ConnectionStrings("BMSConnectionString")?.ConnectionString
 
     ' ตัวแปรสำหรับเก็บ Master Data
+    Private dtMonth As DataTable
     Private dtCompany As DataTable
     Private dtCategory As DataTable
     Private dtSegment As DataTable
@@ -74,6 +75,12 @@ Public Class SwitchUploadHandler
         Using conn As New SqlConnection(connectionString)
             conn.Open()
 
+            ' Load Month
+            dtMonth = New DataTable()
+            Using cmd As New SqlCommand("SELECT [month_code], [month_name_sh] FROM [MS_Month]", conn)
+                dtMonth.Load(cmd.ExecuteReader())
+            End Using
+
             ' Load Company
             dtCompany = New DataTable()
             Using cmd As New SqlCommand("SELECT [CompanyCode], [CompanyNameShort] FROM [MS_Company]", conn)
@@ -127,9 +134,11 @@ Public Class SwitchUploadHandler
     End Function
 
     Private Function GeneratePreviewData(dt As DataTable) As Object
+
         Dim sb As New StringBuilder()
         Dim budgetCalc As New OTBBudgetCalculator()
         Dim pendingUsage As New Dictionary(Of String, Decimal)()
+        Dim uniqueRows As New HashSet(Of String)()
         Dim allValid As Boolean = True
 
         sb.Append("<div class='table-responsive' style='max-height: 500px;'>")
@@ -179,20 +188,55 @@ Public Class SwitchUploadHandler
             If Not Decimal.TryParse(amtStr, amount) OrElse amount <= 0 Then errors.Add("Invalid Amount")
             If String.IsNullOrEmpty(fYear) OrElse String.IsNullOrEmpty(fMonth) OrElse String.IsNullOrEmpty(fComp) OrElse String.IsNullOrEmpty(fCate) OrElse String.IsNullOrEmpty(fSeg) OrElse String.IsNullOrEmpty(fBrand) OrElse String.IsNullOrEmpty(fVend) Then errors.Add("Missing Source")
 
+            If Not String.IsNullOrEmpty(fMonth) AndAlso Not IsValidMaster(dtMonth, "month_code", fMonth) Then errors.Add($"Invalid From Month ({fMonth})")
+            If Not String.IsNullOrEmpty(fComp) AndAlso Not IsValidMaster(dtCompany, "CompanyCode", fComp) Then errors.Add($"Invalid From Company ({fComp})")
+            If Not String.IsNullOrEmpty(fCate) AndAlso Not IsValidMaster(dtCategory, "Cate", fCate) Then errors.Add($"Invalid From Category ({fCate})")
+            If Not String.IsNullOrEmpty(fSeg) AndAlso Not IsValidMaster(dtSegment, "SegmentCode", fSeg) Then errors.Add($"Invalid From Segment ({fSeg})")
+            If Not String.IsNullOrEmpty(fBrand) AndAlso Not IsValidMaster(dtBrand, "Brand Code", fBrand) Then errors.Add($"Invalid From Brand ({fBrand})")
+            If Not String.IsNullOrEmpty(fVend) AndAlso Not IsValidMaster(dtVendor, "VendorCode", fVend) Then errors.Add($"Invalid From Vendor ({fVend})")
+
             If _function.Equals("Switch", StringComparison.OrdinalIgnoreCase) Then
                 If String.IsNullOrEmpty(tYear) OrElse String.IsNullOrEmpty(tMonth) OrElse String.IsNullOrEmpty(tComp) OrElse String.IsNullOrEmpty(tCate) OrElse String.IsNullOrEmpty(tSeg) OrElse String.IsNullOrEmpty(tBrand) OrElse String.IsNullOrEmpty(tVend) Then errors.Add("Missing Dest")
                 If fYear = tYear AndAlso fMonth = tMonth AndAlso fComp = tComp AndAlso fCate = tCate AndAlso fSeg = tSeg AndAlso fBrand = tBrand AndAlso fVend = tVend Then
                     errors.Add("Source=Dest")
                 End If
+
+                If Not String.IsNullOrEmpty(tMonth) AndAlso Not IsValidMaster(dtMonth, "month_code", tMonth) Then errors.Add($"Invalid From Month ({tMonth})")
+                If Not String.IsNullOrEmpty(tComp) AndAlso Not IsValidMaster(dtCompany, "CompanyCode", tComp) Then errors.Add($"Invalid To Company ({tComp})")
+                If Not String.IsNullOrEmpty(tCate) AndAlso Not IsValidMaster(dtCategory, "Cate", tCate) Then errors.Add($"Invalid To Category ({tCate})")
+                If Not String.IsNullOrEmpty(tSeg) AndAlso Not IsValidMaster(dtSegment, "SegmentCode", tSeg) Then errors.Add($"Invalid To Segment ({tSeg})")
+                If Not String.IsNullOrEmpty(tBrand) AndAlso Not IsValidMaster(dtBrand, "Brand Code", tBrand) Then errors.Add($"Invalid To Brand ({tBrand})")
+                If Not String.IsNullOrEmpty(tVend) AndAlso Not IsValidMaster(dtVendor, "VendorCode", tVend) Then errors.Add($"Invalid To Vendor ({tVend})")
+            End If
+
+            Dim rowKey As String = ""
+            If _function.Equals("Switch", StringComparison.OrdinalIgnoreCase) Then
+                rowKey = $"SW|{fYear}|{fMonth}|{fComp}|{fCate}|{fSeg}|{fBrand}|{fVend}|{tYear}|{tMonth}|{tComp}|{tCate}|{tSeg}|{tBrand}|{tVend}|{amount}"
+            Else
+                ' Extra
+                rowKey = $"EX|{fYear}|{fMonth}|{fComp}|{fCate}|{fSeg}|{fBrand}|{fVend}"
+            End If
+
+            If uniqueRows.Contains(rowKey) Then
+                errors.Add("Duplicate Data in File")
+            Else
+                uniqueRows.Add(rowKey)
             End If
 
             ' --- 3. Budget Check ---
-            If errors.Count = 0 AndAlso amount > 0 Then
+            Dim masterDataValid As Boolean = (errors.Count = 0)
+
+            If amount > 0 AndAlso _function.Equals("Switch", StringComparison.OrdinalIgnoreCase) Then
                 Try
                     Dim key As String = $"{fYear}|{fMonth}|{fCate}|{fComp}|{fSeg}|{fBrand}|{fVend}"
                     Dim currentDbBudget As Decimal = budgetCalc.CalculateCurrentApprovedBudget(fYear, fMonth, fCate, fComp, fSeg, fBrand, fVend)
+                    ' D. ดึงยอด Used Budget จาก DB (Draft + Actual) *โดยหักรายการที่กำลัง Edit ออก*
+                    Dim povalidate As New POValidate
+                    Dim usedInDB As Decimal = povalidate.GetUsedBudgetFromDBForOTB(fYear, fMonth, fCate, fComp, fSeg, fBrand, fVend)
+
+
                     Dim usedInBatch As Decimal = If(pendingUsage.ContainsKey(key), pendingUsage(key), 0)
-                    Dim available As Decimal = currentDbBudget - usedInBatch
+                    Dim available As Decimal = currentDbBudget - usedInDB
 
                     If available < amount Then
                         errors.Add($"Over Budget (Avail: {available:N2})")
@@ -219,13 +263,13 @@ Public Class SwitchUploadHandler
 
             Dim typeName As String = ""
             If _function.Equals("Switch", StringComparison.OrdinalIgnoreCase) Then
-                typeName = "Switch+"
+                typeName = "Switch"
                 Dim dFrom As New Date(Convert.ToInt32(fYear), Convert.ToInt32(fMonth), 1)
                 Dim dTo As New Date(Convert.ToInt32(tYear), Convert.ToInt32(tMonth), 1)
-                If dFrom > dTo Then typeName = "Carry+"
-                If dFrom < dTo Then typeName = "Balance+"
+                If dFrom > dTo Then typeName = "Carry"
+                If dFrom < dTo Then typeName = "Balance"
             ElseIf _function.Equals("Extra", StringComparison.OrdinalIgnoreCase) Then
-                typeName = "Extra+"
+                typeName = "Extra"
             End If
 
 
@@ -261,7 +305,7 @@ Public Class SwitchUploadHandler
             ' --- 6. Render Row ---
             Dim trClass As String = If(isError, "table-danger", "")
             sb.AppendFormat("<tr class='{0}'>", trClass)
-            sb.AppendFormat("<td class='text-center'>{0}<input type='hidden' class='row-data' value='{1}'></td>", i + 1, rowJson)
+            sb.AppendFormat("<td class='text-center'>{0}<input type='hidden' class='row-data' value='{1}'></td>", i + 2, rowJson)
 
             sb.AppendFormat("<td class='text-center fw-bold'>{0}</td>", _function)
             sb.AppendFormat("<td class='text-center fw-bold'>{0}</td>", typeName)
@@ -304,13 +348,15 @@ Public Class SwitchUploadHandler
     End Function
 
     ' ==========================================
-    ' 2. SAVE (BULK SAP & DB)
+    ' 2. SAVE (BULK SAP & DB) - UPDATED VERSION
     ' ==========================================
     Private Sub HandleSave(context As HttpContext, uploadBy As String)
-        ' ... (ใช้ Code เดิมจาก Version ก่อนหน้าได้เลยครับ Logic Save ไม่ได้เปลี่ยน) ...
         context.Response.ContentType = "application/json"
 
         Try
+            ' 0. โหลด Master Data เตรียมไว้สำหรับดึงชื่อ (CompanyName, VendorName, ฯลฯ)
+            LoadAllMasterData()
+
             Dim json As String = context.Request.Form("data")
             Dim rows As List(Of Dictionary(Of String, Object)) = New JavaScriptSerializer().Deserialize(Of List(Of Dictionary(Of String, Object)))(json)
 
@@ -320,100 +366,136 @@ Public Class SwitchUploadHandler
             Dim pendingDbInserts As New List(Of Dictionary(Of String, Object))
 
             For Each row In rows
-                Dim type As String = row("Function").ToString()
+                Dim _func As String = row("Function").ToString()
                 Dim amt As Decimal = Convert.ToDecimal(row("Amount"))
                 Dim f = TryCast(row("From"), Dictionary(Of String, Object))
                 Dim t = TryCast(row("To"), Dictionary(Of String, Object))
 
-                Dim fromCode As String = "E"
+                ' --- Logic กำหนด TypeCode (SAP) และ Display Name ---
+                Dim fromCode As String = "E" ' Default Extra
                 Dim toCode As String = ""
+                Dim typeNameDisplay As String = "Extra"
 
-                If type.Equals("Switch", StringComparison.OrdinalIgnoreCase) Then
-                    fromCode = "D" : toCode = "C"
+                If _func.Equals("Switch", StringComparison.OrdinalIgnoreCase) Then
+                    fromCode = "D" : toCode = "C" : typeNameDisplay = "Switch"
+
                     Dim dFrom As New Date(Convert.ToInt32(f("Year")), Convert.ToInt32(f("Month")), 1)
                     Dim dTo As New Date(Convert.ToInt32(t("Year")), Convert.ToInt32(t("Month")), 1)
-                    If dFrom > dTo Then fromCode = "G" : toCode = "F"
-                    If dFrom < dTo Then fromCode = "I" : toCode = "H"
+
+                    If dFrom > dTo Then
+                        fromCode = "G" : toCode = "F" : typeNameDisplay = "Carry"
+                    ElseIf dFrom < dTo Then
+                        fromCode = "I" : toCode = "H" : typeNameDisplay = "Balance"
+                    End If
                 End If
 
+                ' --- เตรียม SAP Item ---
                 Dim item As New OtbSwitchItem With {
                     .DocYearFrom = f("Year").ToString(), .PeriodFrom = f("Month").ToString(), .FmAreaFrom = f("Company").ToString(),
                     .CatFrom = f("Category").ToString(), .SegmentFrom = f("Segment").ToString(), .BrandFrom = f("Brand").ToString(), .VendorFrom = f("Vendor").ToString(),
                     .Budget = amt.ToString("F2"), .TypeFrom = fromCode
                 }
 
-                If type.Equals("Switch", StringComparison.OrdinalIgnoreCase) Then
+                ' --- Mapping ข้อมูลชื่อฝั่ง From (ต้องมีทุกประเภทรายการ) ---
+                f("CompanyName") = GetName(dtCompany, "CompanyCode", "CompanyNameShort", f("Company").ToString())
+                f("VendorName") = GetName(dtVendor, "VendorCode", "Vendor", f("Vendor").ToString())
+                f("CategoryName") = GetName(dtCategory, "Cate", "Category", f("Category").ToString())
+                f("SegmentName") = GetName(dtSegment, "SegmentCode", "SegmentName", f("Segment").ToString())
+                f("BrandName") = GetName(dtBrand, "Brand Code", "Brand Name", f("Brand").ToString())
+
+                ' --- จัดการฝั่ง To เฉพาะรายการ Switch เท่านั้น ---
+                If _func.Equals("Switch", StringComparison.OrdinalIgnoreCase) AndAlso t IsNot Nothing Then
                     item.DocYearTo = t("Year").ToString() : item.PeriodTo = t("Month").ToString() : item.FmAreaTo = t("Company").ToString()
                     item.CatTo = t("Category").ToString() : item.SegmentTo = t("Segment").ToString() : item.BrandTo = t("Brand").ToString() : item.VendorTo = t("Vendor").ToString()
                     item.TypeTo = toCode
+
+                    ' Mapping ชื่อฝั่ง To
+                    t("CompanyName") = GetName(dtCompany, "CompanyCode", "CompanyNameShort", t("Company").ToString())
+                    t("VendorName") = GetName(dtVendor, "VendorCode", "Vendor", t("Vendor").ToString())
+                    t("CategoryName") = GetName(dtCategory, "Cate", "Category", t("Category").ToString())
+                    t("SegmentName") = GetName(dtSegment, "SegmentCode", "SegmentName", t("Segment").ToString())
+                    t("BrandName") = GetName(dtBrand, "Brand Code", "Brand Name", t("Brand").ToString())
                 Else
-                    item.DocYearTo = Nothing : item.PeriodTo = Nothing : item.FmAreaTo = Nothing
-                    item.CatTo = Nothing : item.SegmentTo = Nothing : item.BrandTo = Nothing : item.VendorTo = Nothing
-                    item.TypeTo = Nothing
+                    ' ถ้าเป็น Extra ให้ฝั่ง To เป็น Nothing เพื่อความชัดเจนในการส่ง JSON
+                    t = Nothing
                 End If
+
                 sapRequest.Data.Add(item)
 
+                ' เก็บข้อมูลเพื่อบันทึกลง DB และส่งกลับ UI
                 Dim dbRow As New Dictionary(Of String, Object) From {
                     {"f", f}, {"t", t}, {"amt", amt}, {"typeFrom", fromCode},
-                    {"remark", row("Remark")}, {"actionType", type}
+                    {"remark", row("Remark")}, {"actionType", _func}, {"typeName", typeNameDisplay}
                 }
                 pendingDbInserts.Add(dbRow)
             Next
 
+            ' 1. ส่ง SAP API
             Dim sapRes = Task.Run(Async Function() Await SapApiHelper.SwitchOtbPlanAsync(sapRequest)).Result
-
             If sapRes Is Nothing Then Throw New Exception("No response from SAP API.")
 
+            ' 2. จัดการ Mapping ผลลัพธ์ส่งกลับไปหน้าจอ
+            Dim processResults As New List(Of Object)
             Dim hasError As Boolean = False
-            Dim errorMsg As String = ""
-
-            If sapRes.Status.ErrorCount > 0 OrElse sapRes.Status.Total <> sapRes.Status.Success Then
-                hasError = True
-                errorMsg = "SAP reported errors in batch processing."
-            End If
 
             If sapRes.Results IsNot Nothing Then
-                For Each resItem In sapRes.Results
-                    If resItem.MessageType = "E" Then
-                        hasError = True
-                        errorMsg = If(String.IsNullOrEmpty(resItem.Message), "SAP Error (No message)", resItem.Message)
-                        Exit For
+                For i As Integer = 0 To pendingDbInserts.Count - 1
+                    Dim status As String = "Success"
+                    Dim msg As String = "Success"
+
+                    If i < sapRes.Results.Count Then
+                        Dim resItem = sapRes.Results(i)
+                        If resItem.MessageType = "E" Then
+                            status = "Error"
+                            hasError = True
+                        End If
+                        msg = resItem.Message
                     End If
+
+                    ' สร้างโครงสร้าง JSON ที่สมบูรณ์ส่งกลับไปให้ JavaScript
+                    processResults.Add(New With {
+                        .status = status,
+                        .message = msg,
+                        .row = New With {
+                            .Type = pendingDbInserts(i)("typeName"),
+                            .Function = pendingDbInserts(i)("actionType"),
+                            .Amount = pendingDbInserts(i)("amt"),
+                            .From = pendingDbInserts(i)("f"),
+                            .To = pendingDbInserts(i)("t") ' ถ้าเป็น Extra ค่านี้จะเป็น null โดยอัตโนมัติ
+                        }
+                    })
                 Next
             End If
 
-            If hasError Then
-                Throw New Exception("Batch Failed at SAP: " & errorMsg)
+            ' 3. บันทึกฐานข้อมูล (กรณีไม่มี Error จาก SAP เลย)
+            If Not hasError Then
+                Using conn As New SqlConnection(connectionString)
+                    conn.Open()
+                    Using dbTrans As SqlTransaction = conn.BeginTransaction()
+                        Try
+                            For Each dbItem In pendingDbInserts
+                                InsertToDB(cmd:=New SqlCommand("", conn, dbTrans),
+                                           f:=dbItem("f"), t:=dbItem("t"), amt:=dbItem("amt"),
+                                           typeFrom:=dbItem("typeFrom"), user:=uploadBy, rmk:=dbItem("remark"),
+                                           actionType:=dbItem("actionType"))
+                            Next
+                            dbTrans.Commit()
+                        Catch ex As Exception
+                            dbTrans.Rollback() : Throw New Exception("Database Insert Failed: " & ex.Message)
+                        End Try
+                    End Using
+                End Using
             End If
 
-            Using conn As New SqlConnection(connectionString)
-                conn.Open()
-                Using dbTrans As SqlTransaction = conn.BeginTransaction()
-                    Try
-                        For Each dbItem In pendingDbInserts
-                            InsertToDB(cmd:=New SqlCommand("", conn, dbTrans),
-                                       f:=dbItem("f"), t:=dbItem("t"), amt:=dbItem("amt"),
-                                       typeFrom:=dbItem("typeFrom"), user:=uploadBy, rmk:=dbItem("remark"),
-                                       actionType:=dbItem("actionType"))
-                        Next
-                        dbTrans.Commit()
-                    Catch ex As Exception
-                        dbTrans.Rollback()
-                        Throw New Exception("Database Insert Failed: " & ex.Message)
-                    End Try
-                End Using
-            End Using
-
+            ' 4. ส่ง JSON Response
             context.Response.Write(New JavaScriptSerializer().Serialize(New With {
-                .success = True,
-                .message = "Successfully processed " & rows.Count & " transactions."
+                .success = Not hasError,
+                .message = If(hasError, "Batch processed with some errors at SAP.", "Upload & Save Completed Successfully."),
+                .results = processResults
             }))
 
         Catch ex As Exception
-            context.Response.Write(New JavaScriptSerializer().Serialize(New With {
-                .success = False,
-                .message = ex.Message
-            }))
+            context.Response.Write(New JavaScriptSerializer().Serialize(New With {.success = False, .message = ex.Message}))
         End Try
     End Sub
 
@@ -463,6 +545,12 @@ Public Class SwitchUploadHandler
         End If
         cmd.ExecuteNonQuery()
     End Sub
+
+    Private Function IsValidMaster(dt As DataTable, codeCol As String, codeVal As String) As Boolean
+        If dt Is Nothing OrElse String.IsNullOrEmpty(codeVal) Then Return False
+        Dim rows = dt.Select($"[{codeCol}] = '{codeVal.Replace("'", "''")}'")
+        Return rows.Length > 0
+    End Function
 
     ReadOnly Property IsReusable() As Boolean Implements IHttpHandler.IsReusable
         Get

@@ -151,4 +151,28 @@ Public Module SapApiHelper
         End If
     End Function
 
+    Public Async Function GetPOsByPONOAsync(poNO As String) As Task(Of List(Of SapPOResultItem))
+
+
+
+        Dim endpoint As String = $"/sap/opu/odata/SAP/ZBBIK_API_2_SRV/PoSet?$filter=Po eq '{poNO.Trim()}'"
+
+        ' 1. ยิง API (ได้เป็น String)
+        Dim jsonResponse As String = Await GetAsync(endpoint)
+
+        If String.IsNullOrEmpty(jsonResponse) Then
+            Return New List(Of SapPOResultItem)() ' คืนค่า List ว่าง
+        End If
+
+        ' 2. แปลง String JSON (จากไฟล์ txt ) ให้เป็น Object
+        Dim odataResponse = JsonConvert.DeserializeObject(Of ODataResponse(Of SapPOResultItem))(jsonResponse)
+
+        ' 3. ส่งเฉพาะ List ผลลัพธ์กลับไป
+        If odataResponse IsNot Nothing AndAlso odataResponse.Data IsNot Nothing Then
+            Return odataResponse.Data.Results
+        Else
+            Return New List(Of SapPOResultItem)() ' คืนค่า List ว่าง
+        End If
+    End Function
+
 End Module
