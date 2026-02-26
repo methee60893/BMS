@@ -609,7 +609,7 @@ Public Class DataOTBHandler
 
                 ' Create Date
                 sb.AppendFormat("<td class='date-cell'>{0}</td>",
-                       If(row("CreateDT") IsNot DBNull.Value, Convert.ToDateTime(row("CreateDT")).ToString("dd/MM/yyyy HH:mm"), ""))
+                       If(row("CreateDT") IsNot DBNull.Value, Convert.ToDateTime(row("CreateDT")).ToString("dd/MM/yyyy HH:mm:ss"), ""))
 
                 ' Type (Source)
                 Dim typeValue As String = If(row("Type") IsNot DBNull.Value, row("Type").ToString(), "")

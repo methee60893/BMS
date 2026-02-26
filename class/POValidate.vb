@@ -140,7 +140,7 @@ Public Class POValidate
     ' --- Part 2: Duplicate Validation ---
     Private Sub ValidateDuplicates(items As List(Of DraftPOItem), result As ValidationResult)
         ' 2.1 Internal Check: ห้ามซ้ำกันเองใน List (ใช้ PO No เป็นหลัก)
-        Dim internalDups = items.GroupBy(Function(x) {x.PO_No, x.PO_Month, x.PO_Year, x.Company_Code, x.Category_Code, x.Segment_Code, x.Brand_Code, x.Vendor_Code}).Where(Function(g) g.Count() > 1)
+        Dim internalDups = items.GroupBy(Function(x) {x.PO_No.Replace(" ", ""), x.PO_Month, x.PO_Year, x.Company_Code, x.Category_Code, x.Segment_Code, x.Brand_Code, x.Vendor_Code}).Where(Function(g) g.Count() > 1)
 
         For Each grp In internalDups
             For Each item In grp
@@ -153,8 +153,8 @@ Public Class POValidate
             conn.Open()
             For Each item In items
                 ' Logic: เช็ค PO No. ซ้ำในระบบ (ยกเว้น ID ตัวเอง กรณี Edit)
-                ' (ถ้า Business Logic อนุญาตให้ PO No ซ้ำได้แต่ต้องต่าง Vendor/Brand ให้ปรับ WHERE clause ตรงนี้)
-                Dim sql As String = "SELECT COUNT(1) FROM [BMS].[dbo].[Draft_PO_Transaction] " &
+                ' (ถ้า Business Logic อนุญาตให้ PO No ซ้ำได้แต่ต้องต่าง brand/cate/vendor/segment/month/year ให้ปรับ WHERE clause ตรงนี้)
+                Dim sql As String = "SELECT COUNT(1) FROM [dbo].[Draft_PO_Transaction] " &
                                     "WHERE DraftPO_No = @No " &
                                     "AND PO_Month = @Month " &
                                     "AND PO_Year = @Year " &
@@ -167,7 +167,7 @@ Public Class POValidate
                                     "AND DraftPO_ID <> @SelfID"
 
                 Using cmd As New SqlCommand(sql, conn)
-                    cmd.Parameters.AddWithValue("@No", item.PO_No)
+                    cmd.Parameters.AddWithValue("@No", item.PO_No.Replace(" ", ""))
                     cmd.Parameters.AddWithValue("@Month", item.PO_Month)
                     cmd.Parameters.AddWithValue("@Year", item.PO_Year)
                     cmd.Parameters.AddWithValue("@Company", item.Company_Code)

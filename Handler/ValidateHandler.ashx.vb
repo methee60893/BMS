@@ -58,28 +58,32 @@ Public Class ValidateHandler
             Using conn As New SqlConnection(connectionString)
                 conn.Open()
                 ' เช็คว่ามี PO_No นี้อยู่แล้ว และดึงมิติธุรกิจมาเทียบ
-                Dim queryDup As String = "SELECT PO_Year, PO_Month, Company_Code, Category_Code, Segment_Code, Brand_Code, Vendor_Code " &
-                                         "FROM [dbo].[Draft_PO_Transaction] " &
-                                         "WHERE DraftPO_No = @PONo AND Status <> 'Cancelled'"
+                Dim queryDup As String = "SELECT COUNT(1) FROM [dbo].[Draft_PO_Transaction] " &
+                                    "WHERE DraftPO_No = @No " &
+                                    "AND PO_Month = @Month " &
+                                    "AND PO_Year = @Year " &
+                                    "AND Company_Code = @Company " &
+                                    "AND Category_Code = @Category " &
+                                    "AND Segment_Code = @Segment " &
+                                    "AND Brand_Code = @Brand " &
+                                    "AND Vendor_Code = @Vendor " &
+                                    " And ISNULL(Status, '') <> 'Cancelled' "
 
                 Using cmdDup As New SqlCommand(queryDup, conn)
-                    cmdDup.Parameters.AddWithValue("@PONo", item.PO_No)
-                    Using reader As SqlDataReader = cmdDup.ExecuteReader()
-                        While reader.Read()
-                            ' ตรวจสอบคีย์รวมทั้งหมด
-                            If reader("PO_Year").ToString() = item.PO_Year AndAlso
-                               reader("PO_Month").ToString() = item.PO_Month AndAlso
-                               reader("Company_Code").ToString() = item.Company_Code AndAlso
-                               reader("Category_Code").ToString() = item.Category_Code AndAlso
-                               reader("Segment_Code").ToString() = item.Segment_Code AndAlso
-                               reader("Brand_Code").ToString() = item.Brand_Code AndAlso
-                               reader("Vendor_Code").ToString() = item.Vendor_Code Then
+                    cmdDup.Parameters.AddWithValue("@No", item.PO_No.Replace(" ", ""))
+                    cmdDup.Parameters.AddWithValue("@Month", item.PO_Month)
+                    cmdDup.Parameters.AddWithValue("@Year", item.PO_Year)
+                    cmdDup.Parameters.AddWithValue("@Company", item.Company_Code)
+                    cmdDup.Parameters.AddWithValue("@Category", item.Category_Code)
+                    cmdDup.Parameters.AddWithValue("@Segment", item.Segment_Code)
+                    cmdDup.Parameters.AddWithValue("@Brand", item.Brand_Code)
+                    cmdDup.Parameters.AddWithValue("@Vendor", item.Vendor_Code)
 
-                                errors.Add("summary", $"เลข Draft PO '{item.PO_No}' ซ้ำกับข้อมูลเดิมที่มีมิติธุรกิจ (Year, Month, Co, Cat, Seg, Brand, Vendor) ตรงกันหมด")
-                                Exit While
-                            End If
-                        End While
-                    End Using
+                    ' ตรวจสอบคีย์รวมทั้งหมด
+                    Dim count As Integer = Convert.ToInt32(cmdDup.ExecuteScalar())
+                    If count > 0 Then
+                        errors.Add("summary", $"เลข Draft PO '{item.PO_No}' ซ้ำกับข้อมูลเดิมที่มีมิติธุรกิจ (Year, Month, Co, Cat, Seg, Brand, Vendor) ตรงกันหมด")
+                    End If
                 End Using
             End Using
 
@@ -154,7 +158,7 @@ SendResponse:
                                          "WHERE DraftPO_No = @PONo AND DraftPO_ID <> @ID AND Status <> 'Cancelled'"
 
                 Using cmdDup As New SqlCommand(queryDup, conn)
-                    cmdDup.Parameters.AddWithValue("@PONo", item.PO_No)
+                    cmdDup.Parameters.AddWithValue("@PONo", item.PO_No.Replace(" ", ""))
                     cmdDup.Parameters.AddWithValue("@ID", draftPOID)
                     Using reader As SqlDataReader = cmdDup.ExecuteReader()
                         While reader.Read()

@@ -94,7 +94,7 @@ Public Class DataPOHandler
                 .Segment_Code = segment,
                 .Brand_Code = brand,
                 .Vendor_Code = vendor,
-                .PO_No = pono,
+                .PO_No = pono.Replace(" ", ""),
                 .Currency = ccy,
                 .Amount_CCY = amtCCY,
                 .ExchangeRate = exRate,
@@ -134,7 +134,7 @@ Public Class DataPOHandler
                                       "@remark, @createdBy, GETDATE())"
 
                 Using cmd As New SqlCommand(query, conn)
-                    cmd.Parameters.AddWithValue("@pono", pono)
+                    cmd.Parameters.AddWithValue("@pono", pono.Replace(" ", ""))
                     cmd.Parameters.AddWithValue("@year", year)
                     cmd.Parameters.AddWithValue("@month", month)
                     cmd.Parameters.AddWithValue("@company", company)
@@ -178,7 +178,7 @@ Public Class DataPOHandler
 
             ' 1. รับค่าจาก Form
             Dim draftPOID As Integer = Integer.Parse(context.Request.Form("draftPOID"))
-            Dim draftPOno As String = context.Request.Form("pono").Trim()
+            Dim draftPOno As String = context.Request.Form("pono").Replace(" ", "")
             Dim year As String = context.Request.Form("year")
             Dim month As String = context.Request.Form("month")
             Dim company As String = context.Request.Form("company")
@@ -271,7 +271,7 @@ Public Class DataPOHandler
                     .Segment_Code = segment,
                     .Brand_Code = brand,
                     .Vendor_Code = vendor,
-                    .PO_No = draftPOno,
+                    .PO_No = draftPOno.Replace(" ", ""),
                     .Currency = ccy,
                     .Amount_CCY = amtCCY,
                     .ExchangeRate = exRate,
@@ -310,7 +310,7 @@ Public Class DataPOHandler
                                       "WHERE [DraftPO_ID] = @draftPOID"
 
                 Using cmd As New SqlCommand(query, conn)
-                    cmd.Parameters.AddWithValue("@draftPono", draftPOno)
+                    cmd.Parameters.AddWithValue("@draftPono", draftPOno.Replace(" ", ""))
                     cmd.Parameters.AddWithValue("@draftPOID", draftPOID)
                     cmd.Parameters.AddWithValue("@year", year)
                     cmd.Parameters.AddWithValue("@month", month)

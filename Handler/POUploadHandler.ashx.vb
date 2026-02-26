@@ -128,7 +128,7 @@ Public Class POUploadHandler
 
                             ' ต้องส่ง trans เข้าไปใน SqlCommand ด้วย
                             Using cmd As New SqlCommand(query, conn, trans)
-                                cmd.Parameters.AddWithValue("@pono", item.PO_No)
+                                cmd.Parameters.AddWithValue("@pono", item.PO_No.Replace(" ", ""))
                                 cmd.Parameters.AddWithValue("@year", item.PO_Year)
                                 cmd.Parameters.AddWithValue("@month", item.PO_Month)
                                 cmd.Parameters.AddWithValue("@company", item.Company_Code)
@@ -253,7 +253,7 @@ Public Class POUploadHandler
             Dim item As New POValidate.DraftPOItem With {
                 .RowIndex = i + 1,
                 .DraftPO_ID = 0,
-                .PO_No = GetSafeString(row, "Draft PO no."),
+                .PO_No = GetSafeString(row, "Draft PO no.").Replace(" ", ""),
                 .PO_Year = GetSafeString(row, "Year"),
                 .PO_Month = GetSafeString(row, "Month"),
                 .Category_Code = GetSafeString(row, "Category"),
