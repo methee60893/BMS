@@ -1589,7 +1589,9 @@ Public Class DataOTBHandler
                 AND (@Brand IS NULL OR SwitchBrand = @Brand)
                 AND (@Vendor IS NULL OR SwitchVendor = @Vendor)
 
-                SELECT DISTINCT PO_Year, PO_Month, Category_Code, Company_Code, Segment_Code, Brand_Code, Vendor_Code 
+                UNION
+
+                SELECT DISTINCT PO_Year AS Year, PO_Month AS Month, Category_Code AS Category, Company_Code AS Company, Segment_Code AS Segment, Brand_Code AS Brand, Vendor_Code AS Vendor 
                 FROM [dbo].[Draft_PO_Transaction] 
                 WHERE ISNULL(Status,'')<>'Cancelled' 
                 AND (@Year IS NULL OR PO_Year = @Year)

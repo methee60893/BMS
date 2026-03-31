@@ -1,12 +1,12 @@
 ﻿Imports System
-Imports System.Web
+Imports System.Collections.Generic
 Imports System.Data
 Imports System.Data.SqlClient
-Imports System.Text
-Imports Newtonsoft.Json
 Imports System.Globalization
-Imports System.Collections.Generic
+Imports System.Text
+Imports System.Web
 Imports BMS ' Import Class POValidate ที่เราสร้างใหม่
+Imports Newtonsoft.Json
 
 Public Class ValidateHandler
     Implements IHttpHandler
@@ -323,6 +323,7 @@ SendResponse:
         Dim errors As New Dictionary(Of String, String)
         Dim isValid As Boolean = True
         Dim budgetCalculator As New OTBBudgetCalculator()
+        Dim povalidate As New POValidate()
 
         ' From Section
         Dim yearFrom As String = If(String.IsNullOrWhiteSpace(context.Request.Form("yearFrom")), "", context.Request.Form("yearFrom").Trim())
@@ -395,12 +396,16 @@ SendResponse:
                 Try
                     Dim currentApprovedBudget As Decimal = budgetCalculator.CalculateCurrentApprovedBudget(
                         yearFrom, monthFrom, categoryFrom, companyFrom, segmentFrom, brandFrom, vendorFrom)
+                    Dim usedInDB As Decimal = povalidate.GetUsedBudgetFromDBForOTB(
+                        yearFrom, monthFrom, categoryFrom, companyFrom, segmentFrom, brandFrom, vendorFrom)
 
-                    If currentApprovedBudget <= 0 Then
+                    Dim available As Decimal = currentApprovedBudget - usedInDB
+
+                    If available <= 0 Then
                         errors.Add("amount", $"No approved budget available. Current budget: 0.00 THB")
                         isValid = False
-                    ElseIf currentApprovedBudget < amountValue Then
-                        errors.Add("amount", $"Insufficient budget. Available: {currentApprovedBudget:N2} THB, Requested: {amountValue:N2} THB")
+                    ElseIf available < amountValue Then
+                        errors.Add("amount", $"Insufficient budget. Available: {available:N2} THB, Requested: {amountValue:N2} THB")
                         isValid = False
                     End If
                 Catch ex As Exception

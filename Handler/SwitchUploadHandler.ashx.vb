@@ -138,6 +138,12 @@ Public Class SwitchUploadHandler
         Dim sb As New StringBuilder()
         Dim budgetCalc As New OTBBudgetCalculator()
         Dim pendingUsage As New Dictionary(Of String, Decimal)()
+
+        ' สร้าง Cache เพื่อเก็บค่าจาก DB ลดการ Query ซ้ำใน Loop
+        Dim dbBudgetCache As New Dictionary(Of String, Decimal)()
+        Dim dbUsedCache As New Dictionary(Of String, Decimal)()
+        Dim povalidate As New POValidate() ' สร้างไว้นอก Loop
+
         Dim uniqueRows As New HashSet(Of String)()
         Dim allValid As Boolean = True
 
@@ -224,27 +230,28 @@ Public Class SwitchUploadHandler
             End If
 
             ' --- 3. Budget Check ---
-            Dim masterDataValid As Boolean = (errors.Count = 0)
-
-            If amount > 0 AndAlso _function.Equals("Switch", StringComparison.OrdinalIgnoreCase) Then
+            If errors.Count = 0 AndAlso amount > 0 AndAlso _function.Equals("Switch", StringComparison.OrdinalIgnoreCase) Then
                 Try
                     Dim key As String = $"{fYear}|{fMonth}|{fCate}|{fComp}|{fSeg}|{fBrand}|{fVend}"
-                    Dim currentDbBudget As Decimal = budgetCalc.CalculateCurrentApprovedBudget(fYear, fMonth, fCate, fComp, fSeg, fBrand, fVend)
-                    ' D. ดึงยอด Used Budget จาก DB (Draft + Actual) *โดยหักรายการที่กำลัง Edit ออก*
-                    Dim povalidate As New POValidate
-                    Dim usedInDB As Decimal = povalidate.GetUsedBudgetFromDBForOTB(fYear, fMonth, fCate, fComp, fSeg, fBrand, fVend)
 
+                    If Not dbBudgetCache.ContainsKey(key) Then
+                        dbBudgetCache(key) = budgetCalc.CalculateCurrentApprovedBudget(fYear, fMonth, fCate, fComp, fSeg, fBrand, fVend)
+                        dbUsedCache(key) = povalidate.GetUsedBudgetFromDBForOTB(fYear, fMonth, fCate, fComp, fSeg, fBrand, fVend)
+                    End If
+
+                    Dim currentDbBudget As Decimal = dbBudgetCache(key)
+                    Dim usedInDB As Decimal = dbUsedCache(key)
 
                     Dim usedInBatch As Decimal = If(pendingUsage.ContainsKey(key), pendingUsage(key), 0)
-                    Dim available As Decimal = currentDbBudget - usedInDB
+                    Dim available As Decimal = (currentDbBudget - usedInDB) - usedInBatch
 
                     If available < amount Then
-                        errors.Add($"Over Budget (Avail: {available:N2})")
+                        errors.Add($"Over Budget (Remaining: {available:N2}, Used in Batch: {usedInBatch:N2})")
                     Else
                         If pendingUsage.ContainsKey(key) Then pendingUsage(key) += amount Else pendingUsage.Add(key, amount)
                     End If
                 Catch ex As Exception
-                    errors.Add("Budget Error")
+                    errors.Add("Budget Error: " & ex.Message)
                 End Try
             End If
 
@@ -500,6 +507,7 @@ Public Class SwitchUploadHandler
     End Sub
 
     Private Sub InsertToDB(cmd As SqlCommand, f As Object, t As Object, amt As Decimal, typeFrom As String, user As String, rmk As String, actionType As String)
+
         cmd.CommandText = "INSERT INTO [dbo].[OTB_Switching_Transaction] " &
             "([Year], [Month], [Company], [Category], [Segment], [Brand], [Vendor], [From], [BudgetAmount], [Release], " &
             "[SwitchYear], [SwitchMonth], [SwitchCompany], [SwitchCategory], [SwitchSegment], [To], [SwitchBrand], [SwitchVendor], " &

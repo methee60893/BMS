@@ -763,7 +763,7 @@ Public Class POMatchingHandler
                 Try
                     ' 3.1 Bulk copy to Temp Table
                     ' (แก้ไข) ใช้ SELECT INTO ... WHERE 1=0 แทน LIKE
-                    Using cmdCreateTemp As New SqlCommand("SELECT * INTO #TempSAPPOs FROM [BMS].[dbo].[Actual_PO_Staging] WHERE 1 = 1", conn, transaction)
+                    Using cmdCreateTemp As New SqlCommand("SELECT * INTO #TempSAPPOs FROM [BMS].[dbo].[Actual_PO_Staging] WHERE 1 = 0", conn, transaction)
                         cmdCreateTemp.ExecuteNonQuery()
                     End Using
 

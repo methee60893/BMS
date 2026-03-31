@@ -165,10 +165,10 @@ Public Class MasterDataHandler
 
     Private Function GetVendorDataBySegmentAsJSON(searchTerm As String, Optional segmentCode As String = "") As DataTable
         Dim dt As New DataTable()
-        ' (ปรับ Query ให้รองรับการค้นหา (LIKE) และ Paging (OFFSET/FETCH) เพื่อประสิทธิภาพ)
+        ' ดึง Vendor ตาม Segment เพื่อส่งให้ Select2 ใน schema เดียวกับ GetVendorDataAsJSON
         Dim query As String = "
-            SELECT [SegmentCode], [SegmentName]
-            FROM [MS_Segment] 
+            SELECT [VendorCode], [Vendor] AS VendorName
+            FROM [MS_Vendor] 
             WHERE 1=1"
 
         If Not String.IsNullOrEmpty(segmentCode) Then
@@ -176,10 +176,10 @@ Public Class MasterDataHandler
         End If
 
         If Not String.IsNullOrEmpty(searchTerm) Then
-            query &= " AND ([SegmentCode] LIKE @Search OR [SegmentName] LIKE @Search)"
+            query &= " AND ([VendorCode] LIKE @Search OR [Vendor] LIKE @Search)"
         End If
 
-        query &= " ORDER BY [SegmentCode] OFFSET 0 ROWS FETCH NEXT 50 ROWS ONLY" ' (Paging: ดึงทีละ 50)
+        query &= " ORDER BY [VendorCode] OFFSET 0 ROWS FETCH NEXT 50 ROWS ONLY"
 
         Using conn As New SqlConnection(connectionString)
             Using cmd As New SqlCommand(query, conn)

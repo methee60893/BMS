@@ -186,56 +186,61 @@ Public Class POValidate
         End Using
     End Sub
 
-    ' --- Part 3: Budget Validation (AGGREGATE LOGIC) ---
+    ' --- Part 3: Budget Validation (SEQUENTIAL LOGIC - แจ้งรายรายการ) ---
     Private Sub ValidateBudgetAggregate(items As List(Of DraftPOItem), result As ValidationResult)
-        ' Group Items ตาม Budget Key เดียวกัน (Year+Month+Brand+...)
-        ' เพื่อรวมยอดเงิน (Amount_THB) ของทุกรายการที่ใช้ Key นี้ในไฟล์เดียวกัน
-        Dim groups = items.GroupBy(Function(x) New With {
-            .Year = x.PO_Year,
-            .Month = x.PO_Month,
-            .Company = x.Company_Code,
-            .Category = x.Category_Code,
-            .Segment = x.Segment_Code,
-            .Brand = x.Brand_Code,
-            .Vendor = x.Vendor_Code
-        })
+        ' 1. สร้าง Dictionary สำหรับเก็บยอดสะสมรายกลุ่มใน Batch นี้ (Sequential Tracking)
+        ' Key: Budget Key String | Value: Accumulative Amount
+        Dim runningUsage As New Dictionary(Of String, Decimal)()
 
-        For Each grp In groups
-            Dim key = grp.Key
+        ' 2. สร้าง Cache สำหรับเก็บค่าจาก DB เพื่อลดภาระ Database (Performance Optimization)
+        Dim budgetCache As New Dictionary(Of String, Decimal)()
+        Dim usedInDBCache As New Dictionary(Of String, Decimal)()
 
-            ' A. ยอด Request ทั้งหมดใน Batch นี้สำหรับ Key นี้ (รวมกันทุกแถว)
-            Dim requestTotal As Decimal = grp.Sum(Function(x) x.Amount_THB)
-
-            ' B. รายการ ID ที่อยู่ใน Batch (เพื่อเอาไป Exclude ออกจาก DB ถ้าเป็นการ Edit)
-            Dim excludeIDs As List(Of Integer) = grp.Select(Function(x) x.DraftPO_ID).ToList()
+        ' วนลูปตรวจสอบ "รายรายการ" ตามลำดับบรรทัด (Sequential)
+        For Each item In items
+            Dim key As String = $"{item.PO_Year}|{item.PO_Month}|{item.Category_Code}|{item.Company_Code}|{item.Segment_Code}|{item.Brand_Code}|{item.Vendor_Code}"
 
             Try
-                ' C. ดึงยอด Approved Budget (จาก OTB Calculator)
-                Dim approved As Decimal = calculator.CalculateCurrentApprovedBudget(
-                    key.Year, key.Month, key.Category, key.Company, key.Segment, key.Brand, key.Vendor
+                ' A. ตรวจสอบและดึงค่าจาก DB มาเก็บใน Cache (ถ้ายังไม่มี)
+                If Not budgetCache.ContainsKey(key) Then
+                    ' สำหรับฝั่ง PO/Draft ต้องส่ง DraftPO_ID ไป Exclude ด้วย 
+                    ' **หมายเหตุ**: ถ้าใน Batch เดียวกันมี Edit ID เดียวกันหลายบรรทัด ให้พิจารณาส่ง List IDs 
+                    ' แต่โดยปกติ Batch Upload มักจะเป็นรายการใหม่หรือรายการที่แยก ID กันชัดเจน
+                    Dim excludeIDs As New List(Of Integer) From {item.DraftPO_ID}
+
+                    budgetCache(key) = calculator.CalculateCurrentApprovedBudget(
+                    item.PO_Year, item.PO_Month, item.Category_Code, item.Company_Code, item.Segment_Code, item.Brand_Code, item.Vendor_Code
                 )
-
-                ' D. ดึงยอด Used Budget จาก DB (Draft + Actual) *โดยหักรายการที่กำลัง Edit ออก*
-                Dim usedInDB As Decimal = GetUsedBudgetFromDB(
-                    key.Year, key.Month, key.Category, key.Company, key.Segment, key.Brand, key.Vendor, excludeIDs
+                    usedInDBCache(key) = GetUsedBudgetFromDB(
+                    item.PO_Year, item.PO_Month, item.Category_Code, item.Company_Code, item.Segment_Code, item.Brand_Code, item.Vendor_Code, excludeIDs
                 )
+                End If
 
-                ' E. งบคงเหลือ (ก่อนหักยอดใน Batch นี้)
-                Dim availableBeforeBatch As Decimal = approved - usedInDB
+                Dim approvedBudget As Decimal = budgetCache(key)
+                Dim usedInDB As Decimal = usedInDBCache(key)
 
-                ' F. ตรวจสอบ (ถ้ายอดรวมใน Batch มากกว่างบที่เหลือ)
-                If requestTotal > availableBeforeBatch Then
-                    ' แจ้ง Error ทุกรายการใน Group นี้
-                    For Each item In grp
-                        result.AddError(item.RowIndex, $"Budget Limit Exceeded! (Total Request in Batch: {requestTotal:N2}, Available: {availableBeforeBatch:N2})")
-                    Next
+                ' B. หายอดสะสมที่รายการก่อนหน้าใน Batch นี้ "ใช้ไปแล้ว"
+                Dim usedInBatchSoFar As Decimal = If(runningUsage.ContainsKey(key), runningUsage(key), 0)
+
+                ' C. คำนวณงบคงเหลือ "ณ วินาทีที่อ่านบรรทัดนี้"
+                Dim availableNow As Decimal = (approvedBudget - usedInDB) - usedInBatchSoFar
+
+                ' D. ตรวจสอบยอด Request ของบรรทัดนี้
+                If item.Amount_THB > availableNow Then
+                    ' **แจ้ง Error เฉพาะบรรทัดนี้** เพื่อให้ User รู้ว่าบรรทัดนี้แหละที่งบไม่พอ
+                    result.AddError(item.RowIndex,
+                    $"Over Budget! (งบเหลือให้บรรทัดนี้เพียง: {availableNow:N2}, รายการก่อนหน้าในไฟล์ใช้ไปแล้ว: {usedInBatchSoFar:N2})")
+                Else
+                    ' ถ้าผ่าน ให้จดบันทึกยอดสะสมลงใน runningUsage เพื่อให้บรรทัดถัดไปรับรู้
+                    If runningUsage.ContainsKey(key) Then
+                        runningUsage(key) += item.Amount_THB
+                    Else
+                        runningUsage.Add(key, item.Amount_THB)
+                    End If
                 End If
 
             Catch ex As Exception
-                ' กรณีเกิด Error ตอนเช็ค Budget (เช่น Master Data ผิด) ให้แจ้ง Error แต่ไม่หยุดทำงาน
-                For Each item In grp
-                    result.AddError(item.RowIndex, "Budget Check Error: " & ex.Message)
-                Next
+                result.AddError(item.RowIndex, "Budget Check Error: " & ex.Message)
             End Try
         Next
     End Sub
