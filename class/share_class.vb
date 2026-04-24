@@ -25,90 +25,157 @@ Public Class share_class
 
     Public Shared Function authen_by_ad(user As String, pass As String, Optional ssk As String = Nothing) As Boolean
         Try
-            Dim ldapServerName = "kingpower.com"
+            Dim ldapServerName = GetLdapServerName()
             Dim path = "LDAP://" & ldapServerName
-            Dim ret = AuthenticateUser(path, user, pass)
-            If ret Then
-                Dim ad = GetLDAPUsersProfile(user, ssk)
-                'SaveADInfoToDatabase(ad)
-                'SessionHelper.SetADSession(ad)
-            End If
-            Return ret
+            Return AuthenticateUser(path, user, pass)
         Catch ex As Exception
-
+            LogAuthWarning("authen_by_ad failed: " & ex.Message)
         End Try
-        Return Nothing
+        Return False
     End Function
 
     Public Shared Function AuthenticateUser(path As String, user As String, pass As String) As Boolean
 
-        Dim de As New DirectoryEntry(path, user, pass, AuthenticationTypes.Secure)
         Try
-            Dim ds As DirectorySearcher = New DirectorySearcher(de)
-            ds.FindOne()
-            Return True
+            Using de As New DirectoryEntry(path, user, pass, AuthenticationTypes.Secure)
+                Using ds As DirectorySearcher = New DirectorySearcher(de)
+                    ds.FindOne()
+                    Return True
+                End Using
+            End Using
         Catch ex As Exception
+            LogAuthWarning("AuthenticateUser failed: " & ex.Message)
             Return False
         End Try
     End Function
 
     Public Shared Function GetLDAPUsersProfile(ByVal pFindWhat As String, Optional ssk As String = Nothing) As retAD 'ArrayList
-        Dim oSearcher As New DirectorySearcher
-        Dim oResults As SearchResultCollection
-        Dim oResult As SearchResult
-        Dim RetArray As New ArrayList
-        Dim mCount As Integer
-        Dim mLDAPRecord As String
         Dim ret As New retAD
-        Dim ResultFields() As String = {"securityEquals", "cn"}
         Try
-            Dim ldapServerName = "kingpower.com"
-            With oSearcher
-                .SearchRoot = New DirectoryEntry("LDAP://" & ldapServerName & "/ou=King Power Group,dc=kingpower,dc=com", "kpcrpa@kingpower.com", "1ngWer!25P@w3r")
-                .PropertiesToLoad.AddRange(ResultFields)
-                .Filter = "mail=" & pFindWhat & "*"
-                oResults = .FindAll()
-            End With
-            mCount = oResults.Count
-            If mCount > 0 Then
-                For Each oResult In oResults
-                    If oResult.GetDirectoryEntry().Properties("mail").Value = pFindWhat Then
-                        mLDAPRecord = oResult.GetDirectoryEntry().Properties("userPrincipalName").Value & "  " & oResult.GetDirectoryEntry().Properties("mail").Value
+            If String.IsNullOrWhiteSpace(pFindWhat) Then
+                Return ret
+            End If
 
-                        ret.ADStaffID = GetPropertyValue(oResult.GetDirectoryEntry().Properties, "employeeID")
-                        ret.ADemail = GetPropertyValue(oResult.GetDirectoryEntry().Properties, "mail")
-                        ret.ADad = GetPropertyValue(oResult.GetDirectoryEntry().Properties, "sAMAccountName")
-                        ret.ADTel = GetPropertyValue(oResult.GetDirectoryEntry().Properties, "telephoneNumber")
-                        ret.ADPosition = GetPropertyValue(oResult.GetDirectoryEntry().Properties, "title")
-                        ret.ADLevel = GetPropertyValue(oResult.GetDirectoryEntry().Properties, "employeeType")
-                        ret.ADname = GetPropertyValue(oResult.GetDirectoryEntry().Properties, "givenName")
-                        ret.ADSurname = GetPropertyValue(oResult.GetDirectoryEntry().Properties, "sn")
-                        ret.ADDivision = GetPropertyValue(oResult.GetDirectoryEntry().Properties, "description")
-                        ret.ADDepartment = GetPropertyValue(oResult.GetDirectoryEntry().Properties, "department")
-                        ret.ADLocation = GetPropertyValue(oResult.GetDirectoryEntry().Properties, "physicalDeliveryOfficeName")
-                        ret.ADCompany = GetPropertyValue(oResult.GetDirectoryEntry().Properties, "company")
-                        ret.ADUsername = GetPropertyValue(oResult.GetDirectoryEntry().Properties, "userPrincipalName")
+            Dim ldapServerName = GetLdapServerName()
+            Dim ldapSearchRoot = GetAppSetting("LDAP_SEARCH_ROOT", "LDAP://" & ldapServerName & "/ou=King Power Group,dc=kingpower,dc=com")
+            Dim ldapBindUser = GetRequiredAppSetting("LDAP_BIND_USER")
+            Dim ldapBindPassword = GetRequiredAppSetting("LDAP_BIND_PASSWORD")
+            Dim resultFields() As String = {
+                "employeeID",
+                "mail",
+                "sAMAccountName",
+                "telephoneNumber",
+                "title",
+                "employeeType",
+                "givenName",
+                "sn",
+                "description",
+                "department",
+                "physicalDeliveryOfficeName",
+                "company",
+                "userPrincipalName",
+                "thumbnailPhoto"
+            }
 
-                        If oResult.GetDirectoryEntry().Properties.Contains("thumbnailPhoto") Then
-                            Dim photoBytes As Byte() = DirectCast(oResult.GetDirectoryEntry().Properties("thumbnailPhoto").Value, Byte())
-                            ret.ADPhoto = photoBytes
+            Using searchRoot As New DirectoryEntry(ldapSearchRoot, ldapBindUser, ldapBindPassword, AuthenticationTypes.Secure)
+                Using oSearcher As New DirectorySearcher(searchRoot)
+                    oSearcher.PropertiesToLoad.AddRange(resultFields)
+                    oSearcher.Filter = "(&(objectCategory=person)(objectClass=user)(mail=" & EscapeLdapFilterValue(pFindWhat) & "))"
+
+                    Dim oResult As SearchResult = oSearcher.FindOne()
+                    If oResult Is Nothing Then
+                        Return ret
+                    End If
+
+                    Using directoryEntry As DirectoryEntry = oResult.GetDirectoryEntry()
+                        Dim properties = directoryEntry.Properties
+                        Dim adMail = GetPropertyValue(properties, "mail")
+
+                        If Not String.Equals(adMail, pFindWhat, StringComparison.OrdinalIgnoreCase) Then
+                            Return ret
+                        End If
+
+                        ret.ADStaffID = GetPropertyValue(properties, "employeeID")
+                        ret.ADemail = adMail
+                        ret.ADad = GetPropertyValue(properties, "sAMAccountName")
+                        ret.ADTel = GetPropertyValue(properties, "telephoneNumber")
+                        ret.ADPosition = GetPropertyValue(properties, "title")
+                        ret.ADLevel = GetPropertyValue(properties, "employeeType")
+                        ret.ADname = GetPropertyValue(properties, "givenName")
+                        ret.ADSurname = GetPropertyValue(properties, "sn")
+                        ret.ADDivision = GetPropertyValue(properties, "description")
+                        ret.ADDepartment = GetPropertyValue(properties, "department")
+                        ret.ADLocation = GetPropertyValue(properties, "physicalDeliveryOfficeName")
+                        ret.ADCompany = GetPropertyValue(properties, "company")
+                        ret.ADUsername = GetPropertyValue(properties, "userPrincipalName")
+
+                        If properties.Contains("thumbnailPhoto") Then
+                            ret.ADPhoto = DirectCast(properties("thumbnailPhoto").Value, Byte())
                         End If
 
                         If ssk IsNot Nothing Then
                             ret.ADSessionkey = ssk
                         End If
-
-                        RetArray.Add(mLDAPRecord) ' Consider removing this if not needed
-                        Exit For
-                    End If
-                Next
-            End If
+                    End Using
+                End Using
+            End Using
         Catch e As Exception
-            MsgBox("Error is " & e.Message)
-            Return ret
+            LogAuthWarning("GetLDAPUsersProfile failed: " & e.Message)
         End Try
         Return ret
     End Function
+
+    Private Shared Function GetLdapServerName() As String
+        Return GetAppSetting("LDAP_SERVER", "kingpower.com")
+    End Function
+
+    Private Shared Function GetAppSetting(key As String, defaultValue As String) As String
+        Dim value As String = System.Configuration.ConfigurationManager.AppSettings(key)
+        If String.IsNullOrWhiteSpace(value) Then
+            Return defaultValue
+        End If
+
+        Return value
+    End Function
+
+    Private Shared Function GetRequiredAppSetting(key As String) As String
+        Dim value As String = System.Configuration.ConfigurationManager.AppSettings(key)
+        If String.IsNullOrWhiteSpace(value) Then
+            Throw New System.Configuration.ConfigurationErrorsException(key & " is not configured.")
+        End If
+
+        Return value
+    End Function
+
+    Private Shared Function EscapeLdapFilterValue(value As String) As String
+        Dim escaped As New System.Text.StringBuilder()
+
+        For Each ch As Char In value
+            Select Case ch
+                Case "\"c
+                    escaped.Append("\5c")
+                Case "*"c
+                    escaped.Append("\2a")
+                Case "("c
+                    escaped.Append("\28")
+                Case ")"c
+                    escaped.Append("\29")
+                Case ChrW(0)
+                    escaped.Append("\00")
+                Case Else
+                    escaped.Append(ch)
+            End Select
+        Next
+
+        Return escaped.ToString()
+    End Function
+
+    Private Shared Sub LogAuthWarning(message As String)
+        Try
+            System.Diagnostics.Trace.TraceWarning(message)
+        Catch
+        End Try
+    End Sub
 
     Public Shared Function GetPropertyValue(properties As PropertyCollection, propertyName As String) As String
         If properties.Contains(propertyName) AndAlso properties(propertyName).Count > 0 Then

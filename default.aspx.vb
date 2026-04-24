@@ -14,35 +14,42 @@ Public Class _default
     Private Sub btnSubmit_Click(sender As Object, e As EventArgs) Handles btnSubmit.Click
         Try
             Dim clientIP As String = GetClientIP()
-            Dim email As String = txtEmail.Text
+            Dim email As String = txtEmail.Text.Trim()
             Dim password As String = txtPassword.Text
             Dim username As String = ""
-            Dim fullName As String = ""
-            Dim userEmail As String = ""
+            Dim fullName As String = email
+            Dim userEmail As String = email
 
             If authen_by_ad(email, password) Then
                 'Dim chkauthen = CheckADAccess(email)
+                username = email
+
                 Try
                     ' ดึงข้อมูล Profile จาก AD (ต้องใช้ Function ที่มีใน share_class)
                     Dim adProfile As share_class.retAD = share_class.GetLDAPUsersProfile(email)
 
                     ' เตรียมข้อมูล
-                    username = email
-                    fullName = adProfile.ADname & " " & adProfile.ADSurname
-                    userEmail = adProfile.ADemail
+                    Dim adFullName As String = (adProfile.ADname & " " & adProfile.ADSurname).Trim()
+                    If Not String.IsNullOrWhiteSpace(adFullName) Then
+                        fullName = adFullName
+                    End If
+
+                    If Not String.IsNullOrWhiteSpace(adProfile.ADemail) Then
+                        userEmail = adProfile.ADemail
+                    End If
 
                     ' บันทึกลงฐานข้อมูล
                     SyncUserWithDB(username, fullName, userEmail)
 
                 Catch exSync As Exception
                     ' ถ้า Sync พลาด ให้ Log ไว้ แต่ยอมให้ Login ต่อไปได้ (Non-blocking)
-                    Console.WriteLine("Sync User Error: " & exSync.Message)
+                    System.Diagnostics.Trace.TraceWarning("Sync User Error: " & exSync.Message)
                 End Try
                 'If chkauthen Then
 
                 Dim role = getRoleByUser(email)
 
-                If role.Rows.Count > 0 Then
+                If role IsNot Nothing AndAlso role.Rows.Count > 0 Then
 
                     Session("UserRole") = role.Rows(0)("RoleName").ToString()
                 Else
@@ -52,7 +59,9 @@ Public Class _default
                 Session("Login") = True
                 Session("user") = username
                 Session("fullname") = fullName
-                Response.Redirect("dashboard.aspx?u=" & Server.UrlEncode(email))
+                Response.Redirect("dashboard.aspx?u=" & Server.UrlEncode(email), False)
+                Context.ApplicationInstance.CompleteRequest()
+                Return
                 'Else
                 '    ClientScript.RegisterStartupScript(Me.GetType(), "AuthorizationFailed", "alert(""You don't have authorization!"");", True)
                 'End If
@@ -132,7 +141,7 @@ Public Class _default
                 conn.Close()
             End Using
         Catch ex As Exception
-            dt = Nothing
+            System.Diagnostics.Trace.TraceWarning("Get role failed: " & ex.Message)
         End Try
         Return dt
     End Function

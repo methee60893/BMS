@@ -6,6 +6,10 @@
   </connectionStrings>
   <appSettings>
     <add key="EPPlus:ExcelPackage.License" value="NonCommercialOrganization:KingPower" />
+    <add key="LDAP_SERVER" value="kingpower.com" />
+    <add key="LDAP_SEARCH_ROOT" value="LDAP://kingpower.com/ou=King Power Group,dc=kingpower,dc=com" />
+    <add key="LDAP_BIND_USER" value="YOUR_AD_SERVICE_ACCOUNT" />
+    <add key="LDAP_BIND_PASSWORD" value="YOUR_AD_SERVICE_PASSWORD" />
     <add key="SAPAPI_BASEURL" value="http://127.0.0.1:18080" />
     <add key="SAPAPI_USERNAME" value="mock-user" />
     <add key="SAPAPI_PASSWORD" value="mock-password" />
