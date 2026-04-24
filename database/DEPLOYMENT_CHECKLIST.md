@@ -30,12 +30,13 @@ SELECT name, type_desc
 FROM sys.objects
 WHERE name IN (
     'MS_Month','MS_Year','MS_Company','MS_Category','MS_Segment','MS_Brand','MS_Vendor','MS_CCY','MS_Version',
-    'MS_User','MS_Role','Map_User_Role','Map_Role_Permission',
+    'MS_User','MS_Role','MS_Menu','Map_User_Role','Map_Role_Permission',
     'Template_Upload_Draft_OTB','OTB_Transaction','OTB_Switching_Transaction','Draft_PO_Transaction',
     'Actual_PO_Staging','Actual_PO_Summary',
-    'View_OTB_Draft',
+    'View_OTB_Draft','View_UserRole',
     'SP_Get_Actual_PO_List','SP_Search_Approved_OTB','SP_Search_SWitch_OTB',
-    'SP_Sync_Actual_PO_Summary','SP_Auto_Match_Actual_Draft','SP_Approve_Draft_OTB','SP_Deleted_Draft_OTB'
+    'SP_Sync_Actual_PO_Summary','SP_Auto_Match_Actual_Draft','SP_Approve_Draft_OTB','SP_Deleted_Draft_OTB',
+    'SP_Sync_User_From_AD','SP_Get_Users_List','SP_Admin_Save_User'
 )
 ORDER BY type_desc, name;
 ```

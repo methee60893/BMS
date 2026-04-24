@@ -20,6 +20,10 @@ EXCEL_MAPPINGS = [
     ("Data_KBMS_User_Role.xlsx", " Map_Role_Permission", "Map_Role_Permission"),
 ]
 
+STATIC_TABLES = [
+    ("MS_Menu", 16, "static seed", "system"),
+]
+
 
 def count_excel_rows(path: Path, sheet_name: str) -> int:
     wb = load_workbook(path, read_only=True, data_only=True)
@@ -78,12 +82,13 @@ def main() -> int:
         path = BASE_DIR / file_name
         expected = count_excel_rows(path, sheet_name)
         expected_counts.append((table_name, expected, file_name, sheet_name))
+    expected_counts.extend(STATIC_TABLES)
 
     conn = get_connection(args)
     cur = conn.cursor()
 
     has_fail = False
-    print(f"{'Table':<22} {'Excel':>8} {'DB':>8}  Status  Source")
+    print(f"{'Table':<22} {'Expected':>8} {'DB':>8}  Status  Source")
     print("-" * 80)
     for table_name, expected, file_name, sheet_name in expected_counts:
         row = cur.execute(f"SELECT COUNT(1) FROM dbo.[{table_name}]").fetchone()

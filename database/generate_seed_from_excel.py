@@ -11,6 +11,36 @@ from openpyxl import load_workbook
 BASE_DIR = Path(r"D:\202603_Deaktop\BMS")
 OUTPUT_PATH = Path(r"D:\CIE\BMS\database\04_seed_master_data_template.sql")
 VERIFY_SQL_PATH = Path(r"D:\CIE\BMS\database\05_post_deploy_verify.sql")
+SUPPLEMENTAL_MASTER_PATH = Path(r"C:\Users\60893\Downloads\MS_BMS_OLD_Update 07.04.26.xlsx")
+SUPPLEMENTAL_VENDOR_PATH = Path(r"C:\Users\60893\Downloads\MasterVendor.xlsx")
+
+MENU_ROWS = [
+    (1, "Dashboard", "dashboard.aspx", "Main", 1, 1),
+    (2, "Draft OTB", "draftOTB.aspx", "OTB", 2, 1),
+    (3, "Approved OTB", "approvedOTB.aspx", "OTB", 3, 1),
+    (4, "Create Draft PO", "createDraftPO.aspx", "PO", 4, 1),
+    (5, "Create OTB Switching", "createOTBswitching.aspx", "OTB", 5, 1),
+    (6, "Actual PO", "actualPO.aspx", "PO", 6, 1),
+    (7, "Draft PO", "draftPO.aspx", "PO", 7, 1),
+    (8, "Master Brand", "master_brand.aspx", "Master", 8, 1),
+    (9, "Master Category", "master_category.aspx", "Master", 9, 1),
+    (10, "Master Vendor", "master_vendor.aspx", "Master", 10, 1),
+    (11, "Match Actual PO", "matchActualPO.aspx", "PO", 11, 1),
+    (12, "OTB Remaining", "otbRemaining.aspx", "OTB", 12, 1),
+    (13, "Admin Match PO", "admin_matchPO.aspx", "PO", 13, 1),
+    (14, "Switching Transaction", "transactionOTBSwitching.aspx", "OTB", 14, 1),
+    (15, "Manage Users", "manage_users.aspx", "Admin", 15, 1),
+    (16, "Login", "default.aspx", "System", 16, 1),
+]
+
+ADDITIONAL_PERMISSION_ROWS = [
+    (31, 1, 14, 1, 1, 1, 1),
+    (32, 3, 14, 1, 1, 1, 1),
+    (33, 1, 15, 1, 1, 1, 1),
+    (34, 1, 16, 1, 1, 1, 1),
+    (35, 2, 16, 1, 0, 0, 0),
+    (36, 3, 16, 1, 0, 0, 0),
+]
 
 
 def normalize_str(value) -> str | None:
@@ -69,6 +99,27 @@ def load_sheet(path: Path, sheet_name: str) -> list[OrderedDict[str, object]]:
     return data
 
 
+def load_optional_sheet(path: Path, sheet_name: str) -> list[OrderedDict[str, object]]:
+    if not path.exists():
+        return []
+    wb = load_workbook(path, read_only=True, data_only=True)
+    if sheet_name not in wb.sheetnames:
+        return []
+    ws = wb[sheet_name]
+    rows = list(ws.iter_rows(values_only=True))
+    if not rows:
+        return []
+    headers = [normalize_str(cell) or f"Column{idx+1}" for idx, cell in enumerate(rows[0])]
+    data: list[OrderedDict[str, object]] = []
+    for row in rows[1:]:
+        if row is None:
+            continue
+        if all(cell is None or normalize_str(cell) is None for cell in row):
+            continue
+        data.append(OrderedDict(zip(headers, row)))
+    return data
+
+
 def append_merge(
     lines: list[str],
     target: str,
@@ -116,6 +167,12 @@ def build_verify_sql(expected_counts: list[tuple[str, int]]) -> str:
         "    ExpectedCount int NOT NULL",
         ");",
         "",
+        "DECLARE @ActualCounts TABLE",
+        "(",
+        "    TableName sysname NOT NULL,",
+        "    ActualCount int NOT NULL",
+        ");",
+        "",
         "INSERT INTO @Expected (TableName, ExpectedCount)",
         "VALUES",
     ]
@@ -127,23 +184,23 @@ def build_verify_sql(expected_counts: list[tuple[str, int]]) -> str:
     lines.extend(
         [
             "",
-            "WITH ActualCounts AS",
-            "(",
-            "    SELECT N'MS_Vendor' AS TableName, COUNT(1) AS ActualCount FROM dbo.MS_Vendor",
-            "    UNION ALL SELECT N'MS_Brand', COUNT(1) FROM dbo.MS_Brand",
-            "    UNION ALL SELECT N'MS_Category', COUNT(1) FROM dbo.MS_Category",
-            "    UNION ALL SELECT N'MS_User', COUNT(1) FROM dbo.MS_User",
-            "    UNION ALL SELECT N'MS_Role', COUNT(1) FROM dbo.MS_Role",
-            "    UNION ALL SELECT N'Map_User_Role', COUNT(1) FROM dbo.Map_User_Role",
-            "    UNION ALL SELECT N'Map_Role_Permission', COUNT(1) FROM dbo.Map_Role_Permission",
-            ")",
+            "INSERT INTO @ActualCounts (TableName, ActualCount)",
+            "SELECT N'MS_Vendor' AS TableName, COUNT(1) AS ActualCount FROM dbo.MS_Vendor",
+            "UNION ALL SELECT N'MS_Brand', COUNT(1) FROM dbo.MS_Brand",
+            "UNION ALL SELECT N'MS_Category', COUNT(1) FROM dbo.MS_Category",
+            "UNION ALL SELECT N'MS_User', COUNT(1) FROM dbo.MS_User",
+            "UNION ALL SELECT N'MS_Role', COUNT(1) FROM dbo.MS_Role",
+            "UNION ALL SELECT N'MS_Menu', COUNT(1) FROM dbo.MS_Menu",
+            "UNION ALL SELECT N'Map_User_Role', COUNT(1) FROM dbo.Map_User_Role",
+            "UNION ALL SELECT N'Map_Role_Permission', COUNT(1) FROM dbo.Map_Role_Permission;",
+            "",
             "SELECT",
             "    e.TableName,",
             "    e.ExpectedCount,",
             "    a.ActualCount,",
             "    CASE WHEN e.ExpectedCount = a.ActualCount THEN N'PASS' ELSE N'FAIL' END AS VerifyStatus",
             "FROM @Expected e",
-            "LEFT JOIN ActualCounts a",
+            "LEFT JOIN @ActualCounts a",
             "    ON e.TableName = a.TableName",
             "ORDER BY e.TableName;",
             "",
@@ -153,7 +210,7 @@ def build_verify_sql(expected_counts: list[tuple[str, int]]) -> str:
             "        (",
             "            SELECT 1",
             "            FROM @Expected e",
-            "            LEFT JOIN ActualCounts a",
+            "            LEFT JOIN @ActualCounts a",
             "                ON e.TableName = a.TableName",
             "            WHERE ISNULL(a.ActualCount, -1) <> e.ExpectedCount",
             "        )",
@@ -168,24 +225,131 @@ def build_verify_sql(expected_counts: list[tuple[str, int]]) -> str:
 
 
 def main() -> None:
-    vendor_rows = load_sheet(BASE_DIR / "1.Master Vendor_BMS_v2.xlsx", "vendor")
+    vendor_rows_raw = load_sheet(BASE_DIR / "1.Master Vendor_BMS_v2.xlsx", "vendor")
     brand_rows = load_sheet(BASE_DIR / "2.Master Brand_BMS_V1.xlsx", "brand")
     category_rows = load_sheet(BASE_DIR / "3.Master category_BMS_24.11.25.xlsx", "Sheet1")
     user_rows = load_sheet(BASE_DIR / "Data_KBMS_User_Role.xlsx", "MS_User")
     role_rows = load_sheet(BASE_DIR / "Data_KBMS_User_Role.xlsx", "MS_Role")
     user_role_rows = load_sheet(BASE_DIR / "Data_KBMS_User_Role.xlsx", "Map_User_Role")
     role_perm_rows = load_sheet(BASE_DIR / "Data_KBMS_User_Role.xlsx", " Map_Role_Permission")
+    supplemental_segment_rows = load_optional_sheet(SUPPLEMENTAL_MASTER_PATH, "Segment")
+    supplemental_brand_rows = load_optional_sheet(SUPPLEMENTAL_MASTER_PATH, "Brand_update07.4.26")
+    supplemental_vendor_rows = load_optional_sheet(SUPPLEMENTAL_VENDOR_PATH, "MasterVendor_20260319151554")
+    existing_permission_ids = {int(row["PermissionID"]) for row in role_perm_rows}
+    for permission_id, role_id, menu_id, can_view, can_edit, can_delete, can_approve in ADDITIONAL_PERMISSION_ROWS:
+        if permission_id not in existing_permission_ids:
+            role_perm_rows.append(
+                OrderedDict(
+                    [
+                        ("PermissionID", permission_id),
+                        ("RoleID", role_id),
+                        ("MenuID", menu_id),
+                        ("CanView", can_view),
+                        ("CanEdit", can_edit),
+                        ("CanDelete", can_delete),
+                        ("CanApprove", can_approve),
+                    ]
+                )
+            )
+
+    brand_map: OrderedDict[str, OrderedDict[str, object]] = OrderedDict()
+    for row in brand_rows:
+        brand_code = normalize_str(row.get("Brand Code"))
+        if brand_code:
+            brand_map[brand_code] = row
+    added_brand_codes: list[str] = []
+    for row in supplemental_brand_rows:
+        brand_code = normalize_str(row.get("Brand ID"))
+        if brand_code and brand_code not in brand_map:
+            brand_map[brand_code] = OrderedDict(
+                [
+                    ("Brand Code", brand_code),
+                    ("Brand Name", normalize_str(row.get("Brand Description")) or brand_code),
+                    ("Status", "Active"),
+                ]
+            )
+            added_brand_codes.append(brand_code)
+    brand_rows = list(brand_map.values())
+
+    vendor_map: OrderedDict[tuple[str | None, str | None, str | None], OrderedDict[str, object]] = OrderedDict()
+    duplicate_vendor_keys: list[tuple[str | None, str | None, str | None]] = []
+    for row in vendor_rows_raw:
+        key = (
+            normalize_str(row.get("Vendor Code")),
+            normalize_str(row.get("Segment Code")),
+            normalize_str(row.get("Payment Term Code")),
+        )
+        if key in vendor_map:
+            duplicate_vendor_keys.append(key)
+        vendor_map[key] = row
 
     segment_map: OrderedDict[str, str] = OrderedDict()
+    segment_active_map: OrderedDict[str, object] = OrderedDict()
     ccy_set: OrderedDict[str, None] = OrderedDict()
-    for row in vendor_rows:
+    for row in vendor_map.values():
         segment_code = normalize_str(row.get("Segment Code"))
         segment_name = normalize_str(row.get("Segment"))
         ccy = normalize_str(row.get("CCY"))
         if segment_code and segment_code not in segment_map:
             segment_map[segment_code] = segment_name or segment_code
+            segment_active_map[segment_code] = row.get("isActive", 1)
         if ccy and ccy not in ccy_set:
             ccy_set[ccy] = None
+
+    added_segment_codes: list[str] = []
+    for row in supplemental_segment_rows:
+        segment_code = normalize_str(row.get("SegmentCode"))
+        segment_name = normalize_str(row.get("SegmentName"))
+        if segment_code and segment_code not in segment_map:
+            segment_map[segment_code] = segment_name or segment_code
+            segment_active_map[segment_code] = row.get("isActive") if row.get("isActive") is not None else 1
+            added_segment_codes.append(segment_code)
+
+    base_vendor_keys = set(vendor_map.keys())
+    added_vendor_keys: list[tuple[str | None, str | None, str | None]] = []
+    duplicate_supplemental_vendor_keys: list[tuple[str | None, str | None, str | None]] = []
+    supplemental_vendor_seen: set[tuple[str | None, str | None, str | None]] = set()
+    for row in supplemental_vendor_rows:
+        normalized_row = OrderedDict(
+            [
+                ("Vendor Code", normalize_str(row.get("Vendor Code"))),
+                ("Vendor Name", normalize_str(row.get("Vendor Name"))),
+                ("CCY", normalize_str(row.get("CCY"))),
+                ("Payment Term Code", normalize_str(row.get("Payment Term Code"))),
+                ("Payment Term", normalize_str(row.get("Payment Term"))),
+                ("Segment Code", normalize_str(row.get("Segment Code"))),
+                ("Segment", normalize_str(row.get("Segment"))),
+                ("Incoterm", normalize_str(row.get("Incoterm"))),
+                ("Status", normalize_str(row.get("Status"))),
+            ]
+        )
+        key = (
+            normalized_row["Vendor Code"],
+            normalized_row["Segment Code"],
+            normalized_row["Payment Term Code"],
+        )
+        if not key[0]:
+            continue
+        if key in base_vendor_keys:
+            continue
+        if key in supplemental_vendor_seen:
+            duplicate_supplemental_vendor_keys.append(key)
+            vendor_map[key] = normalized_row
+            continue
+        supplemental_vendor_seen.add(key)
+        vendor_map[key] = normalized_row
+        added_vendor_keys.append(key)
+        segment_code = normalized_row["Segment Code"]
+        segment_name = normalized_row["Segment"]
+        ccy = normalized_row["CCY"]
+        if segment_code and segment_code not in segment_map:
+            segment_map[segment_code] = segment_name or segment_code
+            segment_active_map[segment_code] = 1
+            added_segment_codes.append(segment_code)
+        if ccy and ccy not in ccy_set:
+            ccy_set[ccy] = None
+
+    vendor_rows = list(vendor_map.values())
 
     lines: list[str] = [
         "USE [BMS];",
@@ -195,8 +359,33 @@ def main() -> None:
         "GO",
         "",
         "/* Generated from provided Excel files using openpyxl */",
+        f"/* Vendor source rows: {len(vendor_rows_raw)} | Vendor unique rows used for seed: {len(vendor_rows)} */",
+        f"/* Supplemental additions: Segment +{len(added_segment_codes)} | Brand +{len(added_brand_codes)} | Vendor +{len(OrderedDict.fromkeys(added_vendor_keys))} */",
         "",
     ]
+    if duplicate_vendor_keys:
+        unique_dup_keys = list(OrderedDict.fromkeys(duplicate_vendor_keys).keys())
+        lines.append("/* Duplicate VendorCode+SegmentCode+PaymentTermCode detected in source and collapsed to last occurrence:")
+        for vendor_code, segment_code, payment_term_code in unique_dup_keys:
+            lines.append(
+                f"   VendorCode={vendor_code or 'NULL'}, SegmentCode={segment_code or 'NULL'}, PaymentTermCode={payment_term_code or 'NULL'}"
+            )
+        lines.append("*/")
+        lines.append("")
+    if added_segment_codes:
+        lines.append("/* Added SegmentCode from supplemental sheet:")
+        for segment_code in OrderedDict.fromkeys(added_segment_codes).keys():
+            lines.append(f"   SegmentCode={segment_code}")
+        lines.append("*/")
+        lines.append("")
+    if duplicate_supplemental_vendor_keys:
+        lines.append("/* Duplicate VendorCode+SegmentCode+PaymentTermCode detected in supplemental vendor file and last occurrence was kept:")
+        for vendor_code, segment_code, payment_term_code in OrderedDict.fromkeys(duplicate_supplemental_vendor_keys).keys():
+            lines.append(
+                f"   VendorCode={vendor_code or 'NULL'}, SegmentCode={segment_code or 'NULL'}, PaymentTermCode={payment_term_code or 'NULL'}"
+            )
+        lines.append("*/")
+        lines.append("")
 
     append_merge(
         lines,
@@ -249,9 +438,9 @@ def main() -> None:
         "dbo.MS_Company",
         ["CompanyCode", "CompanyNameShort"],
         [
-            "(N'1000', N'Company 1000')",
-            "(N'2000', N'Company 2000')",
-            "(N'3000', N'Company 3000')",
+            "(N'1000', N'KPC')",
+            "(N'2000', N'KPD')",
+            "(N'3000', N'KPT')",
         ],
         "T.CompanyCode = S.CompanyCode",
         "T.CompanyNameShort = S.CompanyNameShort",
@@ -264,7 +453,7 @@ def main() -> None:
         "dbo.MS_Segment",
         ["SegmentCode", "SegmentName", "isActive"],
         [
-            f"({sql_nvarchar(code)}, {sql_nvarchar(name)}, 1)"
+            f"({sql_nvarchar(code)}, {sql_nvarchar(name)}, {sql_bit(segment_active_map.get(code, 1))})"
             for code, name in segment_map.items()
         ],
         "T.SegmentCode = S.SegmentCode",
@@ -339,7 +528,7 @@ def main() -> None:
             + ")"
             for row in vendor_rows
         ],
-        "T.VendorCode = S.VendorCode AND ISNULL(T.SegmentCode, N'') = ISNULL(S.SegmentCode, N'')",
+        "T.VendorCode = S.VendorCode AND ISNULL(T.SegmentCode, N'') = ISNULL(S.SegmentCode, N'') AND ISNULL(T.PaymentTermCode, N'') = ISNULL(S.PaymentTermCode, N'')",
         "T.Vendor = S.Vendor, T.CCY = S.CCY, T.PaymentTermCode = S.PaymentTermCode, T.PaymentTerm = S.PaymentTerm, T.Segment = S.Segment, T.Incoterm = S.Incoterm, T.isActive = S.isActive",
         ["VendorCode", "Vendor", "CCY", "PaymentTermCode", "PaymentTerm", "SegmentCode", "Segment", "Incoterm", "isActive"],
         ["S.VendorCode", "S.Vendor", "S.CCY", "S.PaymentTermCode", "S.PaymentTerm", "S.SegmentCode", "S.Segment", "S.Incoterm", "S.isActive"],
@@ -383,6 +572,31 @@ def main() -> None:
         "T.RoleName = S.RoleName, T.Description = S.Description",
         ["RoleID", "RoleName", "Description"],
         ["S.RoleID", "S.RoleName", "S.Description"],
+    )
+
+    append_merge(
+        lines,
+        "dbo.MS_Menu",
+        ["MenuID", "MenuName", "PageUrl", "MenuGroup", "SortOrder", "IsActive"],
+        [
+            "("
+            + ", ".join(
+                [
+                    sql_number(menu_id),
+                    sql_nvarchar(menu_name),
+                    sql_nvarchar(page_url),
+                    sql_nvarchar(menu_group),
+                    sql_number(sort_order),
+                    sql_bit(is_active),
+                ]
+            )
+            + ")"
+            for menu_id, menu_name, page_url, menu_group, sort_order, is_active in MENU_ROWS
+        ],
+        "T.MenuID = S.MenuID",
+        "T.MenuName = S.MenuName, T.PageUrl = S.PageUrl, T.MenuGroup = S.MenuGroup, T.SortOrder = S.SortOrder, T.IsActive = S.IsActive",
+        ["MenuID", "MenuName", "PageUrl", "MenuGroup", "SortOrder", "IsActive"],
+        ["S.MenuID", "S.MenuName", "S.PageUrl", "S.MenuGroup", "S.SortOrder", "S.IsActive"],
     )
 
     append_merge(
@@ -438,6 +652,7 @@ def main() -> None:
                 ("MS_Category", len(category_rows)),
                 ("MS_User", len(user_rows)),
                 ("MS_Role", len(role_rows)),
+                ("MS_Menu", len(MENU_ROWS)),
                 ("Map_User_Role", len(user_role_rows)),
                 ("Map_Role_Permission", len(role_perm_rows)),
             ]
@@ -446,13 +661,20 @@ def main() -> None:
     )
     print(f"Generated: {OUTPUT_PATH}")
     print(f"Generated: {VERIFY_SQL_PATH}")
-    print(f"Vendor rows: {len(vendor_rows)}")
+    print(f"Vendor source rows: {len(vendor_rows_raw)}")
+    print(f"Vendor unique rows used: {len(vendor_rows)}")
     print(f"Brand rows: {len(brand_rows)}")
     print(f"Category rows: {len(category_rows)}")
     print(f"User rows: {len(user_rows)}")
     print(f"Role rows: {len(role_rows)}")
     print(f"User-role rows: {len(user_role_rows)}")
     print(f"Role-permission rows: {len(role_perm_rows)}")
+    if duplicate_vendor_keys:
+        print("Collapsed duplicate vendor keys:")
+        for vendor_code, segment_code, payment_term_code in OrderedDict.fromkeys(duplicate_vendor_keys).keys():
+            print(
+                f"  VendorCode={vendor_code}, SegmentCode={segment_code}, PaymentTermCode={payment_term_code}"
+            )
 
 
 if __name__ == "__main__":

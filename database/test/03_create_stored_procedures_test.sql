@@ -485,3 +485,133 @@ BEGIN
         NULL AS [Message];
 END;
 GO
+
+CREATE OR ALTER PROCEDURE dbo.SP_Sync_User_From_AD
+    @Username nvarchar(255),
+    @FullName nvarchar(255) = NULL,
+    @Email nvarchar(255) = NULL
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    IF NULLIF(LTRIM(RTRIM(@Username)), N'') IS NULL
+    BEGIN
+        THROW 50001, 'Username is required.', 1;
+    END;
+
+    SET @Username = LTRIM(RTRIM(@Username));
+    SET @FullName = NULLIF(LTRIM(RTRIM(ISNULL(@FullName, N''))), N'');
+    SET @Email = NULLIF(LTRIM(RTRIM(ISNULL(@Email, N''))), N'');
+
+    DECLARE @ExistingUserID int;
+    SELECT TOP (1) @ExistingUserID = UserID
+    FROM dbo.MS_User
+    WHERE Username = @Username
+       OR (@Email IS NOT NULL AND Email = @Email);
+
+    IF @ExistingUserID IS NULL
+    BEGIN
+        DECLARE @NextUserID int;
+        SELECT @NextUserID = ISNULL(MAX(UserID), 0) + 1 FROM dbo.MS_User;
+
+        INSERT INTO dbo.MS_User
+        (
+            UserID,
+            Username,
+            FullName,
+            Email,
+            IsActive,
+            LastLoginDate,
+            CreateDate
+        )
+        VALUES
+        (
+            @NextUserID,
+            @Username,
+            COALESCE(@FullName, @Username),
+            COALESCE(@Email, @Username),
+            1,
+            SYSDATETIME(),
+            SYSDATETIME()
+        );
+    END
+    ELSE
+    BEGIN
+        UPDATE dbo.MS_User
+        SET Username = @Username,
+            FullName = COALESCE(@FullName, FullName, @Username),
+            Email = COALESCE(@Email, Email),
+            IsActive = 1,
+            LastLoginDate = SYSDATETIME()
+        WHERE UserID = @ExistingUserID;
+    END
+END;
+GO
+
+CREATE OR ALTER PROCEDURE dbo.SP_Get_Users_List
+    @SearchText nvarchar(255) = NULL
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    SET @SearchText = NULLIF(LTRIM(RTRIM(ISNULL(@SearchText, N''))), N'');
+
+    SELECT
+        u.UserID,
+        u.Username,
+        u.FullName,
+        u.Email,
+        u.IsActive,
+        STRING_AGG(r.RoleName, N', ') AS Roles
+    FROM dbo.MS_User u
+    LEFT JOIN dbo.Map_User_Role ur
+        ON u.UserID = ur.UserID
+    LEFT JOIN dbo.MS_Role r
+        ON ur.RoleID = r.RoleID
+    WHERE @SearchText IS NULL
+       OR u.Username LIKE N'%' + @SearchText + N'%'
+       OR u.FullName LIKE N'%' + @SearchText + N'%'
+       OR u.Email LIKE N'%' + @SearchText + N'%'
+    GROUP BY
+        u.UserID,
+        u.Username,
+        u.FullName,
+        u.Email,
+        u.IsActive
+    ORDER BY u.Username;
+END;
+GO
+
+CREATE OR ALTER PROCEDURE dbo.SP_Admin_Save_User
+    @UserID int,
+    @RoleID int,
+    @IsActive bit
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    IF NOT EXISTS (SELECT 1 FROM dbo.MS_User WHERE UserID = @UserID)
+    BEGIN
+        THROW 50002, 'UserID not found.', 1;
+    END;
+
+    IF NOT EXISTS (SELECT 1 FROM dbo.MS_Role WHERE RoleID = @RoleID)
+    BEGIN
+        THROW 50003, 'RoleID not found.', 1;
+    END;
+
+    UPDATE dbo.MS_User
+    SET IsActive = @IsActive
+    WHERE UserID = @UserID;
+
+    DELETE FROM dbo.Map_User_Role
+    WHERE UserID = @UserID;
+
+    INSERT INTO dbo.Map_User_Role (MapID, UserID, RoleID)
+    SELECT
+        ISNULL(MAX(MapID), 0) + 1,
+        @UserID,
+        @RoleID
+    FROM dbo.Map_User_Role;
+END;
+GO

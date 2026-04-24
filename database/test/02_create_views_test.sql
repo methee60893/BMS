@@ -43,3 +43,20 @@ LEFT JOIN dbo.MS_Vendor v
     ON d.Vendor = v.VendorCode
    AND ISNULL(d.SegmentCode, d.Segment) = v.SegmentCode;
 GO
+
+CREATE OR ALTER VIEW dbo.View_UserRole
+AS
+SELECT
+    u.UserID,
+    u.Username,
+    u.FullName,
+    u.Email,
+    u.IsActive,
+    ur.RoleID,
+    r.RoleName
+FROM dbo.MS_User u
+LEFT JOIN dbo.Map_User_Role ur
+    ON u.UserID = ur.UserID
+LEFT JOIN dbo.MS_Role r
+    ON ur.RoleID = r.RoleID;
+GO

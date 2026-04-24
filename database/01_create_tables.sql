@@ -144,6 +144,22 @@ BEGIN
 END;
 GO
 
+IF OBJECT_ID(N'dbo.MS_Menu', N'U') IS NULL
+BEGIN
+    CREATE TABLE dbo.MS_Menu
+    (
+        MenuID int NOT NULL,
+        MenuName nvarchar(150) NOT NULL,
+        PageUrl nvarchar(255) NOT NULL,
+        MenuGroup nvarchar(100) NULL,
+        SortOrder int NOT NULL CONSTRAINT DF_MS_Menu_SortOrder DEFAULT (0),
+        IsActive bit NOT NULL CONSTRAINT DF_MS_Menu_IsActive DEFAULT (1),
+        CONSTRAINT PK_MS_Menu PRIMARY KEY CLUSTERED (MenuID),
+        CONSTRAINT UQ_MS_Menu_PageUrl UNIQUE (PageUrl)
+    );
+END;
+GO
+
 IF OBJECT_ID(N'dbo.Map_User_Role', N'U') IS NULL
 BEGIN
     CREATE TABLE dbo.Map_User_Role

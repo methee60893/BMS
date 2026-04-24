@@ -17,6 +17,7 @@
 - มี post-check หลัง deploy ใน `05_post_deploy_verify.sql`
 - ถ้าต้อง regenerate seed และ verify sql จาก Excel ล่าสุด ให้ใช้ `generate_seed_from_excel.py`
 - ถ้าต้อง compare จำนวนแถว Excel กับ DB โดยตรง ให้ใช้ `compare_excel_to_db.py`
+- ชุด seed ปัจจุบันครอบคลุม user/role/menu/permission สำหรับระบบหลังบ้านด้วย
 - Stored procedures ถูกทำให้ idempotent และเน้นความปลอดภัยของข้อมูลมากกว่าการ match แบบ aggressive
 - ถ้าจะขึ้น production ควรเพิ่ม user/role/security policy แยกต่างหาก
 - ดูขั้นตอน deploy แบบพร้อมใช้ได้ใน `DEPLOYMENT_CHECKLIST.md`

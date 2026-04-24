@@ -170,9 +170,9 @@ Public Class OTBValidate
     End Function
 
     Public Function ValidateAmount(ByVal amount As Decimal) As String
-        If amount = 0 Then
-            Return "Value_amount_should_be_greater_than_0" ' (ลบช่องว่าง)
-        End If
+        'If amount = 0 Then
+        '    Return "Value_amount_should_be_greater_than_0" ' (ลบช่องว่าง)
+        'End If
         Return ""
     End Function
     Public Function ValidateAmountString(ByVal amountStr As String) As String

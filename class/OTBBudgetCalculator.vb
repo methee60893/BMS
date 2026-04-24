@@ -126,7 +126,7 @@ Public Class OTBBudgetCalculator
             Return If(totalRevDiff IsNot DBNull.Value, Convert.ToDecimal(totalRevDiff), 0)
 
         Catch ex As Exception
-            System.Diagnostics.Debug.WriteLine("Error in GetRevisionDiff (In-Memory): " & ex.Message)
+            'System.Diagnostics.Debug.WriteLine("Error in GetRevisionDiff (In-Memory): " & ex.Message)
             Return 0
         End Try
     End Function
