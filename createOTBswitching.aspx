@@ -231,7 +231,7 @@
                         <div id="bulkPreviewContainer" class="mt-4"></div>
 
                         <div id="bulkResultContainer" class="mt-4" style="display:none;">
-                            <h5>Upload Results (SAP)</h5>
+                            <h5>Upload Results (Database)</h5>
                             <div class="table-responsive" style="max-height:400px;">
                                 <table class="table table-bordered table-sm" id="tblBulkResult">
                                     <thead class="table-success sticky-top">
@@ -252,7 +252,7 @@
 
                         <div class="text-end mt-3" id="divBulkActions" style="display:none;">
                             <button type="button" class="btn-submit" id="btnSaveBulk">
-                                <i class="bi bi-cloud-upload"></i> Confirm & Save to SAP
+                                <i class="bi bi-cloud-upload"></i> Confirm & Save to Database
                             </button>
                         </div>
                     </div>
@@ -543,9 +543,9 @@
                 return;
             }
 
-            if (!confirm('ยืนยันการบันทึก ' + dataPayload.length + ' รายการลง SAP?')) return;
+            if (!confirm('ยืนยันการบันทึก ' + dataPayload.length + ' รายการลงฐานข้อมูล?')) return;
 
-            showLoading(true, "Sending Batch to SAP...");
+            showLoading(true, "Saving Batch to Database...");
             $.ajax({
                 url: 'Handler/SwitchUploadHandler.ashx?action=save',
                 type: 'POST',
@@ -563,7 +563,7 @@
                         $('#bulkPreviewContainer').empty(); // ลบตาราง Preview ออก 
                         document.getElementById('fileBulkSwitch').value = ""; // เคลียร์ไฟล์ที่เลือก 
 
-                        // 3. แสดงส่วนผลลัพธ์จาก SAP
+                        // 3. แสดงส่วนผลลัพธ์จากฐานข้อมูล
                         $('#bulkResultContainer').fadeIn();
                     } else {
                         alert('Batch Failed: ' + res.message);
@@ -608,8 +608,8 @@
                     <td class="text-center align-middle">${index + 2}</td>
                     <td class="text-center align-middle fw-bold text-primary">${r.Type}</td>
                     <td class="align-middle">${fromTxt}</td>
-                    <td class="text-end align-middle fw-bold">${parseFloat(r.Amount).toLocaleString('en-US', { minimumFractionDigits: 2 })}</td>
                     <td class="align-middle">${toTxt}</td>
+                    <td class="text-end align-middle fw-bold">${parseFloat(r.Amount).toLocaleString('en-US', { minimumFractionDigits: 2 })}</td>
                     <td class="text-center align-middle">${statusBadge}</td>
                     <td class="align-middle"><small class="text-wrap">${item.message}</small></td>
                 </tr>`;

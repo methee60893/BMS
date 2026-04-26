@@ -12,7 +12,8 @@ param(
     [string]$DbPassword = "YOUR_PASSWORD",
     [string]$MockSapBaseUrl = "http://127.0.0.1:18080",
     [string]$MockSapUsername = "mock-user",
-    [string]$MockSapPassword = "mock-password"
+    [string]$MockSapPassword = "mock-password",
+    [switch]$AllowProductionServer
 )
 
 Set-StrictMode -Version Latest
@@ -25,6 +26,7 @@ $createDbSql = Join-Path $root "database\00_create_database_test.sql"
 $stateDir = Join-Path $root ".codex-test-state"
 $logPath = Join-Path $stateDir "run_full_isolated_test.log"
 $mockServerScript = Join-Path $root "test_support\mock_sap_server.py"
+$safetyScript = Join-Path $root "test_support\isolated_test_safety.ps1"
 $webConfigPath = Join-Path $root "Web.config"
 $verifyPythonScript = Join-Path $root "database\compare_excel_to_db.py"
 $sqlFiles = @(
@@ -34,6 +36,8 @@ $sqlFiles = @(
     (Join-Path $testSqlDir "04_seed_master_data_template_test.sql"),
     (Join-Path $testSqlDir "05_post_deploy_verify_test.sql")
 )
+
+. $safetyScript
 
 function Invoke-StepScript {
     param(
@@ -58,6 +62,9 @@ function Invoke-StepScript {
     foreach ($key in $ExtraArgs.Keys) {
         $argList += "-$key"
         $argList += [string]$ExtraArgs[$key]
+    }
+    if ($AllowProductionServer) {
+        $argList += "-AllowProductionServer"
     }
 
     & powershell @argList
@@ -250,6 +257,7 @@ function Invoke-SqlFile {
 }
 
 function Run-SqlSequence {
+    Assert-IsolatedTestTarget -WebConfigPath $webConfigPath -SqlServer $SqlServer -TestDatabase $TestDatabase -AllowProductionServer:$AllowProductionServer
     Write-Log "Running SQL sequence"
     Invoke-SqlFile -Database "" -InputFile $createDbSql
     foreach ($file in $sqlFiles) {

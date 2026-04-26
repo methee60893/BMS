@@ -7,9 +7,7 @@ Imports ExcelDataReader
 Imports System.Text
 Imports System.Web.Script.Serialization
 Imports System.Collections.Generic
-Imports System.Threading.Tasks
 Imports System.Globalization
-Imports System.Linq
 
 Public Class SwitchUploadHandler
     Implements IHttpHandler, IRequiresSessionState
@@ -24,17 +22,37 @@ Public Class SwitchUploadHandler
     Private dtBrand As DataTable
     Private dtVendor As DataTable
 
+    Private Class SwitchTypeInfo
+        Public Property TypeFrom As String
+        Public Property TypeTo As String
+        Public Property DisplayName As String
+    End Class
+
+    Private Class SwitchUploadDbItem
+        Public Property FromData As Dictionary(Of String, Object)
+        Public Property ToData As Dictionary(Of String, Object)
+        Public Property Amount As Decimal
+        Public Property TypeFrom As String
+        Public Property TypeTo As String
+        Public Property Remark As String
+        Public Property ActionType As String
+        Public Property TypeName As String
+    End Class
+
     Public Sub ProcessRequest(ByVal context As HttpContext) Implements IHttpHandler.ProcessRequest
         context.Response.Clear()
         context.Response.ContentEncoding = Encoding.UTF8
 
-        Dim action As String = context.Request("action")
+        Dim action As String = If(context.Request("action"), "").ToLowerInvariant()
         Dim uploadBy As String = If(context.Session("user") IsNot Nothing, context.Session("user").ToString(), "System")
 
         If action = "preview" Then
             HandlePreview(context)
         ElseIf action = "save" Then
             HandleSave(context, uploadBy)
+        Else
+            context.Response.ContentType = "application/json"
+            context.Response.Write(New JavaScriptSerializer().Serialize(New With {.success = False, .message = "Invalid action."}))
         End If
     End Sub
 
@@ -115,7 +133,7 @@ Public Class SwitchUploadHandler
 
     Private Function GetName(dt As DataTable, codeCol As String, nameCol As String, codeVal As String) As String
         If String.IsNullOrEmpty(codeVal) OrElse dt Is Nothing Then Return ""
-        Dim rows = dt.Select($"[{codeCol}] = '{codeVal.Replace("'", "''")}'")
+        Dim rows = dt.Select("[" & codeCol & "] = '" & codeVal.Replace("'", "''") & "'")
         If rows.Length > 0 Then
             Return rows(0)(nameCol).ToString()
         End If
@@ -164,174 +182,84 @@ Public Class SwitchUploadHandler
             Dim row As DataRow = dt.Rows(i)
             Dim errors As New List(Of String)()
 
-            ' --- 1. Read Data ---
-            Dim _function As String = GetVal(row, "Function")
-            Dim type As String = ""
+            Dim actionType As String = GetFunctionValue(row)
             Dim amtStr As String = GetVal(row, "Amount")
-            Dim remark As String = GetVal(row, "Remark")
-
-            ' From
-            Dim fYear As String = GetVal(row, "Year")
-            Dim fMonth As String = GetVal(row, "Month")
-            Dim fComp As String = GetVal(row, "Company")
-            Dim fCate As String = GetVal(row, "Category")
-            Dim fSeg As String = GetVal(row, "Segment")
-            Dim fBrand As String = GetVal(row, "Brand")
-            Dim fVend As String = GetVal(row, "Vendor")
-
-            ' To
-            Dim tYear As String = GetVal(row, "To_Year")
-            Dim tMonth As String = GetVal(row, "To_Month")
-            Dim tComp As String = GetVal(row, "To_Company")
-            Dim tCate As String = GetVal(row, "To_Category")
-            Dim tSeg As String = GetVal(row, "To_Segment")
-            Dim tBrand As String = GetVal(row, "To_Brand")
-            Dim tVend As String = GetVal(row, "To_Vendor")
-
-            ' --- 2. Validation ---
             Dim amount As Decimal = 0
-            If String.IsNullOrEmpty(_function) Then errors.Add("Missing Type")
-            If Not Decimal.TryParse(amtStr, amount) OrElse amount <= 0 Then errors.Add("Invalid Amount")
-            If String.IsNullOrEmpty(fYear) OrElse String.IsNullOrEmpty(fMonth) OrElse String.IsNullOrEmpty(fComp) OrElse String.IsNullOrEmpty(fCate) OrElse String.IsNullOrEmpty(fSeg) OrElse String.IsNullOrEmpty(fBrand) OrElse String.IsNullOrEmpty(fVend) Then errors.Add("Missing Source")
+            TryParseAmount(amtStr, amount)
 
-            If Not String.IsNullOrEmpty(fMonth) AndAlso Not IsValidMaster(dtMonth, "month_code", fMonth) Then errors.Add($"Invalid From Month ({fMonth})")
-            If Not String.IsNullOrEmpty(fComp) AndAlso Not IsValidMaster(dtCompany, "CompanyCode", fComp) Then errors.Add($"Invalid From Company ({fComp})")
-            If Not String.IsNullOrEmpty(fCate) AndAlso Not IsValidMaster(dtCategory, "Cate", fCate) Then errors.Add($"Invalid From Category ({fCate})")
-            If Not String.IsNullOrEmpty(fSeg) AndAlso Not IsValidMaster(dtSegment, "SegmentCode", fSeg) Then errors.Add($"Invalid From Segment ({fSeg})")
-            If Not String.IsNullOrEmpty(fBrand) AndAlso Not IsValidMaster(dtBrand, "Brand Code", fBrand) Then errors.Add($"Invalid From Brand ({fBrand})")
-            If Not String.IsNullOrEmpty(fVend) AndAlso Not IsValidMaster(dtVendor, "VendorCode", fVend) Then errors.Add($"Invalid From Vendor ({fVend})")
+            Dim fromData As Dictionary(Of String, Object) = BuildFieldData(
+                GetVal(row, "Year"), GetVal(row, "Month"), GetVal(row, "Company"), GetVal(row, "Category"),
+                GetVal(row, "Segment"), GetVal(row, "Brand"), GetVal(row, "Vendor"))
 
-            If _function.Equals("Switch", StringComparison.OrdinalIgnoreCase) Then
-                If String.IsNullOrEmpty(tYear) OrElse String.IsNullOrEmpty(tMonth) OrElse String.IsNullOrEmpty(tComp) OrElse String.IsNullOrEmpty(tCate) OrElse String.IsNullOrEmpty(tSeg) OrElse String.IsNullOrEmpty(tBrand) OrElse String.IsNullOrEmpty(tVend) Then errors.Add("Missing Dest")
-                If fYear = tYear AndAlso fMonth = tMonth AndAlso fComp = tComp AndAlso fCate = tCate AndAlso fSeg = tSeg AndAlso fBrand = tBrand AndAlso fVend = tVend Then
-                    errors.Add("Source=Dest")
-                End If
+            Dim toData As Dictionary(Of String, Object) = BuildFieldData(
+                GetVal(row, "To_Year"), GetVal(row, "To_Month"), GetVal(row, "To_Company"), GetVal(row, "To_Category"),
+                GetVal(row, "To_Segment"), GetVal(row, "To_Brand"), GetVal(row, "To_Vendor"))
 
-                If Not String.IsNullOrEmpty(tMonth) AndAlso Not IsValidMaster(dtMonth, "month_code", tMonth) Then errors.Add($"Invalid From Month ({tMonth})")
-                If Not String.IsNullOrEmpty(tComp) AndAlso Not IsValidMaster(dtCompany, "CompanyCode", tComp) Then errors.Add($"Invalid To Company ({tComp})")
-                If Not String.IsNullOrEmpty(tCate) AndAlso Not IsValidMaster(dtCategory, "Cate", tCate) Then errors.Add($"Invalid To Category ({tCate})")
-                If Not String.IsNullOrEmpty(tSeg) AndAlso Not IsValidMaster(dtSegment, "SegmentCode", tSeg) Then errors.Add($"Invalid To Segment ({tSeg})")
-                If Not String.IsNullOrEmpty(tBrand) AndAlso Not IsValidMaster(dtBrand, "Brand Code", tBrand) Then errors.Add($"Invalid To Brand ({tBrand})")
-                If Not String.IsNullOrEmpty(tVend) AndAlso Not IsValidMaster(dtVendor, "VendorCode", tVend) Then errors.Add($"Invalid To Vendor ({tVend})")
-            End If
+            Dim typeInfo As SwitchTypeInfo = DetermineSwitchTypeInfo(actionType, GetDictString(fromData, "Year"), GetDictString(fromData, "Month"), GetDictString(toData, "Year"), GetDictString(toData, "Month"))
+            Dim previewToData As Dictionary(Of String, Object) = Nothing
+            If actionType.Equals("Switch", StringComparison.OrdinalIgnoreCase) Then previewToData = toData
 
-            Dim rowKey As String = ""
-            If _function.Equals("Switch", StringComparison.OrdinalIgnoreCase) Then
-                rowKey = $"SW|{fYear}|{fMonth}|{fComp}|{fCate}|{fSeg}|{fBrand}|{fVend}|{tYear}|{tMonth}|{tComp}|{tCate}|{tSeg}|{tBrand}|{tVend}|{amount}"
-            Else
-                ' Extra
-                rowKey = $"EX|{fYear}|{fMonth}|{fComp}|{fCate}|{fSeg}|{fBrand}|{fVend}"
-            End If
+            Dim previewItem As New SwitchUploadDbItem With {
+                .FromData = fromData,
+                .ToData = previewToData,
+                .Amount = amount,
+                .TypeFrom = typeInfo.TypeFrom,
+                .TypeTo = typeInfo.TypeTo,
+                .Remark = GetVal(row, "Remark"),
+                .ActionType = actionType,
+                .TypeName = typeInfo.DisplayName
+            }
 
-            If uniqueRows.Contains(rowKey) Then
-                errors.Add("Duplicate Data in File")
-            Else
-                uniqueRows.Add(rowKey)
-            End If
+            ValidateMappedItem(previewItem, errors)
 
-            ' --- 3. Budget Check ---
-            If errors.Count = 0 AndAlso amount > 0 AndAlso _function.Equals("Switch", StringComparison.OrdinalIgnoreCase) Then
-                Try
-                    Dim key As String = $"{fYear}|{fMonth}|{fCate}|{fComp}|{fSeg}|{fBrand}|{fVend}"
-
-                    If Not dbBudgetCache.ContainsKey(key) Then
-                        dbBudgetCache(key) = budgetCalc.CalculateCurrentApprovedBudget(fYear, fMonth, fCate, fComp, fSeg, fBrand, fVend)
-                        dbUsedCache(key) = povalidate.GetUsedBudgetFromDBForOTB(fYear, fMonth, fCate, fComp, fSeg, fBrand, fVend)
-                    End If
-
-                    Dim currentDbBudget As Decimal = dbBudgetCache(key)
-                    Dim usedInDB As Decimal = dbUsedCache(key)
-
-                    Dim usedInBatch As Decimal = If(pendingUsage.ContainsKey(key), pendingUsage(key), 0)
-                    Dim available As Decimal = (currentDbBudget - usedInDB) - usedInBatch
-
-                    If available < amount Then
-                        errors.Add($"Over Budget (Remaining: {available:N2}, Used in Batch: {usedInBatch:N2})")
-                    Else
-                        If pendingUsage.ContainsKey(key) Then pendingUsage(key) += amount Else pendingUsage.Add(key, amount)
-                    End If
-                Catch ex As Exception
-                    errors.Add("Budget Error: " & ex.Message)
-                End Try
+            If errors.Count = 0 Then
+                ValidateDuplicateInBatch(previewItem, uniqueRows, errors)
+                If errors.Count = 0 Then ValidateBudget(previewItem, budgetCalc, povalidate, dbBudgetCache, dbUsedCache, pendingUsage, errors)
             End If
 
             Dim isError As Boolean = (errors.Count > 0)
             If isError Then allValid = False
 
+            AddMasterNames(previewItem.FromData)
+            If previewItem.ToData IsNot Nothing Then AddMasterNames(previewItem.ToData)
 
-
-            ' --- 4. Serialize Data for Save ---
             Dim rowDataObj As New Dictionary(Of String, Object) From {
-                {"Function", _function}, {"Amount", amount}, {"Remark", remark},
-                {"From", New Dictionary(Of String, String) From {{"Year", fYear}, {"Month", fMonth}, {"Company", fComp}, {"Category", fCate}, {"Segment", fSeg}, {"Brand", fBrand}, {"Vendor", fVend}}},
-                {"To", New Dictionary(Of String, String) From {{"Year", tYear}, {"Month", tMonth}, {"Company", tComp}, {"Category", tCate}, {"Segment", tSeg}, {"Brand", tBrand}, {"Vendor", tVend}}}
+                {"Function", previewItem.ActionType},
+                {"Type", previewItem.TypeName},
+                {"TypeFrom", previewItem.TypeFrom},
+                {"TypeTo", previewItem.TypeTo},
+                {"Amount", previewItem.Amount},
+                {"Remark", previewItem.Remark},
+                {"From", previewItem.FromData},
+                {"To", previewItem.ToData}
             }
             Dim rowJson As String = If(isError, "", HttpUtility.HtmlAttributeEncode(New JavaScriptSerializer().Serialize(rowDataObj)))
 
-            Dim typeName As String = ""
-            If _function.Equals("Switch", StringComparison.OrdinalIgnoreCase) Then
-                typeName = "Switch"
-                Dim dFrom As New Date(Convert.ToInt32(fYear), Convert.ToInt32(fMonth), 1)
-                Dim dTo As New Date(Convert.ToInt32(tYear), Convert.ToInt32(tMonth), 1)
-                If dFrom > dTo Then typeName = "Carry"
-                If dFrom < dTo Then typeName = "Balance"
-            ElseIf _function.Equals("Extra", StringComparison.OrdinalIgnoreCase) Then
-                typeName = "Extra"
-            End If
-
-
-            ' --- 5. Prepare Display Strings (With Names) ---
-            Dim fCompName As String = GetName(dtCompany, "CompanyCode", "CompanyNameShort", fComp)
-            Dim fCateName As String = GetName(dtCategory, "Cate", "Category", fCate)
-            Dim fSegName As String = GetName(dtSegment, "SegmentCode", "SegmentName", fSeg)
-            Dim fBrandName As String = GetName(dtBrand, "Brand Code", "Brand Name", fBrand)
-            Dim fVendName As String = GetName(dtVendor, "VendorCode", "Vendor", fVend)
-
-            ' HTML Block for From
-            Dim fHtml As String = $"<strong>{fYear}/{fMonth}</strong><br/>" &
-                                  $"<small>Comp: {fComp}:{fCompName}<br/>" &
-                                  $"Vend: {fVend}:{fVendName}<br/>" &
-                                  $"Brand: {fBrand}:{fBrandName}<br/>" &
-                                  $"Seg: {fSeg}:{fSegName} | Cat: {fCate}:{fCateName}</small>"
-
+            Dim fHtml As String = BuildDetailHtml(previewItem.FromData)
             Dim tHtml As String = "-"
-            If _function.Equals("Switch", StringComparison.OrdinalIgnoreCase) Then
-                Dim tCompName As String = GetName(dtCompany, "CompanyCode", "CompanyNameShort", tComp)
-                Dim tCateName As String = GetName(dtCategory, "Cate", "Category", tCate)
-                Dim tSegName As String = GetName(dtSegment, "SegmentCode", "SegmentName", tSeg)
-                Dim tBrandName As String = GetName(dtBrand, "Brand Code", "Brand Name", tBrand)
-                Dim tVendName As String = GetName(dtVendor, "VendorCode", "Vendor", tVend)
-
-                tHtml = $"<strong>{tYear}/{tMonth}</strong><br/>" &
-                        $"<small>Comp: {tComp}:{tCompName}<br/>" &
-                        $"Vend: {tVend}:{tVendName}<br/>" &
-                        $"Brand: {tBrand}:{tBrandName}<br/>" &
-                        $"Seg: {tSeg}:{tSegName} | Cat: {tCate}:{tCateName}</small>"
+            If previewItem.ToData IsNot Nothing Then
+                tHtml = BuildDetailHtml(previewItem.ToData)
             End If
 
-            ' --- 6. Render Row ---
             Dim trClass As String = If(isError, "table-danger", "")
             sb.AppendFormat("<tr class='{0}'>", trClass)
             sb.AppendFormat("<td class='text-center'>{0}<input type='hidden' class='row-data' value='{1}'></td>", i + 2, rowJson)
 
-            sb.AppendFormat("<td class='text-center fw-bold'>{0}</td>", _function)
-            sb.AppendFormat("<td class='text-center fw-bold'>{0}</td>", typeName)
+            sb.AppendFormat("<td class='text-center fw-bold'>{0}</td>", Html(actionType))
+            sb.AppendFormat("<td class='text-center fw-bold'>{0}</td>", Html(previewItem.TypeName))
 
-            ' From Column
             sb.AppendFormat("<td>{0}</td>", fHtml)
-
-            ' Amount Column
-            sb.AppendFormat("<td class='text-end fw-bold'>{0:N2}</td>", amount)
-
-            ' To Column
+            sb.AppendFormat("<td class='text-end fw-bold'>{0:N2}</td>", previewItem.Amount)
             sb.AppendFormat("<td>{0}</td>", tHtml)
-
-            ' Remark Column
-            sb.AppendFormat("<td><small>{0}</small></td>", HttpUtility.HtmlEncode(remark))
+            sb.AppendFormat("<td><small>{0}</small></td>", Html(previewItem.Remark))
 
             ' Status & Error
             Dim status As String = If(isError, "<span class='badge bg-danger'>Fail</span>", "<span class='badge bg-success'>Pass</span>")
-            Dim errText As String = If(errors.Count > 0, String.Join("<br/>", errors), "")
+            Dim encodedErrors As New List(Of String)()
+            For Each errorMessage In errors
+                encodedErrors.Add(Html(errorMessage))
+            Next
+            Dim errText As String = If(errors.Count > 0, String.Join("<br/>", encodedErrors), "")
             sb.AppendFormat("<td class='text-center'>{0}</td><td class='text-danger small'>{1}</td>", status, errText)
             sb.Append("</tr>")
         Next
@@ -340,7 +268,7 @@ Public Class SwitchUploadHandler
         If Not allValid Then
             sb.Append("<div class='alert alert-warning mt-2'><i class='bi bi-exclamation-triangle'></i> ข้อมูลบางรายการไม่ถูกต้อง กรุณาแก้ไขไฟล์แล้ว Upload ใหม่ (ต้องผ่านทุกรายการถึงจะบันทึกได้)</div>")
         Else
-            sb.Append("<div class='alert alert-success mt-2'><i class='bi bi-check-circle'></i> ข้อมูลถูกต้องครบถ้วน พร้อมบันทึกไปยัง SAP</div>")
+            sb.Append("<div class='alert alert-success mt-2'><i class='bi bi-check-circle'></i> ข้อมูลถูกต้องครบถ้วน พร้อมบันทึกเข้าฐานข้อมูล</div>")
         End If
 
         Return New With {
@@ -354,150 +282,331 @@ Public Class SwitchUploadHandler
         Return If(row.Table.Columns.Contains(col) AndAlso row(col) IsNot DBNull.Value, row(col).ToString().Trim(), "")
     End Function
 
+    Private Function GetFunctionValue(row As DataRow) As String
+        Dim actionType As String = GetVal(row, "Function")
+        If String.IsNullOrEmpty(actionType) Then actionType = GetVal(row, "Type")
+        Return NormalizeActionType(actionType)
+    End Function
+
+    Private Function NormalizeActionType(value As String) As String
+        If String.IsNullOrWhiteSpace(value) Then Return ""
+
+        Select Case value.Trim().ToLowerInvariant()
+            Case "switch", "switching", "switch in-out", "switch in out"
+                Return "Switch"
+            Case "extra", "extra budget"
+                Return "Extra"
+            Case Else
+                Return value.Trim()
+        End Select
+    End Function
+
+    Private Function BuildFieldData(year As String, month As String, company As String, category As String, segment As String, brand As String, vendor As String) As Dictionary(Of String, Object)
+        Return New Dictionary(Of String, Object) From {
+            {"Year", year},
+            {"Month", month},
+            {"Company", company},
+            {"Category", category},
+            {"Segment", segment},
+            {"Brand", brand},
+            {"Vendor", vendor}
+        }
+    End Function
+
+    Private Function GetDictString(data As Dictionary(Of String, Object), key As String) As String
+        If data Is Nothing OrElse Not data.ContainsKey(key) OrElse data(key) Is Nothing Then Return ""
+        Return data(key).ToString().Trim()
+    End Function
+
+    Private Function GetPayloadString(row As Dictionary(Of String, Object), key As String) As String
+        If row Is Nothing OrElse Not row.ContainsKey(key) OrElse row(key) Is Nothing Then Return ""
+        Return row(key).ToString().Trim()
+    End Function
+
+    Private Function GetPayloadData(row As Dictionary(Of String, Object), key As String) As Dictionary(Of String, Object)
+        If row Is Nothing OrElse Not row.ContainsKey(key) OrElse row(key) Is Nothing Then
+            Return New Dictionary(Of String, Object)()
+        End If
+
+        Dim data = TryCast(row(key), Dictionary(Of String, Object))
+        If data Is Nothing Then Return New Dictionary(Of String, Object)()
+        Return data
+    End Function
+
+    Private Function TryParseAmount(value As String, ByRef amount As Decimal) As Boolean
+        If Decimal.TryParse(value, NumberStyles.Number, CultureInfo.InvariantCulture, amount) Then Return True
+        Return Decimal.TryParse(value, NumberStyles.Number, CultureInfo.CurrentCulture, amount)
+    End Function
+
+    Private Function DetermineSwitchTypeInfo(actionType As String, fromYear As String, fromMonth As String, toYear As String, toMonth As String) As SwitchTypeInfo
+        If actionType.Equals("Extra", StringComparison.OrdinalIgnoreCase) Then
+            Return New SwitchTypeInfo With {.TypeFrom = "E", .TypeTo = Nothing, .DisplayName = "Extra"}
+        End If
+
+        If Not actionType.Equals("Switch", StringComparison.OrdinalIgnoreCase) Then
+            Return New SwitchTypeInfo With {.TypeFrom = "", .TypeTo = Nothing, .DisplayName = ""}
+        End If
+
+        Dim info As New SwitchTypeInfo With {.TypeFrom = "D", .TypeTo = "C", .DisplayName = "Switch"}
+
+        Dim fy, fm, ty, tm As Integer
+        If Not Integer.TryParse(fromYear, fy) OrElse Not Integer.TryParse(fromMonth, fm) OrElse
+           Not Integer.TryParse(toYear, ty) OrElse Not Integer.TryParse(toMonth, tm) OrElse
+           fm < 1 OrElse fm > 12 OrElse tm < 1 OrElse tm > 12 Then
+            Return info
+        End If
+
+        Dim dFrom As New Date(fy, fm, 1)
+        Dim dTo As New Date(ty, tm, 1)
+        If dFrom > dTo Then
+            info.TypeFrom = "G"
+            info.TypeTo = "F"
+            info.DisplayName = "Carry"
+        ElseIf dFrom < dTo Then
+            info.TypeFrom = "I"
+            info.TypeTo = "H"
+            info.DisplayName = "Balance"
+        End If
+
+        Return info
+    End Function
+
+    Private Sub AddMasterNames(data As Dictionary(Of String, Object))
+        If data Is Nothing Then Return
+
+        data("CompanyName") = GetName(dtCompany, "CompanyCode", "CompanyNameShort", GetDictString(data, "Company"))
+        data("VendorName") = GetName(dtVendor, "VendorCode", "Vendor", GetDictString(data, "Vendor"))
+        data("CategoryName") = GetName(dtCategory, "Cate", "Category", GetDictString(data, "Category"))
+        data("SegmentName") = GetName(dtSegment, "SegmentCode", "SegmentName", GetDictString(data, "Segment"))
+        data("BrandName") = GetName(dtBrand, "Brand Code", "Brand Name", GetDictString(data, "Brand"))
+    End Sub
+
+    Private Function BuildDetailHtml(data As Dictionary(Of String, Object)) As String
+        If data Is Nothing Then Return "-"
+
+        Return "<strong>" & Html(GetDictString(data, "Year")) & "/" & Html(GetDictString(data, "Month")) & "</strong><br/>" &
+               "<small>Comp: " & Html(GetDictString(data, "Company")) & ":" & Html(GetDictString(data, "CompanyName")) & "<br/>" &
+               "Vend: " & Html(GetDictString(data, "Vendor")) & ":" & Html(GetDictString(data, "VendorName")) & "<br/>" &
+               "Brand: " & Html(GetDictString(data, "Brand")) & ":" & Html(GetDictString(data, "BrandName")) & "<br/>" &
+               "Seg: " & Html(GetDictString(data, "Segment")) & ":" & Html(GetDictString(data, "SegmentName")) &
+               " | Cat: " & Html(GetDictString(data, "Category")) & ":" & Html(GetDictString(data, "CategoryName")) & "</small>"
+    End Function
+
+    Private Function Html(value As Object) As String
+        If value Is Nothing Then Return ""
+        Return HttpUtility.HtmlEncode(value.ToString())
+    End Function
+
+    Private Sub ValidateMappedItem(item As SwitchUploadDbItem, errors As List(Of String))
+        If item Is Nothing Then
+            errors.Add("Invalid row data")
+            Return
+        End If
+
+        If String.IsNullOrEmpty(item.ActionType) Then
+            errors.Add("Missing Type")
+        ElseIf Not item.ActionType.Equals("Switch", StringComparison.OrdinalIgnoreCase) AndAlso
+               Not item.ActionType.Equals("Extra", StringComparison.OrdinalIgnoreCase) Then
+            errors.Add("Invalid Type (use Switch or Extra)")
+        End If
+
+        If item.Amount <= 0D Then errors.Add("Invalid Amount")
+
+        ValidateRequiredFields(item.FromData, "Source", errors)
+        ValidatePeriodFields(item.FromData, "From", errors)
+        ValidateMasterFields(item.FromData, "From", errors)
+
+        If item.ActionType.Equals("Switch", StringComparison.OrdinalIgnoreCase) Then
+            ValidateRequiredFields(item.ToData, "Destination", errors)
+            ValidatePeriodFields(item.ToData, "To", errors)
+            ValidateMasterFields(item.ToData, "To", errors)
+
+            If HasSameSwitchKey(item.FromData, item.ToData) Then
+                errors.Add("Source=Dest")
+            End If
+        End If
+    End Sub
+
+    Private Sub ValidateRequiredFields(data As Dictionary(Of String, Object), label As String, errors As List(Of String))
+        Dim missing As New List(Of String)()
+        Dim fields() As String = {"Year", "Month", "Company", "Category", "Segment", "Brand", "Vendor"}
+
+        For Each fieldName In fields
+            If String.IsNullOrEmpty(GetDictString(data, fieldName)) Then missing.Add(fieldName)
+        Next
+
+        If missing.Count > 0 Then errors.Add("Missing " & label & ": " & String.Join(", ", missing))
+    End Sub
+
+    Private Sub ValidatePeriodFields(data As Dictionary(Of String, Object), label As String, errors As List(Of String))
+        If data Is Nothing Then Return
+
+        Dim yearValue As String = GetDictString(data, "Year")
+        Dim monthValue As String = GetDictString(data, "Month")
+        Dim parsed As Integer
+
+        If Not String.IsNullOrEmpty(yearValue) AndAlso Not Integer.TryParse(yearValue, parsed) Then
+            errors.Add("Invalid " & label & " Year (" & yearValue & ")")
+        End If
+
+        If Not String.IsNullOrEmpty(monthValue) Then
+            If Not Integer.TryParse(monthValue, parsed) OrElse parsed < 1 OrElse parsed > 12 Then
+                errors.Add("Invalid " & label & " Month (" & monthValue & ")")
+            End If
+        End If
+    End Sub
+
+    Private Sub ValidateMasterFields(data As Dictionary(Of String, Object), label As String, errors As List(Of String))
+        If data Is Nothing Then Return
+
+        ValidateMasterField(data, "Month", dtMonth, "month_code", label & " Month", errors)
+        ValidateMasterField(data, "Company", dtCompany, "CompanyCode", label & " Company", errors)
+        ValidateMasterField(data, "Category", dtCategory, "Cate", label & " Category", errors)
+        ValidateMasterField(data, "Segment", dtSegment, "SegmentCode", label & " Segment", errors)
+        ValidateMasterField(data, "Brand", dtBrand, "Brand Code", label & " Brand", errors)
+        ValidateMasterField(data, "Vendor", dtVendor, "VendorCode", label & " Vendor", errors)
+    End Sub
+
+    Private Sub ValidateMasterField(data As Dictionary(Of String, Object), fieldName As String, dt As DataTable, codeCol As String, label As String, errors As List(Of String))
+        Dim value As String = GetDictString(data, fieldName)
+        If Not String.IsNullOrEmpty(value) AndAlso Not IsValidMaster(dt, codeCol, value) Then
+            errors.Add("Invalid " & label & " (" & value & ")")
+        End If
+    End Sub
+
+    Private Function HasSameSwitchKey(fromData As Dictionary(Of String, Object), toData As Dictionary(Of String, Object)) As Boolean
+        If fromData Is Nothing OrElse toData Is Nothing Then Return False
+
+        Return GetDictString(fromData, "Year") = GetDictString(toData, "Year") AndAlso
+               GetDictString(fromData, "Month") = GetDictString(toData, "Month") AndAlso
+               GetDictString(fromData, "Company") = GetDictString(toData, "Company") AndAlso
+               GetDictString(fromData, "Category") = GetDictString(toData, "Category") AndAlso
+               GetDictString(fromData, "Segment") = GetDictString(toData, "Segment") AndAlso
+               GetDictString(fromData, "Brand") = GetDictString(toData, "Brand") AndAlso
+               GetDictString(fromData, "Vendor") = GetDictString(toData, "Vendor")
+    End Function
+
+    Private Sub ValidateDuplicateInBatch(item As SwitchUploadDbItem, uniqueRows As HashSet(Of String), errors As List(Of String))
+        Dim rowKey As String = BuildRowKey(item)
+        If uniqueRows.Contains(rowKey) Then
+            errors.Add("Duplicate Data in File")
+        Else
+            uniqueRows.Add(rowKey)
+        End If
+    End Sub
+
+    Private Function BuildRowKey(item As SwitchUploadDbItem) As String
+        Dim amountKey As String = item.Amount.ToString("F2", CultureInfo.InvariantCulture)
+        Dim f = item.FromData
+
+        If item.ActionType.Equals("Switch", StringComparison.OrdinalIgnoreCase) Then
+            Dim t = item.ToData
+            Return String.Join("|", New String() {
+                "SW", GetDictString(f, "Year"), GetDictString(f, "Month"), GetDictString(f, "Company"),
+                GetDictString(f, "Category"), GetDictString(f, "Segment"), GetDictString(f, "Brand"),
+                GetDictString(f, "Vendor"), item.TypeFrom, GetDictString(t, "Year"), GetDictString(t, "Month"),
+                GetDictString(t, "Company"), GetDictString(t, "Category"), GetDictString(t, "Segment"),
+                GetDictString(t, "Brand"), GetDictString(t, "Vendor"), item.TypeTo, amountKey
+            })
+        End If
+
+        Return String.Join("|", New String() {
+            "EX", GetDictString(f, "Year"), GetDictString(f, "Month"), GetDictString(f, "Company"),
+            GetDictString(f, "Category"), GetDictString(f, "Segment"), GetDictString(f, "Brand"),
+            GetDictString(f, "Vendor"), item.TypeFrom, amountKey
+        })
+    End Function
+
+    Private Sub ValidateBudget(item As SwitchUploadDbItem,
+                               budgetCalc As OTBBudgetCalculator,
+                               povalidate As POValidate,
+                               dbBudgetCache As Dictionary(Of String, Decimal),
+                               dbUsedCache As Dictionary(Of String, Decimal),
+                               pendingUsage As Dictionary(Of String, Decimal),
+                               errors As List(Of String))
+        If Not item.ActionType.Equals("Switch", StringComparison.OrdinalIgnoreCase) Then Return
+
+        Try
+            Dim f = item.FromData
+            Dim key As String = String.Join("|", New String() {
+                GetDictString(f, "Year"), GetDictString(f, "Month"), GetDictString(f, "Category"),
+                GetDictString(f, "Company"), GetDictString(f, "Segment"), GetDictString(f, "Brand"), GetDictString(f, "Vendor")
+            })
+
+            If Not dbBudgetCache.ContainsKey(key) Then
+                dbBudgetCache(key) = budgetCalc.CalculateCurrentApprovedBudget(
+                    GetDictString(f, "Year"), GetDictString(f, "Month"), GetDictString(f, "Category"),
+                    GetDictString(f, "Company"), GetDictString(f, "Segment"), GetDictString(f, "Brand"), GetDictString(f, "Vendor"))
+                dbUsedCache(key) = povalidate.GetUsedBudgetFromDBForOTB(
+                    GetDictString(f, "Year"), GetDictString(f, "Month"), GetDictString(f, "Category"),
+                    GetDictString(f, "Company"), GetDictString(f, "Segment"), GetDictString(f, "Brand"), GetDictString(f, "Vendor"))
+            End If
+
+            Dim usedInBatch As Decimal = If(pendingUsage.ContainsKey(key), pendingUsage(key), 0D)
+            Dim available As Decimal = (dbBudgetCache(key) - dbUsedCache(key)) - usedInBatch
+
+            If available < item.Amount Then
+                errors.Add($"Over Budget (Remaining: {available:N2}, Used in Batch: {usedInBatch:N2})")
+            ElseIf pendingUsage.ContainsKey(key) Then
+                pendingUsage(key) += item.Amount
+            Else
+                pendingUsage.Add(key, item.Amount)
+            End If
+        Catch ex As Exception
+            errors.Add("Budget Error: " & ex.Message)
+        End Try
+    End Sub
+
     ' ==========================================
-    ' 2. SAVE (BULK SAP & DB) - UPDATED VERSION
+    ' 2. SAVE (BULK DB ONLY)
     ' ==========================================
     Private Sub HandleSave(context As HttpContext, uploadBy As String)
         context.Response.ContentType = "application/json"
 
         Try
-            ' 0. โหลด Master Data เตรียมไว้สำหรับดึงชื่อ (CompanyName, VendorName, ฯลฯ)
             LoadAllMasterData()
 
             Dim json As String = context.Request.Form("data")
             Dim rows As List(Of Dictionary(Of String, Object)) = New JavaScriptSerializer().Deserialize(Of List(Of Dictionary(Of String, Object)))(json)
+            If rows Is Nothing OrElse rows.Count = 0 Then Throw New Exception("No data found to process.")
 
-            Dim sapRequest As New OtbSwitchRequest()
-            sapRequest.TestMode = ""
+            Dim pendingDbItems As List(Of SwitchUploadDbItem) = BuildDbItemsForSave(rows)
 
-            Dim pendingDbInserts As New List(Of Dictionary(Of String, Object))
+            Using conn As New SqlConnection(connectionString)
+                conn.Open()
+                Using dbTrans As SqlTransaction = conn.BeginTransaction()
+                    Try
+                        Using cmd As New SqlCommand("", conn, dbTrans)
+                            For Each dbItem In pendingDbItems
+                                SaveToDB(cmd, dbItem, uploadBy)
+                            Next
+                        End Using
+                        dbTrans.Commit()
+                    Catch ex As Exception
+                        dbTrans.Rollback()
+                        Throw New Exception("Database save failed: " & ex.Message)
+                    End Try
+                End Using
+            End Using
 
-            For Each row In rows
-                Dim _func As String = row("Function").ToString()
-                Dim amt As Decimal = Convert.ToDecimal(row("Amount"))
-                Dim f = TryCast(row("From"), Dictionary(Of String, Object))
-                Dim t = TryCast(row("To"), Dictionary(Of String, Object))
-
-                ' --- Logic กำหนด TypeCode (SAP) และ Display Name ---
-                Dim fromCode As String = "E" ' Default Extra
-                Dim toCode As String = ""
-                Dim typeNameDisplay As String = "Extra"
-
-                If _func.Equals("Switch", StringComparison.OrdinalIgnoreCase) Then
-                    fromCode = "D" : toCode = "C" : typeNameDisplay = "Switch"
-
-                    Dim dFrom As New Date(Convert.ToInt32(f("Year")), Convert.ToInt32(f("Month")), 1)
-                    Dim dTo As New Date(Convert.ToInt32(t("Year")), Convert.ToInt32(t("Month")), 1)
-
-                    If dFrom > dTo Then
-                        fromCode = "G" : toCode = "F" : typeNameDisplay = "Carry"
-                    ElseIf dFrom < dTo Then
-                        fromCode = "I" : toCode = "H" : typeNameDisplay = "Balance"
-                    End If
-                End If
-
-                ' --- เตรียม SAP Item ---
-                Dim item As New OtbSwitchItem With {
-                    .DocYearFrom = f("Year").ToString(), .PeriodFrom = f("Month").ToString(), .FmAreaFrom = f("Company").ToString(),
-                    .CatFrom = f("Category").ToString(), .SegmentFrom = f("Segment").ToString(), .BrandFrom = f("Brand").ToString(), .VendorFrom = f("Vendor").ToString(),
-                    .Budget = amt.ToString("F2"), .TypeFrom = fromCode
-                }
-
-                ' --- Mapping ข้อมูลชื่อฝั่ง From (ต้องมีทุกประเภทรายการ) ---
-                f("CompanyName") = GetName(dtCompany, "CompanyCode", "CompanyNameShort", f("Company").ToString())
-                f("VendorName") = GetName(dtVendor, "VendorCode", "Vendor", f("Vendor").ToString())
-                f("CategoryName") = GetName(dtCategory, "Cate", "Category", f("Category").ToString())
-                f("SegmentName") = GetName(dtSegment, "SegmentCode", "SegmentName", f("Segment").ToString())
-                f("BrandName") = GetName(dtBrand, "Brand Code", "Brand Name", f("Brand").ToString())
-
-                ' --- จัดการฝั่ง To เฉพาะรายการ Switch เท่านั้น ---
-                If _func.Equals("Switch", StringComparison.OrdinalIgnoreCase) AndAlso t IsNot Nothing Then
-                    item.DocYearTo = t("Year").ToString() : item.PeriodTo = t("Month").ToString() : item.FmAreaTo = t("Company").ToString()
-                    item.CatTo = t("Category").ToString() : item.SegmentTo = t("Segment").ToString() : item.BrandTo = t("Brand").ToString() : item.VendorTo = t("Vendor").ToString()
-                    item.TypeTo = toCode
-
-                    ' Mapping ชื่อฝั่ง To
-                    t("CompanyName") = GetName(dtCompany, "CompanyCode", "CompanyNameShort", t("Company").ToString())
-                    t("VendorName") = GetName(dtVendor, "VendorCode", "Vendor", t("Vendor").ToString())
-                    t("CategoryName") = GetName(dtCategory, "Cate", "Category", t("Category").ToString())
-                    t("SegmentName") = GetName(dtSegment, "SegmentCode", "SegmentName", t("Segment").ToString())
-                    t("BrandName") = GetName(dtBrand, "Brand Code", "Brand Name", t("Brand").ToString())
-                Else
-                    ' ถ้าเป็น Extra ให้ฝั่ง To เป็น Nothing เพื่อความชัดเจนในการส่ง JSON
-                    t = Nothing
-                End If
-
-                sapRequest.Data.Add(item)
-
-                ' เก็บข้อมูลเพื่อบันทึกลง DB และส่งกลับ UI
-                Dim dbRow As New Dictionary(Of String, Object) From {
-                    {"f", f}, {"t", t}, {"amt", amt}, {"typeFrom", fromCode},
-                    {"remark", row("Remark")}, {"actionType", _func}, {"typeName", typeNameDisplay}
-                }
-                pendingDbInserts.Add(dbRow)
+            Dim processResults As New List(Of Object)
+            For Each dbItem In pendingDbItems
+                processResults.Add(New With {
+                    .status = "Success",
+                    .message = "Saved to database (SAP bypassed).",
+                    .row = New With {
+                        .Type = dbItem.TypeName,
+                        .Function = dbItem.ActionType,
+                        .Amount = dbItem.Amount,
+                        .From = dbItem.FromData,
+                        .To = dbItem.ToData
+                    }
+                })
             Next
 
-            ' 1. ส่ง SAP API
-            Dim sapRes = Task.Run(Async Function() Await SapApiHelper.SwitchOtbPlanAsync(sapRequest)).Result
-            If sapRes Is Nothing Then Throw New Exception("No response from SAP API.")
-
-            ' 2. จัดการ Mapping ผลลัพธ์ส่งกลับไปหน้าจอ
-            Dim processResults As New List(Of Object)
-            Dim hasError As Boolean = False
-
-            If sapRes.Results IsNot Nothing Then
-                For i As Integer = 0 To pendingDbInserts.Count - 1
-                    Dim status As String = "Success"
-                    Dim msg As String = "Success"
-
-                    If i < sapRes.Results.Count Then
-                        Dim resItem = sapRes.Results(i)
-                        If resItem.MessageType = "E" Then
-                            status = "Error"
-                            hasError = True
-                        End If
-                        msg = resItem.Message
-                    End If
-
-                    ' สร้างโครงสร้าง JSON ที่สมบูรณ์ส่งกลับไปให้ JavaScript
-                    processResults.Add(New With {
-                        .status = status,
-                        .message = msg,
-                        .row = New With {
-                            .Type = pendingDbInserts(i)("typeName"),
-                            .Function = pendingDbInserts(i)("actionType"),
-                            .Amount = pendingDbInserts(i)("amt"),
-                            .From = pendingDbInserts(i)("f"),
-                            .To = pendingDbInserts(i)("t") ' ถ้าเป็น Extra ค่านี้จะเป็น null โดยอัตโนมัติ
-                        }
-                    })
-                Next
-            End If
-
-            ' 3. บันทึกฐานข้อมูล (กรณีไม่มี Error จาก SAP เลย)
-            If Not hasError Then
-                Using conn As New SqlConnection(connectionString)
-                    conn.Open()
-                    Using dbTrans As SqlTransaction = conn.BeginTransaction()
-                        Try
-                            For Each dbItem In pendingDbInserts
-                                InsertToDB(cmd:=New SqlCommand("", conn, dbTrans),
-                                           f:=dbItem("f"), t:=dbItem("t"), amt:=dbItem("amt"),
-                                           typeFrom:=dbItem("typeFrom"), user:=uploadBy, rmk:=dbItem("remark"),
-                                           actionType:=dbItem("actionType"))
-                            Next
-                            dbTrans.Commit()
-                        Catch ex As Exception
-                            dbTrans.Rollback() : Throw New Exception("Database Insert Failed: " & ex.Message)
-                        End Try
-                    End Using
-                End Using
-            End If
-
-            ' 4. ส่ง JSON Response
             context.Response.Write(New JavaScriptSerializer().Serialize(New With {
-                .success = Not hasError,
-                .message = If(hasError, "Batch processed with some errors at SAP.", "Upload & Save Completed Successfully."),
+                .success = True,
+                .message = $"Upload & Save Completed Successfully. Saved {pendingDbItems.Count} record(s) to database. SAP was bypassed.",
                 .results = processResults
             }))
 
@@ -506,57 +615,186 @@ Public Class SwitchUploadHandler
         End Try
     End Sub
 
-    Private Sub InsertToDB(cmd As SqlCommand, f As Object, t As Object, amt As Decimal, typeFrom As String, user As String, rmk As String, actionType As String)
+    Private Function BuildDbItemsForSave(rows As List(Of Dictionary(Of String, Object))) As List(Of SwitchUploadDbItem)
+        Dim result As New List(Of SwitchUploadDbItem)()
+        Dim uniqueRows As New HashSet(Of String)()
+        Dim budgetCalc As New OTBBudgetCalculator()
+        Dim povalidate As New POValidate()
+        Dim dbBudgetCache As New Dictionary(Of String, Decimal)()
+        Dim dbUsedCache As New Dictionary(Of String, Decimal)()
+        Dim pendingUsage As New Dictionary(Of String, Decimal)()
 
-        cmd.CommandText = "INSERT INTO [dbo].[OTB_Switching_Transaction] " &
-            "([Year], [Month], [Company], [Category], [Segment], [Brand], [Vendor], [From], [BudgetAmount], [Release], " &
-            "[SwitchYear], [SwitchMonth], [SwitchCompany], [SwitchCategory], [SwitchSegment], [To], [SwitchBrand], [SwitchVendor], " &
-            "[OTBStatus], [Batch], [Remark], [CreateBy], [CreateDT], [ActionBy]) " &
-            "VALUES (@Y, @M, @Co, @Ca, @Se, @Br, @Ve, @TyF, @Amt, 0, @SY, @SM, @SCo, @SCa, @SSe, @TyT, @SBr, @SVe, 'Approved', NULL, @Rem, @User, GETDATE(), @User)"
+        For i As Integer = 0 To rows.Count - 1
+            Dim errors As New List(Of String)()
+            Dim dbItem As SwitchUploadDbItem = MapPayloadToDbItem(rows(i))
+
+            ValidateMappedItem(dbItem, errors)
+            If errors.Count = 0 Then
+                ValidateDuplicateInBatch(dbItem, uniqueRows, errors)
+                If errors.Count = 0 Then ValidateBudget(dbItem, budgetCalc, povalidate, dbBudgetCache, dbUsedCache, pendingUsage, errors)
+            End If
+
+            If errors.Count > 0 Then
+                Throw New Exception("Row " & (i + 2).ToString() & ": " & String.Join("; ", errors))
+            End If
+
+            AddMasterNames(dbItem.FromData)
+            If dbItem.ToData IsNot Nothing Then AddMasterNames(dbItem.ToData)
+            result.Add(dbItem)
+        Next
+
+        Return result
+    End Function
+
+    Private Function MapPayloadToDbItem(row As Dictionary(Of String, Object)) As SwitchUploadDbItem
+        Dim actionType As String = NormalizeActionType(GetPayloadString(row, "Function"))
+        If String.IsNullOrEmpty(actionType) Then actionType = NormalizePayloadType(GetPayloadString(row, "Type"))
+
+        Dim amount As Decimal = 0D
+        TryParseAmount(GetPayloadString(row, "Amount"), amount)
+
+        Dim fromData As Dictionary(Of String, Object) = GetPayloadData(row, "From")
+        Dim toData As Dictionary(Of String, Object) = Nothing
+        If actionType.Equals("Switch", StringComparison.OrdinalIgnoreCase) Then toData = GetPayloadData(row, "To")
+
+        Dim safeToData As Dictionary(Of String, Object) = toData
+        If safeToData Is Nothing Then safeToData = New Dictionary(Of String, Object)()
+        Dim typeInfo As SwitchTypeInfo = DetermineSwitchTypeInfo(actionType, GetDictString(fromData, "Year"), GetDictString(fromData, "Month"), GetDictString(safeToData, "Year"), GetDictString(safeToData, "Month"))
+
+        Return New SwitchUploadDbItem With {
+            .FromData = fromData,
+            .ToData = toData,
+            .Amount = amount,
+            .TypeFrom = typeInfo.TypeFrom,
+            .TypeTo = typeInfo.TypeTo,
+            .Remark = GetPayloadString(row, "Remark"),
+            .ActionType = actionType,
+            .TypeName = typeInfo.DisplayName
+        }
+    End Function
+
+    Private Function NormalizePayloadType(value As String) As String
+        Dim normalized As String = NormalizeActionType(value)
+        If normalized.Equals("Carry", StringComparison.OrdinalIgnoreCase) OrElse
+           normalized.Equals("Balance", StringComparison.OrdinalIgnoreCase) Then
+            Return "Switch"
+        End If
+
+        Return normalized
+    End Function
+
+    Private Sub SaveToDB(cmd As SqlCommand, item As SwitchUploadDbItem, user As String)
+        cmd.CommandText = "
+            MERGE dbo.OTB_Switching_Transaction AS T
+            USING (
+                SELECT
+                    @Y AS [Year], @M AS [Month], @Co AS Company, @Ca AS Category,
+                    @Se AS Segment, @Br AS Brand, @Ve AS Vendor, @TyF AS [From],
+                    @Amt AS BudgetAmount, @SY AS SwitchYear, @SM AS SwitchMonth,
+                    @SCo AS SwitchCompany, @SCa AS SwitchCategory, @SSe AS SwitchSegment,
+                    @TyT AS [To], @SBr AS SwitchBrand, @SVe AS SwitchVendor
+            ) AS S
+            ON T.[Year] = S.[Year]
+               AND T.[Month] = S.[Month]
+               AND T.Company = S.Company
+               AND T.Category = S.Category
+               AND T.Segment = S.Segment
+               AND T.Brand = S.Brand
+               AND T.Vendor = S.Vendor
+               AND T.[From] = S.[From]
+               AND T.BudgetAmount = S.BudgetAmount
+               AND ISNULL(T.SwitchYear, -1) = ISNULL(S.SwitchYear, -1)
+               AND ISNULL(T.SwitchMonth, -1) = ISNULL(S.SwitchMonth, -1)
+               AND ISNULL(T.SwitchCompany, N'') = ISNULL(S.SwitchCompany, N'')
+               AND ISNULL(T.SwitchCategory, N'') = ISNULL(S.SwitchCategory, N'')
+               AND ISNULL(T.SwitchSegment, N'') = ISNULL(S.SwitchSegment, N'')
+               AND ISNULL(T.[To], N'') = ISNULL(S.[To], N'')
+               AND ISNULL(T.SwitchBrand, N'') = ISNULL(S.SwitchBrand, N'')
+               AND ISNULL(T.SwitchVendor, N'') = ISNULL(S.SwitchVendor, N'')
+            WHEN MATCHED THEN
+                UPDATE SET
+                    T.[Release] = 0,
+                    T.OTBStatus = N'Approved',
+                    T.Batch = NULL,
+                    T.Remark = @Rem,
+                    T.CreateBy = COALESCE(T.CreateBy, @User),
+                    T.ActionBy = @User
+            WHEN NOT MATCHED BY TARGET THEN
+                INSERT (
+                    [Year], [Month], Company, Category, Segment, Brand, Vendor, [From], BudgetAmount, [Release],
+                    SwitchYear, SwitchMonth, SwitchCompany, SwitchCategory, SwitchSegment, [To], SwitchBrand, SwitchVendor,
+                    OTBStatus, Batch, Remark, CreateBy, CreateDT, ActionBy
+                )
+                VALUES (
+                    S.[Year], S.[Month], S.Company, S.Category, S.Segment, S.Brand, S.Vendor, S.[From], S.BudgetAmount, 0,
+                    S.SwitchYear, S.SwitchMonth, S.SwitchCompany, S.SwitchCategory, S.SwitchSegment, S.[To], S.SwitchBrand, S.SwitchVendor,
+                    N'Approved', NULL, @Rem, @User, GETDATE(), @User
+                );"
 
         cmd.Parameters.Clear()
-        cmd.Parameters.AddWithValue("@Y", f("Year"))
-        cmd.Parameters.AddWithValue("@M", f("Month"))
-        cmd.Parameters.AddWithValue("@Co", f("Company"))
-        cmd.Parameters.AddWithValue("@Ca", f("Category"))
-        cmd.Parameters.AddWithValue("@Se", f("Segment"))
-        cmd.Parameters.AddWithValue("@Br", f("Brand"))
-        cmd.Parameters.AddWithValue("@Ve", f("Vendor"))
-        cmd.Parameters.AddWithValue("@TyF", typeFrom)
-        cmd.Parameters.AddWithValue("@Amt", amt)
-        cmd.Parameters.AddWithValue("@User", user)
-        cmd.Parameters.AddWithValue("@Rem", If(String.IsNullOrEmpty(rmk), DBNull.Value, rmk))
+        AddIntParameter(cmd, "@Y", GetDictString(item.FromData, "Year"))
+        AddIntParameter(cmd, "@M", GetDictString(item.FromData, "Month"))
+        AddStringParameter(cmd, "@Co", GetDictString(item.FromData, "Company"), 20)
+        AddStringParameter(cmd, "@Ca", GetDictString(item.FromData, "Category"), 20)
+        AddStringParameter(cmd, "@Se", GetDictString(item.FromData, "Segment"), 20)
+        AddStringParameter(cmd, "@Br", GetDictString(item.FromData, "Brand"), 30)
+        AddStringParameter(cmd, "@Ve", GetDictString(item.FromData, "Vendor"), 30)
+        AddStringParameter(cmd, "@TyF", item.TypeFrom, 5)
+        cmd.Parameters.Add("@Amt", SqlDbType.Decimal).Value = item.Amount
+        cmd.Parameters("@Amt").Precision = 18
+        cmd.Parameters("@Amt").Scale = 2
+        AddStringParameter(cmd, "@User", user, 100)
+        AddStringParameter(cmd, "@Rem", item.Remark, 500, True)
 
-        If actionType.Equals("Switch", StringComparison.OrdinalIgnoreCase) Then
-            cmd.Parameters.AddWithValue("@SY", t("Year"))
-            cmd.Parameters.AddWithValue("@SM", t("Month"))
-            cmd.Parameters.AddWithValue("@SCo", t("Company"))
-            cmd.Parameters.AddWithValue("@SCa", t("Category"))
-            cmd.Parameters.AddWithValue("@SSe", t("Segment"))
-            cmd.Parameters.AddWithValue("@SBr", t("Brand"))
-            cmd.Parameters.AddWithValue("@SVe", t("Vendor"))
-
-            Dim typeTo As String = ""
-            If typeFrom = "D" Then typeTo = "C"
-            If typeFrom = "G" Then typeTo = "F"
-            If typeFrom = "I" Then typeTo = "H"
-            cmd.Parameters.AddWithValue("@TyT", typeTo)
+        If item.ActionType.Equals("Switch", StringComparison.OrdinalIgnoreCase) Then
+            AddNullableIntParameter(cmd, "@SY", GetDictString(item.ToData, "Year"))
+            AddNullableIntParameter(cmd, "@SM", GetDictString(item.ToData, "Month"))
+            AddStringParameter(cmd, "@SCo", GetDictString(item.ToData, "Company"), 20)
+            AddStringParameter(cmd, "@SCa", GetDictString(item.ToData, "Category"), 20)
+            AddStringParameter(cmd, "@SSe", GetDictString(item.ToData, "Segment"), 20)
+            AddStringParameter(cmd, "@TyT", item.TypeTo, 5)
+            AddStringParameter(cmd, "@SBr", GetDictString(item.ToData, "Brand"), 30)
+            AddStringParameter(cmd, "@SVe", GetDictString(item.ToData, "Vendor"), 30)
         Else
-            cmd.Parameters.AddWithValue("@SY", DBNull.Value)
-            cmd.Parameters.AddWithValue("@SM", DBNull.Value)
-            cmd.Parameters.AddWithValue("@SCo", DBNull.Value)
-            cmd.Parameters.AddWithValue("@SCa", DBNull.Value)
-            cmd.Parameters.AddWithValue("@SSe", DBNull.Value)
-            cmd.Parameters.AddWithValue("@SBr", DBNull.Value)
-            cmd.Parameters.AddWithValue("@SVe", DBNull.Value)
-            cmd.Parameters.AddWithValue("@TyT", DBNull.Value)
+            AddNullableIntParameter(cmd, "@SY", "")
+            AddNullableIntParameter(cmd, "@SM", "")
+            AddStringParameter(cmd, "@SCo", Nothing, 20, True)
+            AddStringParameter(cmd, "@SCa", Nothing, 20, True)
+            AddStringParameter(cmd, "@SSe", Nothing, 20, True)
+            AddStringParameter(cmd, "@TyT", Nothing, 5, True)
+            AddStringParameter(cmd, "@SBr", Nothing, 30, True)
+            AddStringParameter(cmd, "@SVe", Nothing, 30, True)
         End If
+
         cmd.ExecuteNonQuery()
+    End Sub
+
+    Private Sub AddIntParameter(cmd As SqlCommand, name As String, value As String)
+        cmd.Parameters.Add(name, SqlDbType.Int).Value = Convert.ToInt32(value)
+    End Sub
+
+    Private Sub AddNullableIntParameter(cmd As SqlCommand, name As String, value As String)
+        Dim parsed As Integer
+        Dim parameter = cmd.Parameters.Add(name, SqlDbType.Int)
+        If Integer.TryParse(value, parsed) Then
+            parameter.Value = parsed
+        Else
+            parameter.Value = DBNull.Value
+        End If
+    End Sub
+
+    Private Sub AddStringParameter(cmd As SqlCommand, name As String, value As String, size As Integer, Optional allowNull As Boolean = False)
+        Dim parameter = cmd.Parameters.Add(name, SqlDbType.NVarChar, size)
+        If allowNull AndAlso String.IsNullOrEmpty(value) Then
+            parameter.Value = DBNull.Value
+        Else
+            parameter.Value = If(value Is Nothing, "", value)
+        End If
     End Sub
 
     Private Function IsValidMaster(dt As DataTable, codeCol As String, codeVal As String) As Boolean
         If dt Is Nothing OrElse String.IsNullOrEmpty(codeVal) Then Return False
-        Dim rows = dt.Select($"[{codeCol}] = '{codeVal.Replace("'", "''")}'")
+        Dim rows = dt.Select("[" & codeCol & "] = '" & codeVal.Replace("'", "''") & "'")
         Return rows.Length > 0
     End Function
 

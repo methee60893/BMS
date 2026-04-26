@@ -3,7 +3,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-g">
+    <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>KBMS - draft OTB</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
@@ -358,6 +358,7 @@
             e.preventDefault(); // ป้องกัน default behavior (แม้จะเป็น button ก็ตาม)
             console.log("Upload button clicked");
 
+            var uploadButton = this;
             var fileInput = $('#fileUpload')[0];
             var file = fileInput.files[0];
             var currentUser = '<%= HttpUtility.JavaScriptStringEncode(Session("user").ToString()) %>';
@@ -373,6 +374,9 @@
             formData.append('file', file);
             formData.append('uploadBy', uploadBy); //  ส่งไปกับ request
 
+            uploadButton.disabled = true;
+            showLoading(true, 'Uploading file...', 'Validating draft OTB data');
+
             $.ajax({
                 url: 'Handler/UploadHandler.ashx?action=preview',
                 type: 'POST',
@@ -384,7 +388,11 @@
                     $('#previewModal').modal('show');
                 },
                 error: function (xhr, status, error) {
-                    alert('Error loading preview: ' + error);
+                    alert('Error loading preview: ' + (xhr.responseText || error));
+                },
+                complete: function () {
+                    showLoading(false);
+                    uploadButton.disabled = false;
                 }
             });
         });
@@ -697,7 +705,7 @@
             formData.append('approvedBy', approvedBy);
             
             // *** NEW: Show loading overlay ***
-            showLoading(true, 'Approving items...', 'Contacting SAP');
+            showLoading(true, 'Approving items...', 'Saving to database');
 
             $.ajax({
                 url: 'Handler/DataOTBHandler.ashx?action=approveDraftOTB',
@@ -732,14 +740,14 @@
                         // *** กรณี Error (success: false) ***
 
                         if (response.action === 'preview' && response.detailedResults) {
-                            // *** กรณี SAP Error บางส่วน (Partial) ***
+                            // *** กรณี Error บางส่วน (Partial) ***
                             buildApprovalResultTable(response.detailedResults, false);
                             $('#approvalResultSummary').text(response.message);
                             $('#approvalResultSummary').removeClass('alert-info alert-success alert-danger').addClass('alert-danger');
                             approvalResultModal.show();
 
                         } else {
-                            // *** กรณี Error ทั่วไป (เช่น SAP Error ที่เรา Throw มา) ***
+                            // *** กรณี Error ทั่วไปจาก Server ***
                             // แสดง alert ด้วยข้อความ Error ที่ชัดเจนจาก Server
                             alert('Error: ' + (response.message || 'An unknown error occurred.'));
                         }
@@ -767,7 +775,7 @@
         sb.push("<th>Year</th><th>Month</th><th>Category</th><th>Category Name</th>");
         sb.push("<th>Segment</th><th>Segment Name</th><th>Brand</th><th>Brand Name</th>");
         sb.push("<th>Vendor</th><th>Vendor Name</th><th class='text-end'>Amount (THB)</th>");
-        sb.push("<th class='text-danger'>SAP Status</th><th class='text-danger'>SAP Message</th>");
+        sb.push("<th class='text-danger'>DB Status</th><th class='text-danger'>Message</th>");
         sb.push("</tr></thead><tbody>");
 
         results.forEach(row => {
@@ -1010,7 +1018,6 @@
         InitMSYear(yearDropdown);
         InitMonth(monthDropdown);
         InitCompany(companyDropdown);
-        search();
     }
 
     let InitSegment = function (segmentDropdown) {

@@ -10,7 +10,8 @@ param(
     [string]$DbPassword = "YOUR_PASSWORD",
     [string]$MockSapBaseUrl = "http://127.0.0.1:18080",
     [string]$MockSapUsername = "mock-user",
-    [string]$MockSapPassword = "mock-password"
+    [string]$MockSapPassword = "mock-password",
+    [switch]$AllowProductionServer
 )
 
 Set-StrictMode -Version Latest
@@ -23,8 +24,11 @@ $backupWebConfigPath = Join-Path $stateDir "Web.config.backup"
 $snapshotPath = Join-Path $stateDir "snapshot.json"
 $logPath = Join-Path $stateDir "run_test_step_by_step.log"
 $mockServerScript = Join-Path $root "test_support\mock_sap_server.py"
+$safetyScript = Join-Path $root "test_support\isolated_test_safety.ps1"
 $generateTestScript = Join-Path $root "database\generate_test_db_scripts.py"
 $testSqlDir = Join-Path $root "database\test"
+
+. $safetyScript
 
 function Ensure-StateDir {
     if (-not (Test-Path -LiteralPath $stateDir)) {
@@ -74,6 +78,21 @@ function Get-AppSettingNode($xml, [string]$key) {
     return $xml.SelectSingleNode("/configuration/appSettings/add[@key='$key']")
 }
 
+function Mask-ConnectionStringSecret {
+    param(
+        [AllowNull()]
+        [string]$ConnectionString
+    )
+
+    if ([string]::IsNullOrWhiteSpace($ConnectionString)) {
+        return $ConnectionString
+    }
+
+    $masked = $ConnectionString -replace '(?i)(Password|Pwd)\s*=\s*[^;]*', '$1=***'
+    $masked = $masked -replace '(?i)(User ID|User Id|UID)\s*=\s*[^;]*', '$1=***'
+    return $masked
+}
+
 function Backup-WebConfig {
     Ensure-StateDir
     if (-not (Test-Path -LiteralPath $webConfigPath)) {
@@ -101,7 +120,7 @@ function Save-Snapshot {
     Ensure-StateDir
     $payload = [ordered]@{
         UpdatedAt = (Get-Date).ToString("yyyy-MM-dd HH:mm:ss")
-        BmsConnectionString = $BmsConnectionString
+        BmsConnectionString = (Mask-ConnectionStringSecret -ConnectionString $BmsConnectionString)
         SapBaseUrl = $SapBaseUrl
         SapUsername = $SapUsername
         TestDatabase = $TestDatabase
@@ -122,9 +141,9 @@ function Show-Status {
         $bmsConn = Get-ConnectionNode $xml "BMSConnectionString"
         $sapBase = Get-AppSettingNode $xml "SAPAPI_BASEURL"
         Write-Host "Current BMSConnectionString:"
-        Write-Host ("  " + $bmsConn.connectionString)
+        Write-Host ("  " + (Mask-ConnectionStringSecret -ConnectionString $bmsConn.GetAttribute("connectionString")))
         Write-Host "Current SAPAPI_BASEURL:"
-        Write-Host ("  " + $sapBase.value)
+        Write-Host ("  " + $sapBase.GetAttribute("value"))
     }
 }
 
@@ -140,6 +159,7 @@ function Generate-TestSql {
 }
 
 function Switch-ToTest {
+    Assert-IsolatedTestTarget -WebConfigPath $webConfigPath -SqlServer $SqlServer -TestDatabase $TestDatabase -AllowProductionServer:$AllowProductionServer
     Backup-WebConfig
     Write-Log "Switching Web.config to test environment"
 
@@ -227,6 +247,7 @@ function Start-MockSap {
 }
 
 function Print-SqlSteps {
+    Assert-IsolatedTestTarget -WebConfigPath $webConfigPath -SqlServer $SqlServer -TestDatabase $TestDatabase -AllowProductionServer:$AllowProductionServer
     Write-Log "Printing SQL execution steps"
     $testCreateDb = Join-Path $root "database\00_create_database_test.sql"
     $sqlFiles = @(

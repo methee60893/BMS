@@ -15,7 +15,7 @@ Public Class _default
         Try
             Dim clientIP As String = GetClientIP()
             Dim email As String = txtEmail.Text.Trim()
-            Dim password As String = txtPassword.Text
+            Dim password As String = txtPassword.Text.Trim()
             Dim username As String = ""
             Dim fullName As String = email
             Dim userEmail As String = email
