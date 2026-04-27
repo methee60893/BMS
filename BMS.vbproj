@@ -195,6 +195,7 @@
     <Content Include="admin_matchPO.aspx" />
     <Content Include="matchActualPO.aspx" />
     <Content Include="otbRemaining.aspx" />
+    <Content Include="script\bms-loading.js" />
     <Content Include="style\theme.css" />
     <Content Include="transactionOTBSwitching.aspx" />
     <Content Include="Web.config" />

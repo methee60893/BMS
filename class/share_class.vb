@@ -10,7 +10,7 @@ Public Class share_class
 
     Public Shared Function GetClientIP() As String
         Dim userHostAddress As String = HttpContext.Current.Request.UserHostAddress
-        Dim userIPAddress As IPAddress
+        Dim userIPAddress As IPAddress = Nothing
         If IPAddress.TryParse(userHostAddress, userIPAddress) Then
             If userIPAddress.AddressFamily = System.Net.Sockets.AddressFamily.InterNetwork Then
                 Return userIPAddress.ToString() ' IPv4 address

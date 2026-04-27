@@ -26,7 +26,7 @@
             </button>
         </div>
         <ul class="sidebar-menu">
-            <li class="menu-item">
+            <li class="menu-item" id="grpmenuOTBPlan" runat="server">
                 <a href="#" class="menu-link" onclick="toggleSubmenu(event, 'otbPlan')">
                     <i class="bi bi-clipboard-data"></i>
                     <span>OTB Plan / Revise</span>
@@ -37,7 +37,7 @@
                     <li id="menuApprovedOTBPlan" runat="server" ><a href="approvedOTB.aspx" class="menu-link">Approved OTB Plan</a></li>
                 </ul>
             </li>
-            <li class="menu-item">
+            <li class="menu-item" id="grpmenuOTBSwitching" runat="server">
                 <a href="#" class="menu-link" onclick="toggleSubmenu(event, 'otbSwitching')">
                     <i class="bi bi-arrow-left-right"></i>
                     <span>OTB Switching</span>
@@ -61,7 +61,7 @@
                      <li id="menuActualPO" runat="server" ><a href="actualPO.aspx" class="menu-link active">Actual PO</a></li>
                 </ul>
             </li>
-            <li  runat="server" class="menu-item">
+            <li id="menuOTBRemaining" runat="server" class="menu-item">
                 <a href="otbRemaining.aspx" class="menu-link">
                     <i class="bi bi-bar-chart-line"></i>
                     <span>OTB Remaining</span>
@@ -77,6 +77,17 @@
                        <li id="menuVendor" runat="server" ><a href="master_vendor.aspx" class="menu-link">Master Vendor</a></li>
                        <li id="menuBrand" runat="server" ><a href="master_brand.aspx" class="menu-link">Master Brand</a></li>
                        <li id="menuCategory" runat="server" ><a href="master_category.aspx" class="menu-link">Master Category</a></li>
+                </ul>
+            </li>
+            <li class="menu-item" id="grpmenuAdmin" runat="server">
+                <a href="#" class="menu-link" onclick="toggleSubmenu(event, 'adminTools')">
+                    <i class="bi bi-shield-lock"></i>
+                    <span>Admin</span>
+                    <i class="bi bi-chevron-down"></i>
+                </a>
+                <ul class="submenu" id="adminTools">
+                    <li id="menuAdminMatchPO" runat="server"><a href="admin_matchPO.aspx" class="menu-link">Admin Match PO</a></li>
+                    <li id="menuManageUsers" runat="server"><a href="manage_users.aspx" class="menu-link">Manage Users</a></li>
                 </ul>
             </li>
             <li class="menu-item"><a href="default.aspx" class="menu-link"><i class="bi bi-box-arrow-left"></i> Logout</a></li>
@@ -225,9 +236,10 @@
         </div>
     </div>
 
-        <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+    <script src="script/bms-loading.js"></script>
     <script>
         // Toggle Sidebar
         function toggleSidebar() {
@@ -367,6 +379,7 @@
             formData.append('vendor', ddVendorFilter.value);
 
             // Show loading state
+            BMSLoading.show('Loading Actual PO...', 'Please wait');
             actualPOTableBody.innerHTML = "<tr><td colspan='22' class='text-center text-muted p-4'><div class='spinner-border spinner-border-sm' role='status'></div> Loading data...</td></tr>";
 
             $.ajax({
@@ -377,10 +390,12 @@
                 contentType: false,
                 success: function (response) {
                     actualPOTableBody.innerHTML = response; // Inject HTML
+                    BMSLoading.hide();
                 },
                 error: function (xhr, status, error) {
                     console.log('Error getlist data: ' + error);
                     actualPOTableBody.innerHTML = `<tr><td colspan='22' class='text-center text-danger p-4'>Error loading data: ${xhr.responseText}</td></tr>`;
+                    BMSLoading.hide();
                 }
             });
         }
@@ -399,8 +414,7 @@
             params.append('brand', ddBrandFilter.value);
             params.append('vendor', ddVendorFilter.value);
 
-            // Use window.location to trigger file download (GET request)
-            window.location.href = 'Handler/DataPOHandler.ashx?' + params.toString();
+            BMSLoading.download('Handler/DataPOHandler.ashx?' + params.toString(), 'Exporting Actual PO...', 'Preparing Excel file');
         }
 
         // ==========================================

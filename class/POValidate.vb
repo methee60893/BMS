@@ -9,6 +9,7 @@ Imports BMS
 Public Class POValidate
     ' Connection String
     Private Shared connectionString As String = ConfigurationManager.ConnectionStrings("BMSConnectionString")?.ConnectionString
+    Private Const MaxDuplicateCheckBatchSize As Integer = 180
 
     ' Cache Master Data (โหลดครั้งเดียวตอน New Class)
     Private dtCategories As DataTable
@@ -39,6 +40,19 @@ Public Class POValidate
         Public Property Currency As String
         Public Property ExchangeRate As Decimal
         Public Property Amount_THB As Decimal
+    End Class
+
+    Private Class DuplicateCheckItem
+        Public Property RowIndex As Integer
+        Public Property PO_No As String
+        Public Property PO_Year As Integer
+        Public Property PO_Month As Integer
+        Public Property Company_Code As String
+        Public Property Category_Code As String
+        Public Property Segment_Code As String
+        Public Property Brand_Code As String
+        Public Property Vendor_Code As String
+        Public Property DraftPO_ID As Integer
     End Class
 
     ' =========================================================================
@@ -140,7 +154,7 @@ Public Class POValidate
     ' --- Part 2: Duplicate Validation ---
     Private Sub ValidateDuplicates(items As List(Of DraftPOItem), result As ValidationResult)
         ' 2.1 Internal Check: ห้ามซ้ำกันเองใน List (ใช้ PO No เป็นหลัก)
-        Dim internalDups = items.GroupBy(Function(x) {x.PO_No.Replace(" ", ""), x.PO_Month, x.PO_Year, x.Company_Code, x.Category_Code, x.Segment_Code, x.Brand_Code, x.Vendor_Code}).Where(Function(g) g.Count() > 1)
+        Dim internalDups = items.GroupBy(Function(x) BuildDraftPODuplicateKey(x)).Where(Function(g) g.Count() > 1)
 
         For Each grp In internalDups
             For Each item In grp
@@ -149,42 +163,134 @@ Public Class POValidate
         Next
 
         ' 2.2 Database Check: ห้ามซ้ำกับ DB
+        Dim duplicateCandidates = BuildDuplicateCheckItems(items)
+        If duplicateCandidates.Count = 0 Then
+            Return
+        End If
+
         Using conn As New SqlConnection(connectionString)
             conn.Open()
-            For Each item In items
-                ' Logic: เช็ค PO No. ซ้ำในระบบ (ยกเว้น ID ตัวเอง กรณี Edit)
-                ' (ถ้า Business Logic อนุญาตให้ PO No ซ้ำได้แต่ต้องต่าง brand/cate/vendor/segment/month/year ให้ปรับ WHERE clause ตรงนี้)
-                Dim sql As String = "SELECT COUNT(1) FROM [dbo].[Draft_PO_Transaction] " &
-                                    "WHERE DraftPO_No = @No " &
-                                    "AND PO_Month = @Month " &
-                                    "AND PO_Year = @Year " &
-                                    "AND Company_Code = @Company " &
-                                    "AND Category_Code = @Category " &
-                                    "AND Segment_Code = @Segment " &
-                                    "AND Brand_Code = @Brand " &
-                                    "AND Vendor_Code = @Vendor " &
-                                    " And ISNULL(Status, '') <> 'Cancelled' " &
-                                    "AND DraftPO_ID <> @SelfID"
-
-                Using cmd As New SqlCommand(sql, conn)
-                    cmd.Parameters.AddWithValue("@No", item.PO_No.Replace(" ", ""))
-                    cmd.Parameters.AddWithValue("@Month", item.PO_Month)
-                    cmd.Parameters.AddWithValue("@Year", item.PO_Year)
-                    cmd.Parameters.AddWithValue("@Company", item.Company_Code)
-                    cmd.Parameters.AddWithValue("@Category", item.Category_Code)
-                    cmd.Parameters.AddWithValue("@Segment", item.Segment_Code)
-                    cmd.Parameters.AddWithValue("@Brand", item.Brand_Code)
-                    cmd.Parameters.AddWithValue("@Vendor", item.Vendor_Code)
-                    cmd.Parameters.AddWithValue("@SelfID", item.DraftPO_ID)
-
-                    Dim count As Integer = Convert.ToInt32(cmd.ExecuteScalar())
-                    If count > 0 Then
-                        result.AddError(item.RowIndex, $"PO No. '{item.PO_No}' already exists in system")
-                    End If
-                End Using
+            For offset As Integer = 0 To duplicateCandidates.Count - 1 Step MaxDuplicateCheckBatchSize
+                Dim batch = duplicateCandidates.Skip(offset).Take(MaxDuplicateCheckBatchSize).ToList()
+                AddDatabaseDuplicateErrors(conn, batch, result)
             Next
         End Using
     End Sub
+
+    Private Function BuildDuplicateCheckItems(items As List(Of DraftPOItem)) As List(Of DuplicateCheckItem)
+        Dim candidates As New List(Of DuplicateCheckItem)()
+
+        For Each item In items
+            Dim yearNumber As Integer
+            Dim monthNumber As Integer
+
+            If String.IsNullOrWhiteSpace(item.PO_No) OrElse
+               String.IsNullOrWhiteSpace(item.PO_Year) OrElse
+               String.IsNullOrWhiteSpace(item.PO_Month) OrElse
+               String.IsNullOrWhiteSpace(item.Company_Code) OrElse
+               String.IsNullOrWhiteSpace(item.Category_Code) OrElse
+               String.IsNullOrWhiteSpace(item.Segment_Code) OrElse
+               String.IsNullOrWhiteSpace(item.Brand_Code) OrElse
+               String.IsNullOrWhiteSpace(item.Vendor_Code) OrElse
+               Not Integer.TryParse(item.PO_Year, yearNumber) OrElse
+               Not Integer.TryParse(item.PO_Month, monthNumber) Then
+                Continue For
+            End If
+
+            candidates.Add(New DuplicateCheckItem With {
+                .RowIndex = item.RowIndex,
+                .PO_No = item.PO_No.Replace(" ", ""),
+                .PO_Year = yearNumber,
+                .PO_Month = monthNumber,
+                .Company_Code = item.Company_Code,
+                .Category_Code = item.Category_Code,
+                .Segment_Code = item.Segment_Code,
+                .Brand_Code = item.Brand_Code,
+                .Vendor_Code = item.Vendor_Code,
+                .DraftPO_ID = item.DraftPO_ID
+            })
+        Next
+
+        Return candidates
+    End Function
+
+    Private Sub AddDatabaseDuplicateErrors(conn As SqlConnection, batch As List(Of DuplicateCheckItem), result As ValidationResult)
+        If batch.Count = 0 Then Return
+
+        Dim sql As New System.Text.StringBuilder()
+        sql.AppendLine("WITH InputRows AS (")
+
+        Using cmd As New SqlCommand()
+            cmd.Connection = conn
+
+            For i As Integer = 0 To batch.Count - 1
+                Dim item = batch(i)
+                If i > 0 Then sql.AppendLine("UNION ALL")
+
+                sql.AppendLine($"SELECT @RowIndex{i} AS RowIndex, @No{i} AS DraftPO_No, @Year{i} AS PO_Year, @Month{i} AS PO_Month, @Company{i} AS Company_Code, @Category{i} AS Category_Code, @Segment{i} AS Segment_Code, @Brand{i} AS Brand_Code, @Vendor{i} AS Vendor_Code, @SelfID{i} AS DraftPO_ID")
+
+                cmd.Parameters.Add("@RowIndex" & i, SqlDbType.Int).Value = item.RowIndex
+                AddNVarCharParameter(cmd, "@No" & i, item.PO_No, 100)
+                cmd.Parameters.Add("@Year" & i, SqlDbType.Int).Value = item.PO_Year
+                cmd.Parameters.Add("@Month" & i, SqlDbType.Int).Value = item.PO_Month
+                AddNVarCharParameter(cmd, "@Company" & i, item.Company_Code, 10)
+                AddNVarCharParameter(cmd, "@Category" & i, item.Category_Code, 20)
+                AddNVarCharParameter(cmd, "@Segment" & i, item.Segment_Code, 20)
+                AddNVarCharParameter(cmd, "@Brand" & i, item.Brand_Code, 20)
+                AddNVarCharParameter(cmd, "@Vendor" & i, item.Vendor_Code, 20)
+                cmd.Parameters.Add("@SelfID" & i, SqlDbType.Int).Value = item.DraftPO_ID
+            Next
+
+            sql.AppendLine(")")
+            sql.AppendLine("SELECT DISTINCT i.RowIndex, i.DraftPO_No")
+            sql.AppendLine("FROM InputRows i")
+            sql.AppendLine("WHERE EXISTS (")
+            sql.AppendLine("    SELECT 1")
+            sql.AppendLine("    FROM [dbo].[Draft_PO_Transaction] d")
+            sql.AppendLine("    WHERE d.DraftPO_No = i.DraftPO_No")
+            sql.AppendLine("      AND d.PO_Month = i.PO_Month")
+            sql.AppendLine("      AND d.PO_Year = i.PO_Year")
+            sql.AppendLine("      AND d.Company_Code = i.Company_Code")
+            sql.AppendLine("      AND d.Category_Code = i.Category_Code")
+            sql.AppendLine("      AND d.Segment_Code = i.Segment_Code")
+            sql.AppendLine("      AND d.Brand_Code = i.Brand_Code")
+            sql.AppendLine("      AND d.Vendor_Code = i.Vendor_Code")
+            sql.AppendLine("      AND ISNULL(d.Status, '') <> 'Cancelled'")
+            sql.AppendLine("      AND d.DraftPO_ID <> i.DraftPO_ID")
+            sql.AppendLine(")")
+
+            cmd.CommandText = sql.ToString()
+
+            Using reader As SqlDataReader = cmd.ExecuteReader()
+                While reader.Read()
+                    Dim rowIndex As Integer = Convert.ToInt32(reader("RowIndex"))
+                    Dim poNo As String = reader("DraftPO_No").ToString()
+                    result.AddError(rowIndex, $"PO No. '{poNo}' already exists in system")
+                End While
+            End Using
+        End Using
+    End Sub
+
+    Private Shared Sub AddNVarCharParameter(cmd As SqlCommand, name As String, value As String, size As Integer)
+        cmd.Parameters.Add(name, SqlDbType.NVarChar, size).Value = If(value, "")
+    End Sub
+
+    Private Shared Function BuildDraftPODuplicateKey(item As DraftPOItem) As String
+        Return String.Join("|", New String() {
+            NormalizeKey(If(item.PO_No, "").Replace(" ", "")),
+            NormalizeKey(item.PO_Month),
+            NormalizeKey(item.PO_Year),
+            NormalizeKey(item.Company_Code),
+            NormalizeKey(item.Category_Code),
+            NormalizeKey(item.Segment_Code),
+            NormalizeKey(item.Brand_Code),
+            NormalizeKey(item.Vendor_Code)
+        })
+    End Function
+
+    Private Shared Function NormalizeKey(value As String) As String
+        Return If(value, "").Trim().ToUpperInvariant()
+    End Function
 
     ' --- Part 3: Budget Validation (SEQUENTIAL LOGIC - แจ้งรายรายการ) ---
     Private Sub ValidateBudgetAggregate(items As List(Of DraftPOItem), result As ValidationResult)
@@ -198,6 +304,10 @@ Public Class POValidate
 
         ' วนลูปตรวจสอบ "รายรายการ" ตามลำดับบรรทัด (Sequential)
         For Each item In items
+            If result.RowErrors.ContainsKey(item.RowIndex) Then
+                Continue For
+            End If
+
             Dim key As String = $"{item.PO_Year}|{item.PO_Month}|{item.Category_Code}|{item.Company_Code}|{item.Segment_Code}|{item.Brand_Code}|{item.Vendor_Code}"
 
             Try
@@ -252,6 +362,17 @@ Public Class POValidate
     Private Function GetUsedBudgetFromDB(year As String, month As String, cat As String, com As String,
                                          seg As String, brand As String, ven As String,
                                          excludeIDs As List(Of Integer)) As Decimal
+        Return CalculateUsedBudgetFromDB(year, month, cat, com, seg, brand, ven, excludeIDs)
+    End Function
+
+    Public Function GetUsedBudgetFromDBForOTB(year As String, month As String, cat As String, com As String,
+                                         seg As String, brand As String, ven As String) As Decimal
+        Return CalculateUsedBudgetFromDB(year, month, cat, com, seg, brand, ven, Nothing)
+    End Function
+
+    Private Function CalculateUsedBudgetFromDB(year As String, month As String, cat As String, com As String,
+                                         seg As String, brand As String, ven As String,
+                                         excludeIDs As List(Of Integer)) As Decimal
         Dim totalUsed As Decimal = 0
         Using conn As New SqlConnection(connectionString)
             conn.Open()
@@ -263,7 +384,7 @@ Public Class POValidate
                                         WHERE d.PO_Year = @Y AND d.PO_Month = @M AND d.Company_Code = @Com 
                                           AND d.Category_Code = @Cat AND d.Segment_Code = @Seg 
                                           AND d.Brand_Code = @Brand AND d.Vendor_Code = @Ven 
-                                          AND ISNULL(d.Status, 'Draft') IN ('Draft', 'Edited')
+                                          AND ISNULL(d.Status, 'Draft') NOT IN ('Matched', 'ForceMatching', 'Matching', 'Cancelled')
                                           AND NOT EXISTS (
                                               SELECT 1 FROM [BMS].[dbo].[Actual_PO_Summary] a 
                                               WHERE a.[Status] = 'Matched' 
@@ -271,11 +392,15 @@ Public Class POValidate
                                           )"
 
             ' ถ้ามี ID ที่ต้อง Exclude (เช่นกำลัง Edit) ให้ใส่เงื่อนไข
+            Dim excludeParamNames As New List(Of String)()
+            Dim validIds As New List(Of Integer)()
             If excludeIDs IsNot Nothing AndAlso excludeIDs.Count > 0 Then
-                Dim validIds = excludeIDs.Where(Function(id) id > 0).ToList()
+                validIds = excludeIDs.Where(Function(id) id > 0).ToList()
                 If validIds.Count > 0 Then
-                    Dim idString = String.Join(",", validIds)
-                    sqlDraft &= $" AND DraftPO_ID NOT IN ({idString})"
+                    For i As Integer = 0 To validIds.Count - 1
+                        excludeParamNames.Add("@ExcludeID" & i.ToString())
+                    Next
+                    sqlDraft &= $" AND DraftPO_ID NOT IN ({String.Join(",", excludeParamNames)})"
                 End If
             End If
 
@@ -287,65 +412,9 @@ Public Class POValidate
                 cmd.Parameters.AddWithValue("@Seg", seg)
                 cmd.Parameters.AddWithValue("@Brand", brand)
                 cmd.Parameters.AddWithValue("@Ven", ven)
-
-                Dim res = cmd.ExecuteScalar()
-                If res IsNot DBNull.Value Then totalUsed += Convert.ToDecimal(res)
-            End Using
-
-            ' 2. Sum Actual PO (Matched/Matching) - (ถ้า OTB Calculator คำนวณ Actual ให้แล้ว อาจไม่ต้องรวมตรงนี้)
-            ' แต่ตาม Logic เดิมที่เคยเห็น น่าจะรวม Actual ด้วยเพื่อความชัวร์
-            Dim sqlActual As String = "SELECT SUM(ISNULL(Amount_THB, 0)) FROM [BMS].[dbo].[Actual_PO_Summary] " &
-                                      "WHERE OTB_Year = @Y AND OTB_Month = @M AND Company_Code = @Com " &
-                                      "AND Category_Code = @Cat " &
-                                      "AND (Segment_Code = @Seg OR SUBSTRING(ISNULL(Segment_Code, ''), 2, CASE WHEN LEN(ISNULL(Segment_Code, '')) > 2 THEN LEN(Segment_Code) - 2 ELSE 0 END) = @Seg) " &
-                                      "AND Brand_Code = @Brand AND Vendor_Code = @Ven " &
-                                      "AND [Status] IN ('Matched', 'Matching', 'ForceMatching')"
-
-            Using cmd As New SqlCommand(sqlActual, conn)
-                cmd.Parameters.AddWithValue("@Y", year)
-                cmd.Parameters.AddWithValue("@M", month)
-                cmd.Parameters.AddWithValue("@Com", com)
-                cmd.Parameters.AddWithValue("@Cat", cat)
-                cmd.Parameters.AddWithValue("@Seg", seg)
-                cmd.Parameters.AddWithValue("@Brand", brand)
-                cmd.Parameters.AddWithValue("@Ven", ven)
-
-                Dim res = cmd.ExecuteScalar()
-                If res IsNot DBNull.Value Then totalUsed += Convert.ToDecimal(res)
-            End Using
-        End Using
-
-        Return totalUsed
-    End Function
-
-    Public Function GetUsedBudgetFromDBForOTB(year As String, month As String, cat As String, com As String,
-                                         seg As String, brand As String, ven As String) As Decimal
-        Dim totalUsed As Decimal = 0
-        Using conn As New SqlConnection(connectionString)
-            conn.Open()
-
-            ' 1. Sum Draft PO (Exclude Cancelled AND Exclude Self IDs)
-            Dim sqlDraft As String = "
-                                        SELECT SUM(ISNULL(Amount_THB, 0)) 
-                                        FROM [BMS].[dbo].[Draft_PO_Transaction] d
-                                        WHERE d.PO_Year = @Y AND d.PO_Month = @M AND d.Company_Code = @Com 
-                                          AND d.Category_Code = @Cat AND d.Segment_Code = @Seg 
-                                          AND d.Brand_Code = @Brand AND d.Vendor_Code = @Ven 
-                                          AND ISNULL(d.Status, 'Draft') IN ('Draft', 'Edited')
-                                          AND NOT EXISTS (
-                                              SELECT 1 FROM [BMS].[dbo].[Actual_PO_Summary] a 
-                                              WHERE a.[Status] = 'Matched' 
-                                                AND (a.Draft_PO_Ref = d.DraftPO_No OR a.PO_No = d.Actual_PO_No)
-                                          )"
-
-            Using cmd As New SqlCommand(sqlDraft, conn)
-                cmd.Parameters.AddWithValue("@Y", year)
-                cmd.Parameters.AddWithValue("@M", month)
-                cmd.Parameters.AddWithValue("@Com", com)
-                cmd.Parameters.AddWithValue("@Cat", cat)
-                cmd.Parameters.AddWithValue("@Seg", seg)
-                cmd.Parameters.AddWithValue("@Brand", brand)
-                cmd.Parameters.AddWithValue("@Ven", ven)
+                For i As Integer = 0 To validIds.Count - 1
+                    cmd.Parameters.AddWithValue(excludeParamNames(i), validIds(i))
+                Next
 
                 Dim res = cmd.ExecuteScalar()
                 If res IsNot DBNull.Value Then totalUsed += Convert.ToDecimal(res)

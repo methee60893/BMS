@@ -25,7 +25,7 @@
             </button>
         </div>
         <ul class="sidebar-menu">
-            <li class="menu-item">
+            <li class="menu-item" id="grpmenuOTBPlan" runat="server">
                 <a href="#" class="menu-link" onclick="toggleSubmenu(event, 'otbPlan')">
                     <i class="bi bi-clipboard-data"></i>
                     <span>OTB Plan / Revise</span>
@@ -36,7 +36,7 @@
                     <li id="menuApprovedOTBPlan" runat="server" ><a href="approvedOTB.aspx" class="menu-link active">Approved OTB Plan</a></li>
                 </ul>
             </li>
-            <li class="menu-item">
+            <li class="menu-item" id="grpmenuOTBSwitching" runat="server">
                 <a href="#" class="menu-link" onclick="toggleSubmenu(event, 'otbSwitching')">
                     <i class="bi bi-arrow-left-right"></i>
                     <span>OTB Switching</span>
@@ -60,7 +60,7 @@
                     <li id="menuActualPO" runat="server" ><a href="actualPO.aspx" class="menu-link">Actual PO</a></li>
                 </ul>
             </li>
-            <li class="menu-item">
+            <li class="menu-item" id="menuOTBRemaining" runat="server">
                 <a href="otbRemaining.aspx" class="menu-link">
                     <i class="bi bi-bar-chart-line"></i>
                     <span>OTB Remaining</span>
@@ -76,6 +76,17 @@
                      <li id="menuVendor" runat="server" ><a href="master_vendor.aspx" class="menu-link">Master Vendor</a></li>
                  <li id="menuBrand" runat="server" ><a href="master_brand.aspx" class="menu-link">Master Brand</a></li>
                  <li id="menuCategory" runat="server" ><a href="master_category.aspx" class="menu-link">Master Category</a></li>
+                </ul>
+            </li>
+            <li class="menu-item" id="grpmenuAdmin" runat="server">
+                <a href="#" class="menu-link" onclick="toggleSubmenu(event, 'adminTools')">
+                    <i class="bi bi-shield-lock"></i>
+                    <span>Admin</span>
+                    <i class="bi bi-chevron-down"></i>
+                </a>
+                <ul class="submenu" id="adminTools">
+                    <li id="menuAdminMatchPO" runat="server"><a href="admin_matchPO.aspx" class="menu-link">Admin Match PO</a></li>
+                    <li id="menuManageUsers" runat="server"><a href="manage_users.aspx" class="menu-link">Manage Users</a></li>
                 </ul>
             </li>
             <li class="menu-item"><a href="default.aspx" class="menu-link"><i class="bi bi-box-arrow-left"></i> Logout</a></li>
@@ -229,6 +240,7 @@
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+    <script src="script/bms-loading.js"></script>
     <script>
 
         let typeDropdown = document.getElementById("DDType");
@@ -431,6 +443,8 @@
             formData.append('OTBVendor', vendorCode);
             formData.append('OTBVersion', OTBVersion);
 
+            BMSLoading.show('Loading approved OTB...', 'Please wait');
+
             $.ajax({
                 url: 'Handler/DataOTBHandler.ashx?action=obtApprovelistbyfilter',
                 type: 'POST',
@@ -439,9 +453,12 @@
                 contentType: false,
                 success: function (response) {
                     tableViewBody.innerHTML = response;
+                    BMSLoading.hide();
                 },
                 error: function (xhr, status, error) {
                     console.log('Error getlist data: ' + error);
+                    BMSLoading.hide();
+                    alert('Error loading data: ' + (xhr.responseText || error));
                 }
             });
         }
@@ -462,8 +479,7 @@
             params.append('OTBVendor', vendorDropdown.value);
             params.append('OTBVersion', versionDropdown.value); // <-- Added Version
 
-            // Use window.location to trigger file download (GET request)
-            window.location.href = 'Handler/DataOTBHandler.ashx?' + params.toString();
+            BMSLoading.download('Handler/DataOTBHandler.ashx?' + params.toString(), 'Exporting Approved OTB...', 'Preparing Excel file');
         }
 
         let InitMSData = function () {

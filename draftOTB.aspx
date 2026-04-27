@@ -27,7 +27,7 @@
         </button>
     </div>
     <ul class="sidebar-menu">
-        <li class="menu-item">
+        <li class="menu-item" id="grpmenuOTBPlan" runat="server">
             <a href="#" class="menu-link" onclick="toggleSubmenu(event, 'otbPlan')">
                 <i class="bi bi-clipboard-data"></i>
                 <span>OTB Plan / Revise</span>
@@ -38,7 +38,7 @@
                 <li id="menuApprovedOTBPlan" runat="server" ><a href="approvedOTB.aspx" class="menu-link">Approved OTB Plan</a></li>
             </ul>
         </li>
-        <li class="menu-item">
+        <li class="menu-item" id="grpmenuOTBSwitching" runat="server">
             <a href="#" class="menu-link" onclick="toggleSubmenu(event, 'otbSwitching')">
                 <i class="bi bi-arrow-left-right"></i>
                 <span>OTB Switching</span>
@@ -62,7 +62,7 @@
                 <li id="menuActualPO" runat="server" ><a href="actualPO.aspx" class="menu-link">Actual PO</a></li>
             </ul>
         </li>
-        <li class="menu-item">
+        <li class="menu-item" id="menuOTBRemaining" runat="server">
             <a href="otbRemaining.aspx" class="menu-link">
                 <i class="bi bi-bar-chart-line"></i>
                 <span>OTB Remaining</span>
@@ -78,6 +78,17 @@
                  <li id="menuVendor" runat="server" ><a href="master_vendor.aspx" class="menu-link">Master Vendor</a></li>
              <li id="menuBrand" runat="server" ><a href="master_brand.aspx" class="menu-link">Master Brand</a></li>
              <li id="menuCategory" runat="server" ><a href="master_category.aspx" class="menu-link">Master Category</a></li>
+            </ul>
+        </li>
+        <li class="menu-item" id="grpmenuAdmin" runat="server">
+            <a href="#" class="menu-link" onclick="toggleSubmenu(event, 'adminTools')">
+                <i class="bi bi-shield-lock"></i>
+                <span>Admin</span>
+                <i class="bi bi-chevron-down"></i>
+            </a>
+            <ul class="submenu" id="adminTools">
+                <li id="menuAdminMatchPO" runat="server"><a href="admin_matchPO.aspx" class="menu-link">Admin Match PO</a></li>
+                <li id="menuManageUsers" runat="server"><a href="manage_users.aspx" class="menu-link">Manage Users</a></li>
             </ul>
         </li>
         <li class="menu-item"><a href="default.aspx" class="menu-link"><i class="bi bi-box-arrow-left"></i> Logout</a></li>
@@ -330,7 +341,8 @@
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
-<script>
+    <script src="script/bms-loading.js"></script>
+    <script>
     let mainForm = document.getElementById("mainForm");
     let typeDropdown = document.getElementById("DDType");
     let yearDropdown = document.getElementById("DDYear");
@@ -358,6 +370,7 @@
             e.preventDefault(); // ป้องกัน default behavior (แม้จะเป็น button ก็ตาม)
             console.log("Upload button clicked");
 
+            var uploadButton = this;
             var fileInput = $('#fileUpload')[0];
             var file = fileInput.files[0];
             var currentUser = '<%= HttpUtility.JavaScriptStringEncode(Session("user").ToString()) %>';
@@ -373,6 +386,9 @@
             formData.append('file', file);
             formData.append('uploadBy', uploadBy); //  ส่งไปกับ request
 
+            uploadButton.disabled = true;
+            showLoading(true, 'Reading draft OTB file...', 'Preparing preview data');
+
             $.ajax({
                 url: 'Handler/UploadHandler.ashx?action=preview',
                 type: 'POST',
@@ -380,11 +396,15 @@
                 processData: false,
                 contentType: false,
                 success: function (response) {
+                    showLoading(false);
+                    uploadButton.disabled = false;
                     $('#previewTableContainer').html(response);
                     $('#previewModal').modal('show');
                 },
                 error: function (xhr, status, error) {
-                    alert('Error loading preview: ' + error);
+                    showLoading(false);
+                    uploadButton.disabled = false;
+                    alert('Error loading preview: ' + (xhr.responseText || error));
                 }
             });
         });
@@ -393,6 +413,7 @@
             e.preventDefault(); // ป้องกัน default behavior (แม้จะเป็น button ก็ตาม)
             console.log("Save from Preview button clicked");
 
+            var submitButton = this;
             var selectedRows = [];
 
             $('#previewTableContainer input[name="selectedRows"]:checked').each(function () {
@@ -433,6 +454,9 @@
             // แปลง Array ของข้อมูลเป็น JSON String แล้วส่งไป
             formData.append('selectedData', JSON.stringify(selectedRows));
 
+            submitButton.disabled = true;
+            showLoading(true, 'Saving draft OTB...', 'Writing selected rows to database');
+
             $.ajax({
                 url: 'Handler/UploadHandler.ashx?action=savePreview',
                 type: 'POST',
@@ -440,6 +464,9 @@
                 processData: false,
                 contentType: false,
                 success: function (response) {
+                    showLoading(false);
+                    submitButton.disabled = false;
+
                     if (response.includes("alert-danger")) {
                         alert('Error saving data: ' + $(response).text());
                     } else {
@@ -451,7 +478,9 @@
                     }
                 },
                 error: function (xhr, status, error) {
-                    alert('Error saving data: ' + error);
+                    showLoading(false);
+                    submitButton.disabled = false;
+                    alert('Error saving data: ' + (xhr.responseText || error));
                 }
             });
         });
@@ -900,9 +929,7 @@
         params.append('OTBBrand', brandDropdown.value);
         params.append('OTBVendor', vendorDropdown.value);
 
-        // Use window.location to trigger file download
-        // This is a GET request, so the handler must be adjusted to read from QueryString
-        window.location.href = 'Handler/DataOTBHandler.ashx?' + params.toString();
+        BMSLoading.download('Handler/DataOTBHandler.ashx?' + params.toString(), 'Exporting Draft OTB...', 'Preparing Excel file');
     }
 
     let exportSum = function () {
@@ -936,8 +963,7 @@
             params.append('OTBSegment', OTBSegment);
         }
 
-        // ใช้ window.location เพื่อดาวน์โหลดไฟล์ (GET request)
-        window.location.href = 'Handler/DataOTBHandler.ashx?' + params.toString();
+        BMSLoading.download('Handler/DataOTBHandler.ashx?' + params.toString(), 'Exporting Draft OTB Summary...', 'Preparing Excel file');
     }
 
     // Select All Checkbox
@@ -1010,7 +1036,6 @@
         InitMSYear(yearDropdown);
         InitMonth(monthDropdown);
         InitCompany(companyDropdown);
-        search();
     }
 
     let InitSegment = function (segmentDropdown) {

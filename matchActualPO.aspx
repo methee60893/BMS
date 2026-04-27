@@ -65,7 +65,7 @@
         </button>
     </div>
     <ul class="sidebar-menu">
-        <li class="menu-item">
+        <li class="menu-item" id="grpmenuOTBPlan" runat="server">
             <a href="#" class="menu-link" onclick="toggleSubmenu(event, 'otbPlan')">
                 <i class="bi bi-clipboard-data"></i>
                 <span>OTB Plan / Revise</span>
@@ -76,7 +76,7 @@
                 <li id="menuApprovedOTBPlan" runat="server" ><a href="approvedOTB.aspx" class="menu-link">Approved OTB Plan</a></li>
             </ul>
         </li>
-        <li class="menu-item">
+        <li class="menu-item" id="grpmenuOTBSwitching" runat="server">
             <a href="#" class="menu-link" onclick="toggleSubmenu(event, 'otbSwitching')">
                 <i class="bi bi-arrow-left-right"></i>
                 <span>OTB Switching</span>
@@ -100,7 +100,7 @@
                 <li id="menuActualPO" runat="server" ><a href="actualPO.aspx" class="menu-link">Actual PO</a></li>
             </ul>
         </li>
-        <li class="menu-item">
+        <li class="menu-item" id="menuOTBRemaining" runat="server">
             <a href="otbRemaining.aspx" class="menu-link">
                 <i class="bi bi-bar-chart-line"></i>
                 <span>OTB Remaining</span>
@@ -116,6 +116,17 @@
                  <li id="menuVendor" runat="server" ><a href="master_vendor.aspx" class="menu-link">Master Vendor</a></li>
                  <li id="menuBrand" runat="server" ><a href="master_brand.aspx" class="menu-link">Master Brand</a></li>
                  <li id="menuCategory" runat="server" ><a href="master_category.aspx" class="menu-link">Master Category</a></li>
+            </ul>
+        </li>
+        <li class="menu-item" id="grpmenuAdmin" runat="server">
+            <a href="#" class="menu-link" onclick="toggleSubmenu(event, 'adminTools')">
+                <i class="bi bi-shield-lock"></i>
+                <span>Admin</span>
+                <i class="bi bi-chevron-down"></i>
+            </a>
+            <ul class="submenu" id="adminTools">
+                <li id="menuAdminMatchPO" runat="server"><a href="admin_matchPO.aspx" class="menu-link">Admin Match PO</a></li>
+                <li id="menuManageUsers" runat="server"><a href="manage_users.aspx" class="menu-link">Manage Users</a></li>
             </ul>
         </li>
         <li class="menu-item"><a href="default.aspx" class="menu-link"><i class="bi bi-box-arrow-left"></i> Logout</a></li>
@@ -451,39 +462,9 @@
             }
         };
 
-        // (MODIFIED: Refactored sync logic into its own function)
+        // Refresh current DB data after submit without syncing SAP.
         function syncAndLoadData() {
-            showLoading(true, 'Syncing with SAP...');
-            btnSubmit.disabled = true; // Disable submit during sync
-            btnSyncSAP.disabled = true;
-
-            $.ajax({
-                url: 'Handler/POMatchingHandler.ashx?action=get_only',
-                type: 'POST',
-                processData: false,
-                contentType: false,
-                dataType: 'json',
-                success: function (response) {
-                    showLoading(false);
-                    btnSyncSAP.disabled = false;
-                    if (response.success) {
-                        console.log(response.data);
-                        buildTable(response.data); // This will re-enable submit if data exists
-                        // (MODIFIED: Show sync stats)
-                        alert(response.syncStats || "Sync completed.");
-                    } else {
-                        alert('Error: ' + response.message);
-                        tableBody.innerHTML = `<tr><td colspan="18" class="text-center p-4 text-danger">${response.message}</td></tr>`;
-                    }
-                },
-                error: function (xhr, status, error) {
-                    showLoading(false);
-                    btnSyncSAP.disabled = false;
-                    console.error(error);
-                    alert('Fatal error connecting to handler: ' + xhr.responseText);
-                    tableBody.innerHTML = `<tr><td colspan="18" class="text-center p-4 text-danger">Fatal error: ${xhr.responseText}</td></tr>`;
-                }
-            });
+            loadMatchData('get_only');
         }
 
         // (MODIFIED: New function to handle submit)

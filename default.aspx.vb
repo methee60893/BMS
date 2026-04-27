@@ -5,7 +5,6 @@ Imports BMS.share_class
 Public Class _default
     Inherits System.Web.UI.Page
 
-    Public connectionString As String = ConfigurationManager.ConnectionStrings("LoginConnectionString")?.ConnectionString
     Public connectionStringLocal As String = ConfigurationManager.ConnectionStrings("BMSConnectionString")?.ConnectionString
     Protected Sub Page_Load(ByVal sender As Object, ByVal e As System.EventArgs) Handles Me.Load
 
@@ -21,7 +20,7 @@ Public Class _default
             Dim userEmail As String = email
 
             If authen_by_ad(email, password) Then
-                'Dim chkauthen = CheckADAccess(email)
+
                 username = email
 
                 Try
@@ -91,36 +90,6 @@ Public Class _default
         End Using
     End Sub
 
-    Private Sub adddblog()
-        Try
-            Try
-
-
-                Using connection As New SqlConnection(connectionString)
-                    connection.Open()
-
-                    Dim sql As String = "INSERT INTO [dbo].[TB_Master_Log_Transection] ([ProjectName], [UserHostName], [UserHostAddress], [KeyWord], [CreateDateTime]) " &
-                                        "VALUES (@ProjectName, @UserHostName, @UserHostAddress, @KeyWord, @CreateDateTime)"
-
-                    Using command As New SqlCommand(sql, connection)
-                        command.Parameters.AddWithValue("@ProjectName", "ONE SYSTEM")
-                        command.Parameters.AddWithValue("@UserHostName", HttpContext.Current.Request.UserHostName)
-                        command.Parameters.AddWithValue("@UserHostAddress", HttpContext.Current.Request.UserHostAddress)
-                        command.Parameters.AddWithValue("@KeyWord", txtEmail.Text)
-                        command.Parameters.AddWithValue("@CreateDateTime", DateTime.Now)
-
-                        command.ExecuteNonQuery()
-                    End Using
-                End Using
-            Catch ex As Exception
-                Console.WriteLine(ex.Message)
-            End Try
-
-        Catch ex As Exception
-            Console.WriteLine(ex.Message)
-        End Try
-    End Sub
-
     Public Function getRoleByUser(email As String) As DataTable
         Dim dt As New DataTable()
         Try
@@ -146,31 +115,6 @@ Public Class _default
         Return dt
     End Function
 
-    Public Function CheckADAccess(username As String) As Boolean
 
-        ' ===== ตรวจสอบสิทธิ์ในฐานข้อมูล =====
-        Try
-            Using conn As New SqlConnection(connectionString)
-                Dim cmd As New SqlCommand("
-                    SELECT CanAccessIndex 
-                    FROM UserAccess 
-                    WHERE Username = @Username
-                ", conn)
-                cmd.Parameters.AddWithValue("@Username", username)
-
-                conn.Open()
-                Dim result As Object = cmd.ExecuteScalar()
-                conn.Close()
-
-                If result IsNot Nothing AndAlso Convert.ToBoolean(result) = True Then
-                    Return True
-                End If
-            End Using
-        Catch ex As Exception
-            Return False
-        End Try
-
-        Return False
-    End Function
 
 End Class

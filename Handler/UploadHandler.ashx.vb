@@ -548,42 +548,7 @@ Public Class UploadHandler : Implements IHttpHandler
                         End Using
                     End If
 
-                    ' UPDATE แต่ละแถว
-                    For Each updateData As Dictionary(Of String, Object) In updateList
-                        Dim updateQuery As String = "UPDATE [dbo].[Template_Upload_Draft_OTB]
-                                                 SET [Amount] = @Amount,
-                                                     [UploadBy] = @UploadBy,
-                                                     [Batch] = @Batch,
-                                                     [UpdateDT] = @UpdateDT,
-                                                     [Version] = @Version
-                                                 WHERE [Type] = @Type
-                                                   AND [Year] = @Year
-                                                   AND [Month] = @Month
-                                                   AND [Category] = @Category
-                                                   AND [Company] = @Company
-                                                   AND [Segment] = @Segment
-                                                   AND [Brand] = @Brand
-                                                   AND [Vendor] = @Vendor
-                                                   AND (OTBStatus IS NULL OR OTBStatus = 'Draft')"
-
-                        Using cmd As New SqlCommand(updateQuery, conn, transaction)
-                            cmd.Parameters.AddWithValue("@Type", updateData("Type"))
-                            cmd.Parameters.AddWithValue("@Year", updateData("Year"))
-                            cmd.Parameters.AddWithValue("@Month", updateData("Month"))
-                            cmd.Parameters.AddWithValue("@Category", updateData("Category"))
-                            cmd.Parameters.AddWithValue("@Company", updateData("Company"))
-                            cmd.Parameters.AddWithValue("@Segment", updateData("Segment"))
-                            cmd.Parameters.AddWithValue("@Brand", updateData("Brand"))
-                            cmd.Parameters.AddWithValue("@Vendor", updateData("Vendor"))
-                            cmd.Parameters.AddWithValue("@Amount", updateData("Amount"))
-                            cmd.Parameters.AddWithValue("@UploadBy", updateData("UploadBy"))
-                            cmd.Parameters.AddWithValue("@Batch", updateData("Batch"))
-                            cmd.Parameters.AddWithValue("@UpdateDT", updateData("UpdateDT"))
-                            cmd.Parameters.AddWithValue("@Version", updateData("Version"))
-
-                            cmd.ExecuteNonQuery()
-                        End Using
-                    Next
+                    updatedCount = BulkUpdateDraftOTB(conn, transaction, updateList, updateRemark:=False)
 
                     transaction.Commit()
 
@@ -783,28 +748,7 @@ Public Class UploadHandler : Implements IHttpHandler
                         End Using
                     End If
 
-                    ' UPDATE แต่ละแถว
-                    For Each updateData As Dictionary(Of String, Object) In updateList
-                        ' ... (Query และ Parameters เหมือนเดิม) ...
-                        Dim updateQuery As String = "UPDATE [dbo].[Template_Upload_Draft_OTB] SET [Amount] = @Amount, [UploadBy] = @UploadBy, [Batch] = @Batch, [UpdateDT] = @UpdateDT, [Remark] = @Remark WHERE [Type] = @Type AND [Year] = @Year AND [Month] = @Month AND [Category] = @Category AND [Company] = @Company AND [Segment] = @Segment AND [Brand] = @Brand AND [Vendor] = @Vendor AND (OTBStatus IS NULL OR OTBStatus = 'Draft')"
-                        Using cmd As New SqlCommand(updateQuery, conn, transaction)
-                            cmd.Parameters.AddWithValue("@Type", updateData("Type"))
-                            cmd.Parameters.AddWithValue("@Year", updateData("Year"))
-                            cmd.Parameters.AddWithValue("@Month", updateData("Month"))
-                            cmd.Parameters.AddWithValue("@Category", updateData("Category"))
-                            cmd.Parameters.AddWithValue("@Company", updateData("Company"))
-                            cmd.Parameters.AddWithValue("@Segment", updateData("Segment"))
-                            cmd.Parameters.AddWithValue("@Brand", updateData("Brand"))
-                            cmd.Parameters.AddWithValue("@Vendor", updateData("Vendor"))
-                            cmd.Parameters.AddWithValue("@Amount", updateData("Amount"))
-                            cmd.Parameters.AddWithValue("@UploadBy", updateData("UploadBy"))
-                            cmd.Parameters.AddWithValue("@Batch", updateData("Batch"))
-                            cmd.Parameters.AddWithValue("@UpdateDT", updateData("UpdateDT"))
-                            cmd.Parameters.AddWithValue("@Remark", updateData("Remark")) ' (เพิ่ม Parameter)
-                            cmd.Parameters.AddWithValue("@Version", updateData("Version")) ' <--- (BMS Gem) เพิ่ม Parameter
-                            cmd.ExecuteNonQuery()
-                        End Using
-                    Next
+                    updatedCount = BulkUpdateDraftOTB(conn, transaction, updateList, updateRemark:=True)
 
                     transaction.Commit()
 
@@ -822,6 +766,131 @@ Public Class UploadHandler : Implements IHttpHandler
         End If
         context.Response.Write($"Successfully saved {savedCount} new rows and updated {updatedCount} existing DB rows (Batch: {newBatch}).{duplicateMessage}")
     End Sub
+
+    Private Function BulkUpdateDraftOTB(conn As SqlConnection,
+                                        transaction As SqlTransaction,
+                                        updateList As List(Of Dictionary(Of String, Object)),
+                                        updateRemark As Boolean) As Integer
+        If updateList Is Nothing OrElse updateList.Count = 0 Then
+            Return 0
+        End If
+
+        Dim updateTable As DataTable = BuildDraftOTBUpdateTable(updateList)
+
+        Using createCmd As New SqlCommand("
+            CREATE TABLE #DraftOTBUpdates (
+                RowOrder INT NOT NULL,
+                [Type] NVARCHAR(100) NULL,
+                [Year] INT NULL,
+                [Month] INT NULL,
+                [Category] NVARCHAR(100) NULL,
+                [Company] NVARCHAR(100) NULL,
+                [Segment] NVARCHAR(100) NULL,
+                [Brand] NVARCHAR(100) NULL,
+                [Vendor] NVARCHAR(100) NULL,
+                [Amount] NVARCHAR(100) NULL,
+                [UploadBy] NVARCHAR(200) NULL,
+                [Batch] NVARCHAR(100) NULL,
+                [UpdateDT] DATETIME NULL,
+                [Remark] NVARCHAR(MAX) NULL,
+                [Version] NVARCHAR(10) NULL
+            )", conn, transaction)
+            createCmd.ExecuteNonQuery()
+        End Using
+
+        Using bulkCopy As New SqlBulkCopy(conn, SqlBulkCopyOptions.Default, transaction)
+            bulkCopy.DestinationTableName = "#DraftOTBUpdates"
+            bulkCopy.BatchSize = Math.Min(updateTable.Rows.Count, 1000)
+            bulkCopy.BulkCopyTimeout = 300
+
+            For Each col As DataColumn In updateTable.Columns
+                bulkCopy.ColumnMappings.Add(col.ColumnName, col.ColumnName)
+            Next
+
+            bulkCopy.WriteToServer(updateTable)
+        End Using
+
+        Dim updateSql As String = "
+            ;WITH LatestUpdates AS (
+                SELECT *,
+                       ROW_NUMBER() OVER (
+                           PARTITION BY [Type], [Year], [Month], [Category], [Company], [Segment], [Brand], [Vendor]
+                           ORDER BY RowOrder DESC
+                       ) AS rn
+                FROM #DraftOTBUpdates
+            )
+            UPDATE T
+            SET T.[Amount] = U.[Amount],
+                T.[UploadBy] = U.[UploadBy],
+                T.[Batch] = U.[Batch],
+                T.[UpdateDT] = U.[UpdateDT],
+                T.[Version] = U.[Version]"
+
+        If updateRemark Then
+            updateSql &= ",
+                T.[Remark] = U.[Remark]"
+        End If
+
+        updateSql &= "
+            FROM [dbo].[Template_Upload_Draft_OTB] T
+            INNER JOIN LatestUpdates U
+                ON T.[Type] = U.[Type]
+               AND T.[Year] = U.[Year]
+               AND T.[Month] = U.[Month]
+               AND T.[Category] = U.[Category]
+               AND T.[Company] = U.[Company]
+               AND T.[Segment] = U.[Segment]
+               AND T.[Brand] = U.[Brand]
+               AND T.[Vendor] = U.[Vendor]
+            WHERE U.rn = 1
+              AND (T.OTBStatus IS NULL OR T.OTBStatus = 'Draft')"
+
+        Using updateCmd As New SqlCommand(updateSql, conn, transaction)
+            Return updateCmd.ExecuteNonQuery()
+        End Using
+    End Function
+
+    Private Function BuildDraftOTBUpdateTable(updateList As List(Of Dictionary(Of String, Object))) As DataTable
+        Dim table As New DataTable()
+        table.Columns.Add("RowOrder", GetType(Integer))
+        table.Columns.Add("Type", GetType(String))
+        table.Columns.Add("Year", GetType(Integer))
+        table.Columns.Add("Month", GetType(Integer))
+        table.Columns.Add("Category", GetType(String))
+        table.Columns.Add("Company", GetType(String))
+        table.Columns.Add("Segment", GetType(String))
+        table.Columns.Add("Brand", GetType(String))
+        table.Columns.Add("Vendor", GetType(String))
+        table.Columns.Add("Amount", GetType(String))
+        table.Columns.Add("UploadBy", GetType(String))
+        table.Columns.Add("Batch", GetType(String))
+        table.Columns.Add("UpdateDT", GetType(DateTime))
+        table.Columns.Add("Remark", GetType(String))
+        table.Columns.Add("Version", GetType(String))
+
+        For i As Integer = 0 To updateList.Count - 1
+            Dim updateData = updateList(i)
+            Dim row As DataRow = table.NewRow()
+            row("RowOrder") = i
+            row("Type") = updateData("Type")
+            row("Year") = Convert.ToInt32(updateData("Year"))
+            row("Month") = Convert.ToInt32(updateData("Month"))
+            row("Category") = updateData("Category")
+            row("Company") = updateData("Company")
+            row("Segment") = updateData("Segment")
+            row("Brand") = updateData("Brand")
+            row("Vendor") = updateData("Vendor")
+            row("Amount") = updateData("Amount")
+            row("UploadBy") = updateData("UploadBy")
+            row("Batch") = updateData("Batch")
+            row("UpdateDT") = updateData("UpdateDT")
+            row("Remark") = If(updateData.ContainsKey("Remark") AndAlso updateData("Remark") IsNot DBNull.Value, updateData("Remark"), DBNull.Value)
+            row("Version") = updateData("Version")
+            table.Rows.Add(row)
+        Next
+
+        Return table
+    End Function
 
     Public ReadOnly Property IsReusable() As Boolean Implements IHttpHandler.IsReusable
         Get
@@ -846,11 +915,11 @@ Public Class UploadHandler : Implements IHttpHandler
         Return (currentMax + 1).ToString()
     End Function
     ''' <summary>
-    ''' (NEW LOGIC) Calculates the next version (A1, R1...R15) for a key.
+    ''' (NEW LOGIC) Calculates the next version (A1, R1...R15) for an upload year.
     ''' Logic: Checks ONLY OTB_Transaction table by querying the DB.
-    ''' - If key not in OTB_Transaction -> returns "A1".
-    ''' - If key in OTB_Transaction (max is A1) -> returns "R1".
-    ''' - If key in OTB_Transaction (max is R(n)) -> returns "R(n+1)".
+    ''' - If year not in OTB_Transaction -> returns "A1".
+    ''' - If year in OTB_Transaction (max is A1) -> returns "R1".
+    ''' - If year in OTB_Transaction (max is R(n)) -> returns "R(n+1)".
     ''' - Throws exception if next version > R15.
     ''' </summary>
     ''' <returns>The next version string (e.g., "A1", "R2")</returns>
@@ -859,8 +928,7 @@ Public Class UploadHandler : Implements IHttpHandler
                                                  brand As String, vendor As String) As String
         Try
             ' --- [BMS Gem MODIFICATION LOGIC START] ---
-            ' This function NO LONGER uses the 'type' parameter.
-            ' It calculates the version based *only* on OTB_Transaction.
+            ' Version is an annual upload cycle. It intentionally uses Year only.
 
             Dim latestVersionNum As Integer = -1 ' A1 = 0, R1 = 1, R2 = 2
 
@@ -880,22 +948,26 @@ Public Class UploadHandler : Implements IHttpHandler
             Using conn As New SqlConnection(connectionString)
                 conn.Open()
 
-                ' 1. Queryหา Version ล่าสุดจาก OTB_Transaction (Approved History) เท่านั้น
+                ' 1. Query หา Version ล่าสุดจาก OTB_Transaction (Approved History) ของปีเดียวกันเท่านั้น
                 Dim queryApproved As String = "
                     SELECT [Version]
                     FROM [dbo].[OTB_Transaction]
-                    WHERE [Year] = @Year
-                    ORDER BY ISNULL([ApprovedDate], [CreateDate]) DESC, [ID] DESC" ' อ้างอิงจากโค้ดเดิมในไฟล์เดียวกัน
+                    WHERE [OTBStatus] = 'Approved'
+                      AND [Year] = @Year"
 
                 Using cmd As New SqlCommand(queryApproved, conn)
-                    cmd.Parameters.AddWithValue("@Year", year)
+                    cmd.Parameters.Add("@Year", SqlDbType.Int).Value = Convert.ToInt32(year)
 
-
-                    ' เราแค่ต้องการค่าสูงสุดค่าเดียว
-                    Dim lastApprovedVersion As Object = cmd.ExecuteScalar()
-                    If lastApprovedVersion IsNot Nothing AndAlso Not IsDBNull(lastApprovedVersion) Then
-                        latestVersionNum = getVersionNum(lastApprovedVersion.ToString())
-                    End If
+                    Using reader As SqlDataReader = cmd.ExecuteReader()
+                        While reader.Read()
+                            If Not reader.IsDBNull(0) Then
+                                Dim currentVersionNum As Integer = getVersionNum(reader.GetString(0))
+                                If currentVersionNum > latestVersionNum Then
+                                    latestVersionNum = currentVersionNum
+                                End If
+                            End If
+                        End While
+                    End Using
                 End Using
             End Using
 

@@ -40,7 +40,7 @@ Public Class POMatchingHandler
             ' 1.5 ปุ่ม Sync SAP (ใหม่): ทำการ Get July POs and Get DataDB Only
             SyncAndGetPODataByPoNo(context, poNoStr)
         ElseIf action = "get_only" Then
-            ' 2. ปุ่ม View (ใหม่): ดึงข้อมูลอย่างเดียว ไม่ Sync
+            ' 2. ปุ่ม View: ดึงข้อมูลอย่างเดียว ไม่ Sync และไม่อัปเดตสถานะ
             GetPOData(context)
 
         ElseIf action = "submitmatches" Then
@@ -519,67 +519,17 @@ Public Class POMatchingHandler
     End Sub
 
 
-    ' (เปลี่ยน) แยก GetPO ออกมาเป็น Sub
+    ' View only: read current matching data from DB without calling SAP, SP, or UPDATE.
     Private Sub GetPOData(context As HttpContext)
         Try
-            Dim updateBy As String = "System AutoMatchh"
-
-            ' (TODO: ควรดึง User จริงจาก Session)
-            If context.Session IsNot Nothing AndAlso context.Session("user") IsNot Nothing Then
-                updateBy = context.Session("user").ToString()
-            End If
-
-
-            Dim upsertStats As String = ""
-
-            Using conn As New SqlConnection(connectionString)
-                conn.Open()
-
-                ' 4.1 เรียก SP Auto Match (เพื่อจับคู่ Reference)
-                Using cmdMatch As New SqlCommand("SP_Auto_Match_Actual_Draft", conn)
-                    cmdMatch.CommandType = CommandType.StoredProcedure
-                    cmdMatch.Parameters.AddWithValue("@UpdateBy", updateBy)
-                    cmdMatch.ExecuteNonQuery()
-                End Using
-
-                ' 4.2 [NEW LOGIC] อัปเดตสถานะเป็น 'Matching' (เฉพาะที่ยังไม่ Matched)
-                ' อัปเดตตาราง Draft_PO_Transaction
-                Dim sqlUpdateDraft As String = "
-                    UPDATE D
-                    SET D.Status = 'Matching', D.Status_Date = GETDATE(), D.Status_By = @updateBy
-                    FROM [BMS].[dbo].[Draft_PO_Transaction] D
-                    WHERE D.Actual_PO_Ref IS NOT NULL 
-                      AND ISNULL(D.Status, '') NOT IN ('Matched', 'Cancelled')
-                "
-                Using cmd As New SqlCommand(sqlUpdateDraft, conn)
-                    cmd.Parameters.AddWithValue("@updateBy", updateBy)
-                    cmd.ExecuteNonQuery()
-                End Using
-
-                ' อัปเดตตาราง Actual_PO_Summary
-                Dim sqlUpdateActual As String = "
-                    UPDATE A
-                    SET A.Status = 'Matching', A.Matching_Date = GETDATE(), A.Changed_By = @updateBy
-                    FROM [BMS].[dbo].[Actual_PO_Summary] A
-                    WHERE A.Draft_PO_Ref IS NOT NULL
-                      AND ISNULL(A.Status, '') NOT IN ('Matched', 'Cancelled')
-                "
-                Using cmd As New SqlCommand(sqlUpdateActual, conn)
-                    cmd.Parameters.AddWithValue("@updateBy", updateBy)
-                    cmd.ExecuteNonQuery()
-                End Using
-            End Using
-
-            ' 5. [จุดสำคัญ] ดึงข้อมูลผลลัพธ์จากตาราง Actual_PO_Summary โดยตรง
             Dim results As List(Of MatchedPOItem) = GetMatchedDataFromDB()
 
-            ' 6. ส่ง JSON กลับไปที่หน้าจอ
             context.Response.ContentType = "application/json"
             Dim successResponse = New With {
                 .success = True,
                 .count = results.Count,
                 .data = results,
-                .syncStats = upsertStats
+                .syncStats = "View only. No SAP sync or database update performed."
             }
             context.Response.Write(JsonConvert.SerializeObject(successResponse))
 

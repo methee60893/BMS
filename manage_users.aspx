@@ -22,8 +22,70 @@
                 <div class="close-sidebar" id="closeSidebarBtn"><i class="bi bi-x-lg"></i></div>
             </div>
             <ul class="sidebar-menu">
-                <li class="menu-item"><a href="dashboard.aspx" class="menu-link"><i class="bi bi-house"></i> Dashboard</a></li>
-                <li class="menu-item"><a href="manage_users.aspx" class="menu-link active"><i class="bi bi-people"></i> Manage Users</a></li>
+                <li class="menu-item" id="grpmenuOTBPlan" runat="server">
+                    <a href="#" class="menu-link" onclick="toggleSubmenu(event, 'otbPlan')">
+                        <i class="bi bi-clipboard-data"></i>
+                        <span>OTB Plan / Revise</span>
+                        <i class="bi bi-chevron-down"></i>
+                    </a>
+                    <ul class="submenu" id="otbPlan">
+                        <li id="menuDraftOTBPlan" runat="server"><a href="draftOTB.aspx" class="menu-link">Draft OTB Plan</a></li>
+                        <li id="menuApprovedOTBPlan" runat="server"><a href="approvedOTB.aspx" class="menu-link">Approved OTB Plan</a></li>
+                    </ul>
+                </li>
+                <li class="menu-item" id="grpmenuOTBSwitching" runat="server">
+                    <a href="#" class="menu-link" onclick="toggleSubmenu(event, 'otbSwitching')">
+                        <i class="bi bi-arrow-left-right"></i>
+                        <span>OTB Switching</span>
+                        <i class="bi bi-chevron-down"></i>
+                    </a>
+                    <ul class="submenu" id="otbSwitching">
+                        <li id="menuCreateOTBSwitching" runat="server"><a href="createOTBswitching.aspx" class="menu-link">Create OTB Switching</a></li>
+                        <li id="menuSwitchingTransaction" runat="server"><a href="transactionOTBSwitching.aspx" class="menu-link">Switching Transaction</a></li>
+                    </ul>
+                </li>
+                <li class="menu-item" id="grpmenuPO" runat="server">
+                    <a href="#" class="menu-link" onclick="toggleSubmenu(event, 'po')">
+                        <i class="bi bi-file-earmark-text"></i>
+                        <span>PO</span>
+                        <i class="bi bi-chevron-down"></i>
+                    </a>
+                    <ul class="submenu" id="po">
+                        <li id="menuCreateDraftPO" runat="server"><a href="createDraftPO.aspx" class="menu-link">Create Draft PO</a></li>
+                        <li id="menuDraftPO" runat="server"><a href="draftPO.aspx" class="menu-link">Draft PO</a></li>
+                        <li id="menuMatchActualPO" runat="server"><a href="matchActualPO.aspx" class="menu-link">Match Actual PO</a></li>
+                        <li id="menuActualPO" runat="server"><a href="actualPO.aspx" class="menu-link">Actual PO</a></li>
+                    </ul>
+                </li>
+                <li class="menu-item" id="menuOTBRemaining" runat="server">
+                    <a href="otbRemaining.aspx" class="menu-link">
+                        <i class="bi bi-bar-chart-line"></i>
+                        <span>OTB Remaining</span>
+                    </a>
+                </li>
+                <li class="menu-item" id="grpmenuMaster" runat="server">
+                    <a href="#" class="menu-link" onclick="toggleSubmenu(event, 'master')">
+                        <i class="bi bi-database"></i>
+                        <span>Master File</span>
+                        <i class="bi bi-chevron-down"></i>
+                    </a>
+                    <ul class="submenu" id="master">
+                        <li id="menuVendor" runat="server"><a href="master_vendor.aspx" class="menu-link">Master Vendor</a></li>
+                        <li id="menuBrand" runat="server"><a href="master_brand.aspx" class="menu-link">Master Brand</a></li>
+                        <li id="menuCategory" runat="server"><a href="master_category.aspx" class="menu-link">Master Category</a></li>
+                    </ul>
+                </li>
+                <li class="menu-item" id="grpmenuAdmin" runat="server">
+                    <a href="#" class="menu-link" onclick="toggleSubmenu(event, 'adminTools')">
+                        <i class="bi bi-shield-lock"></i>
+                        <span>Admin</span>
+                        <i class="bi bi-chevron-down"></i>
+                    </a>
+                    <ul class="submenu" id="adminTools">
+                        <li id="menuAdminMatchPO" runat="server"><a href="admin_matchPO.aspx" class="menu-link">Admin Match PO</a></li>
+                        <li id="menuManageUsers" runat="server"><a href="manage_users.aspx" class="menu-link active">Manage Users</a></li>
+                    </ul>
+                </li>
                 <li class="menu-item"><a href="default.aspx" class="menu-link"><i class="bi bi-box-arrow-left"></i> Logout</a></li>
             </ul>
         </div>
@@ -242,6 +304,20 @@
                 sidebar.classList.remove('active');
                 overlay.classList.remove('active');
             });
+        }
+
+        function toggleSubmenu(event, submenuId) {
+            event.preventDefault();
+            event.stopPropagation();
+
+            var submenu = document.getElementById(submenuId);
+            if (submenu) {
+                submenu.classList.toggle('show');
+            }
+
+            if (event.currentTarget) {
+                event.currentTarget.classList.toggle('expanded');
+            }
         }
     </script>
 </body>

@@ -18,6 +18,7 @@ Public Class DataOTBHandler
     Implements IHttpHandler
 
     Private Shared connectionString As String = ConfigurationManager.ConnectionStrings("BMSConnectionString")?.ConnectionString
+    Private Const MaxRunNoQueryBatchSize As Integer = 900
     ' *** NEW: Private Class for strong typing in Summary Report ***
     Private Class SummaryRawItem
         Public Property Company As String
@@ -189,6 +190,7 @@ Public Class DataOTBHandler
         ' 1. Get Raw Data
         Dim dtRaw As DataTable = GetOTBDraftDataWithFilter(OTBtype, OTByear, OTBmonth, OTBCompany, OTBCategory, OTBSegment, OTBBrand, OTBVendor)
         Dim budgetCalculator As New OTBBudgetCalculator()
+        Dim budgetCache As New Dictionary(Of String, Decimal)(StringComparer.OrdinalIgnoreCase)
         ' 2. Create Export-formatted DataTable (to match the HTML table)
         Dim dtExport As New DataTable("DraftOTB")
         dtExport.Columns.Add("Create Date", GetType(String))
@@ -224,7 +226,12 @@ Public Class DataOTBHandler
             Dim amountValue As Decimal = 0
             Decimal.TryParse(If(row("Amount") IsNot DBNull.Value, row("Amount").ToString(), ""), amountValue)
 
-            Dim currentBudget As Decimal = budgetCalculator.CalculateCurrentApprovedBudget(OTBYear_Calc, OTBMonth_Calc, OTBCategory_Calc, OTBCompany_Calc, OTBSegment_Calc, OTBBrand_Calc, OTBVendor_Calc)
+            Dim budgetKey As String = BuildOTBBudgetKey(OTBYear_Calc, OTBMonth_Calc, OTBCategory_Calc, OTBCompany_Calc, OTBSegment_Calc, OTBBrand_Calc, OTBVendor_Calc)
+            Dim currentBudget As Decimal = 0
+            If Not budgetCache.TryGetValue(budgetKey, currentBudget) Then
+                currentBudget = budgetCalculator.CalculateCurrentApprovedBudget(OTBYear_Calc, OTBMonth_Calc, OTBCategory_Calc, OTBCompany_Calc, OTBSegment_Calc, OTBBrand_Calc, OTBVendor_Calc)
+                budgetCache(budgetKey) = currentBudget
+            End If
             Dim diffAmount As Decimal = amountValue - currentBudget
             Dim OTBStatus As String = If(row("OTBStatus") IsNot DBNull.Value, row("OTBStatus").ToString(), "Draft")
 
@@ -429,6 +436,7 @@ Public Class DataOTBHandler
     Private Function GenerateHtmlDraftTable(dt As DataTable) As String
         Dim sb As New StringBuilder()
         Dim budgetCalculator As New OTBBudgetCalculator()
+        Dim budgetCache As New Dictionary(Of String, Decimal)(StringComparer.OrdinalIgnoreCase)
         If dt.Rows.Count = 0 Then
             sb.Append("<tr><td colspan='21' class='text-center text-muted'>No Draft OTB records found</td></tr>")
         Else
@@ -457,7 +465,12 @@ Public Class DataOTBHandler
                 If Decimal.TryParse(If(dt.Rows(i)("Amount") IsNot DBNull.Value, dt.Rows(i)("Amount").ToString(), ""), amountValue) Then
                     Amount = amountValue.ToString("N2")
                 End If
-                Dim currentBudget As Decimal = budgetCalculator.CalculateCurrentApprovedBudget(OTBYear, OTBMonth, OTBCategory, OTBCompany, OTBSegment, OTBBrand, OTBVendor)
+                Dim budgetKey As String = BuildOTBBudgetKey(OTBYear, OTBMonth, OTBCategory, OTBCompany, OTBSegment, OTBBrand, OTBVendor)
+                Dim currentBudget As Decimal = 0
+                If Not budgetCache.TryGetValue(budgetKey, currentBudget) Then
+                    currentBudget = budgetCalculator.CalculateCurrentApprovedBudget(OTBYear, OTBMonth, OTBCategory, OTBCompany, OTBSegment, OTBBrand, OTBVendor)
+                    budgetCache(budgetKey) = currentBudget
+                End If
                 CurrentBudgetAmount = currentBudget.ToString("N2")
 
                 Dim diffamout As Decimal = amountValue - currentBudget
@@ -513,10 +526,15 @@ Public Class DataOTBHandler
                             If(OTBStatus.Equals("Draft"), "<span class=""badge-draft"">Draft</span>", "<span class=""badge-approved"">Approved</span>"),
                             HttpUtility.HtmlEncode(Version),
                             HttpUtility.HtmlEncode(Remark),
-                            HttpUtility.HtmlEncode(CreateBy))
+                             HttpUtility.HtmlEncode(CreateBy))
             Next
+
         End If
         Return sb.ToString()
+    End Function
+
+    Private Function BuildOTBBudgetKey(year As String, month As String, category As String, company As String, segment As String, brand As String, vendor As String) As String
+        Return String.Join("|", New String() {year, month, category, company, segment, brand, vendor})
     End Function
     Private Function GenerateHtmlApprovedTable(dt As DataTable) As String
         Dim sb As New StringBuilder()
@@ -747,9 +765,9 @@ Public Class DataOTBHandler
         Using conn As New SqlConnection(connectionString)
             conn.Open()
             Dim query As String = "SELECT  [RunNo]
-                                          ,[OTBVendor]
-                                          ,[Vendor]
-                                          ,[OTBCompany]
+                                           ,[OTBVendor]
+                                           ,[Vendor]
+                                           ,[OTBCompany]
                                           ,[CompanyName]
                                           ,[OTBMonth]
                                           ,[month_name_sh]
@@ -765,19 +783,19 @@ Public Class DataOTBHandler
                                           ,[Batch]
                                           ,[CreateDT]
                                           ,[UploadBy]
-                                          ,[Remark]
-                                          ,[Version]
-                                          ,[OTBStatus]
-                                      FROM [BMS].[dbo].[View_OTB_Draft]
-                                      WHERE (@OTBtype = '' OR OTBType = @OTBtype)
-                                      AND (@OTByear = '' OR OTBYear = @OTByear)
+                                           ,[Remark]
+                                           ,[Version]
+                                           ,[OTBStatus]
+                                       FROM [BMS].[dbo].[View_OTB_Draft]
+                                       WHERE (@OTBtype = '' OR OTBType = @OTBtype)
+                                       AND (@OTByear = '' OR OTBYear = @OTByear)
                                       AND (@OTBmonth = '' OR OTBMonth = @OTBmonth)
                                       AND (@OTBCompany = '' OR OTBCompany = @OTBCompany)
                                       AND (@OTBCategory = '' OR OTBCategory = @OTBCategory)
-                                      AND (@OTBSegment = '' OR OTBSegment = @OTBSegment)
-                                      AND (@OTBBrand = '' OR OTBBrand = @OTBBrand)
-                                      AND (@OTBVendor = '' OR OTBVendor = @OTBVendor)
-                                      ORDER BY CreateDT DESC
+                                       AND (@OTBSegment = '' OR OTBSegment = @OTBSegment)
+                                       AND (@OTBBrand = '' OR OTBBrand = @OTBBrand)
+                                       AND (@OTBVendor = '' OR OTBVendor = @OTBVendor)
+                                       ORDER BY CreateDT DESC
                                     "
             Using cmd As New SqlCommand(query, conn)
                 cmd.Parameters.AddWithValue("@OTBtype", OTBtype)
@@ -828,24 +846,8 @@ Public Class DataOTBHandler
                 Throw New Exception("No records selected for approval.")
             End If
 
-            ' 2. Convert IDs to List(Of Integer) (Same as original code)
-            Dim runNos As New List(Of Integer)
-            Try
-                Dim jsonArray As List(Of String) = JsonConvert.DeserializeObject(Of List(Of String))(idsString)
-                For Each idStr As String In jsonArray
-                    Dim id As Integer
-                    If Integer.TryParse(idStr.Trim(), id) Then
-                        runNos.Add(id)
-                    End If
-                Next
-            Catch jsonEx As Exception
-                For Each idStr As String In idsString.Split(","c)
-                    Dim id As Integer
-                    If Integer.TryParse(idStr.Trim().Replace("""", ""), id) Then
-                        runNos.Add(id)
-                    End If
-                Next
-            End Try
+            ' 2. Convert IDs to List(Of Integer)
+            Dim runNos As List(Of Integer) = ParseRunNos(idsString)
 
             If runNos.Count = 0 Then
                 Throw New Exception("No valid RunNos provided.")
@@ -1045,11 +1047,11 @@ Public Class DataOTBHandler
                                     "
 
                                     Using cmdUpdate As New SqlCommand(updateQuery, conn, transaction)
-                                        cmdUpdate.Parameters.AddWithValue("@OTBStatus", "Approved")
-                                        cmdUpdate.Parameters.AddWithValue("@ApprovedBy", approvedBy)
-                                        cmdUpdate.Parameters.AddWithValue("@SAPStatus", successResult.MessageType)
-                                        cmdUpdate.Parameters.AddWithValue("@SAPErrorMessage", If(String.IsNullOrEmpty(successResult.Message), DBNull.Value, successResult.Message))
-                                        cmdUpdate.Parameters.AddWithValue("@RunNo", runNoToUpdate)
+                                        AddNVarCharParameter(cmdUpdate, "@OTBStatus", "Approved", 30, "OTBStatus")
+                                        AddNVarCharParameter(cmdUpdate, "@ApprovedBy", approvedBy, 100, "ApprovedBy")
+                                        AddNVarCharParameter(cmdUpdate, "@SAPStatus", successResult.MessageType, 10, "SAPStatus")
+                                        AddNVarCharParameter(cmdUpdate, "@SAPErrorMessage", If(String.IsNullOrEmpty(successResult.Message), DBNull.Value, successResult.Message), 1000, "SAPErrorMessage")
+                                        cmdUpdate.Parameters.Add("@RunNo", SqlDbType.Int).Value = runNoToUpdate
                                         updateCount += cmdUpdate.ExecuteNonQuery()
                                     End Using
 
@@ -1068,6 +1070,8 @@ Public Class DataOTBHandler
                                         Dim calc_Amount As Decimal = Convert.ToDecimal(approvedRow("Amount"))
                                         Dim calc_Type As String = approvedRow("OTBType").ToString()
                                         Dim calc_Version As String = approvedRow("Version").ToString()
+                                        Dim calc_YearNumber As Integer = ParseRequiredInteger(calc_Year, "Year")
+                                        Dim calc_MonthNumber As Integer = ParseRequiredInteger(calc_Month, "Month")
 
                                         Dim revisedDiffValue As Decimal = 0
                                         If calc_Type.Equals("Revise", StringComparison.OrdinalIgnoreCase) Then
@@ -1131,31 +1135,35 @@ Public Class DataOTBHandler
 
                                         Using cmdMerge As New SqlCommand(mergeQuery, conn, transaction)
                                             ' Key Parameters (for ON clause)
-                                            cmdMerge.Parameters.AddWithValue("@Type", approvedRow("OTBType"))
-                                            cmdMerge.Parameters.AddWithValue("@Year", approvedRow("OTBYear"))
-                                            cmdMerge.Parameters.AddWithValue("@Month", approvedRow("OTBMonth"))
-                                            cmdMerge.Parameters.AddWithValue("@Category", approvedRow("OTBCategory"))
-                                            cmdMerge.Parameters.AddWithValue("@Company", approvedRow("OTBCompany"))
-                                            cmdMerge.Parameters.AddWithValue("@Segment", approvedRow("OTBSegment"))
-                                            cmdMerge.Parameters.AddWithValue("@Brand", approvedRow("OTBBrand"))
-                                            cmdMerge.Parameters.AddWithValue("@Vendor", approvedRow("OTBVendor"))
-                                            cmdMerge.Parameters.AddWithValue("@Version", approvedRow("Version"))
+                                            AddNVarCharParameter(cmdMerge, "@Type", calc_Type, 20, "Type")
+                                            cmdMerge.Parameters.Add("@Year", SqlDbType.Int).Value = calc_YearNumber
+                                            cmdMerge.Parameters.Add("@Month", SqlDbType.Int).Value = calc_MonthNumber
+                                            AddNVarCharParameter(cmdMerge, "@Category", calc_Category, 20, "Category")
+                                            AddNVarCharParameter(cmdMerge, "@Company", calc_Company, 20, "Company")
+                                            AddNVarCharParameter(cmdMerge, "@Segment", calc_Segment, 20, "Segment")
+                                            AddNVarCharParameter(cmdMerge, "@Brand", calc_Brand, 30, "Brand")
+                                            AddNVarCharParameter(cmdMerge, "@Vendor", calc_Vendor, 30, "Vendor")
+                                            AddNVarCharParameter(cmdMerge, "@Version", calc_Version, 20, "Version")
 
                                             ' Data Parameters (for INSERT/UPDATE)
-                                            cmdMerge.Parameters.AddWithValue("@Amount", calc_Amount)
-                                            cmdMerge.Parameters.AddWithValue("@RevisedDiff", revisedDiffValue)
-                                            cmdMerge.Parameters.AddWithValue("@Remark", approvedRow("Remark"))
-                                            cmdMerge.Parameters.AddWithValue("@ActionBy", approvedBy)
-                                            cmdMerge.Parameters.AddWithValue("@DraftID", runNoToUpdate)
-                                            cmdMerge.Parameters.AddWithValue("@SAPStatus", successResult.MessageType)
-                                            cmdMerge.Parameters.AddWithValue("@SAPErrorMessage", If(String.IsNullOrEmpty(successResult.Message), DBNull.Value, successResult.Message))
+                                            cmdMerge.Parameters.Add("@Amount", SqlDbType.Decimal).Value = calc_Amount
+                                            cmdMerge.Parameters("@Amount").Precision = 18
+                                            cmdMerge.Parameters("@Amount").Scale = 2
+                                            cmdMerge.Parameters.Add("@RevisedDiff", SqlDbType.Decimal).Value = revisedDiffValue
+                                            cmdMerge.Parameters("@RevisedDiff").Precision = 18
+                                            cmdMerge.Parameters("@RevisedDiff").Scale = 2
+                                            AddNVarCharParameter(cmdMerge, "@Remark", approvedRow("Remark"), 500, "Remark")
+                                            AddNVarCharParameter(cmdMerge, "@ActionBy", approvedBy, 100, "ActionBy")
+                                            cmdMerge.Parameters.Add("@DraftID", SqlDbType.Int).Value = runNoToUpdate
+                                            AddNVarCharParameter(cmdMerge, "@SAPStatus", successResult.MessageType, 10, "SAPStatus")
+                                            AddNVarCharParameter(cmdMerge, "@SAPErrorMessage", If(String.IsNullOrEmpty(successResult.Message), DBNull.Value, successResult.Message), 1000, "SAPErrorMessage")
 
 
                                             ' Parameters for UPDATE/INSERT (Names)
-                                            cmdMerge.Parameters.AddWithValue("@CategoryName", approvedRow("CateName"))
-                                            cmdMerge.Parameters.AddWithValue("@SegmentName", approvedRow("SegmentName"))
-                                            cmdMerge.Parameters.AddWithValue("@BrandName", approvedRow("BrandName"))
-                                            cmdMerge.Parameters.AddWithValue("@VendorName", approvedRow("Vendor"))
+                                            AddNVarCharParameter(cmdMerge, "@CategoryName", approvedRow("CateName"), 200, "CategoryName")
+                                            AddNVarCharParameter(cmdMerge, "@SegmentName", approvedRow("SegmentName"), 200, "SegmentName")
+                                            AddNVarCharParameter(cmdMerge, "@BrandName", approvedRow("BrandName"), 200, "BrandName")
+                                            AddNVarCharParameter(cmdMerge, "@VendorName", approvedRow("Vendor"), 200, "VendorName")
 
                                             cmdMerge.ExecuteNonQuery()
                                         End Using
@@ -1201,6 +1209,56 @@ Public Class DataOTBHandler
             context.Response.StatusCode = 200
             context.Response.Write(JsonConvert.SerializeObject(responseJson))
         End Try
+    End Sub
+
+    Private Function ParseRunNos(idsString As String) As List(Of Integer)
+        Dim runNos As New List(Of Integer)()
+        Dim seen As New HashSet(Of Integer)()
+
+        Try
+            Dim jsonArray As List(Of Object) = JsonConvert.DeserializeObject(Of List(Of Object))(idsString)
+            For Each idValue As Object In jsonArray
+                AddRunNo(If(idValue, "").ToString(), runNos, seen)
+            Next
+        Catch jsonEx As Exception
+            For Each idStr As String In idsString.Split(","c)
+                AddRunNo(idStr.Replace("""", ""), runNos, seen)
+            Next
+        End Try
+
+        Return runNos
+    End Function
+
+    Private Sub AddRunNo(idText As String, runNos As List(Of Integer), seen As HashSet(Of Integer))
+        Dim id As Integer
+        If Integer.TryParse(If(idText, "").Trim(), id) AndAlso id > 0 AndAlso Not seen.Contains(id) Then
+            seen.Add(id)
+            runNos.Add(id)
+        End If
+    End Sub
+
+    Private Function ParseRequiredInteger(value As String, fieldName As String) As Integer
+        Dim parsed As Integer
+        If Integer.TryParse(If(value, "").Trim(), parsed) Then
+            Return parsed
+        End If
+
+        Throw New Exception(fieldName & " must be a valid number.")
+    End Function
+
+    Private Sub AddNVarCharParameter(cmd As SqlCommand, parameterName As String, value As Object, size As Integer, displayName As String)
+        Dim parameter As SqlParameter = cmd.Parameters.Add(parameterName, SqlDbType.NVarChar, size)
+        If value Is Nothing OrElse value Is DBNull.Value Then
+            parameter.Value = DBNull.Value
+            Return
+        End If
+
+        Dim text As String = value.ToString()
+        If text.Length > size Then
+            Throw New Exception($"{displayName} is too long for database column ({text.Length}/{size} characters).")
+        End If
+
+        parameter.Value = text
     End Sub
     ' ===================================================================
     ' ===== END: REPLACEMENT LOGIC ======================================
@@ -1300,43 +1358,47 @@ Public Class DataOTBHandler
             Return dt
         End If
 
-        Dim paramNames As New List(Of String)()
-        For i As Integer = 0 To runNos.Count - 1
-            paramNames.Add($"@p{i}")
-        Next
-
-        ' ===== MODIFIED QUERY (เพิ่ม [RunNo] และ Join Master Data เพื่อ Preview) =====
-        Dim query As String = $"
-            SELECT DISTINCT
-                d.RunNo, d.Version, d.OTBCompany, d.OTBCategory, d.OTBVendor, 
-                d.OTBSegment, d.OTBBrand, d.Amount, d.OTBYear, 
-                d.OTBMonth, d.Remark, d.OTBType,
-                c.Category AS CateName,
-                co.CompanyNameShort AS CompanyName,
-                s.SegmentName,
-                b.[Brand Name] AS BrandName,
-                v.Vendor
-            FROM [BMS].[dbo].[View_OTB_Draft] d
-            LEFT JOIN [dbo].[MS_Category] c ON d.OTBCategory = c.Cate
-            LEFT JOIN [dbo].[MS_Company] co ON d.OTBCompany = co.CompanyCode
-            LEFT JOIN [dbo].[MS_Segment] s ON d.OTBSegment = s.SegmentCode
-            LEFT JOIN [dbo].[MS_Brand] b ON d.OTBBrand = b.[Brand Code]
-            LEFT JOIN [dbo].[MS_Vendor] v ON d.OTBVendor = v.VendorCode AND d.OTBSegment = v.SegmentCode
-            WHERE d.RunNo IN ({String.Join(",", paramNames)})"
-        ' ===== END: MODIFIED QUERY =====
-
         Using conn As New SqlConnection(connectionString)
             conn.Open()
-            Using cmd As New SqlCommand(query, conn)
-                For i As Integer = 0 To runNos.Count - 1
-                    cmd.Parameters.AddWithValue(paramNames(i), runNos(i))
+
+            For batchStart As Integer = 0 To runNos.Count - 1 Step MaxRunNoQueryBatchSize
+                Dim batchCount As Integer = Math.Min(MaxRunNoQueryBatchSize, runNos.Count - batchStart)
+                Dim paramNames As New List(Of String)()
+                For i As Integer = 0 To batchCount - 1
+                    paramNames.Add("@p" & i.ToString())
                 Next
 
-                Using reader As SqlDataReader = cmd.ExecuteReader()
-                    dt.Load(reader)
+                ' Keep each SELECT well below SQL Server's 2,100 parameter limit.
+                Dim query As String = $"
+                    SELECT DISTINCT
+                        d.RunNo, d.Version, d.OTBCompany, d.OTBCategory, d.OTBVendor,
+                        d.OTBSegment, d.OTBBrand, d.Amount, d.OTBYear,
+                        d.OTBMonth, d.Remark, d.OTBType,
+                        c.Category AS CateName,
+                        co.CompanyNameShort AS CompanyName,
+                        s.SegmentName,
+                        b.[Brand Name] AS BrandName,
+                        v.Vendor
+                    FROM [BMS].[dbo].[View_OTB_Draft] d
+                    LEFT JOIN [dbo].[MS_Category] c ON d.OTBCategory = c.Cate
+                    LEFT JOIN [dbo].[MS_Company] co ON d.OTBCompany = co.CompanyCode
+                    LEFT JOIN [dbo].[MS_Segment] s ON d.OTBSegment = s.SegmentCode
+                    LEFT JOIN [dbo].[MS_Brand] b ON d.OTBBrand = b.[Brand Code]
+                    LEFT JOIN [dbo].[MS_Vendor] v ON d.OTBVendor = v.VendorCode AND d.OTBSegment = v.SegmentCode
+                    WHERE d.RunNo IN ({String.Join(",", paramNames)})"
+
+                Using cmd As New SqlCommand(query, conn)
+                    For i As Integer = 0 To batchCount - 1
+                        cmd.Parameters.Add(paramNames(i), SqlDbType.Int).Value = runNos(batchStart + i)
+                    Next
+
+                    Using adapter As New SqlDataAdapter(cmd)
+                        adapter.Fill(dt)
+                    End Using
                 End Using
-            End Using
+            Next
         End Using
+
         Return dt
     End Function
     ' ===================================================================

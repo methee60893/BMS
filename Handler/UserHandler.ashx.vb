@@ -5,12 +5,19 @@ Imports System.Data.SqlClient
 Imports System.Web.Script.Serialization
 Imports System.Collections.Generic
 Imports System.Configuration
+Imports System.Web.SessionState
 
-Public Class UserHandler : Implements IHttpHandler
+Public Class UserHandler : Implements IHttpHandler, IRequiresSessionState
     Private connectionString As String = ConfigurationManager.ConnectionStrings("BMSConnectionString").ConnectionString
 
     Public Sub ProcessRequest(ByVal context As HttpContext) Implements IHttpHandler.ProcessRequest
         context.Response.ContentType = "application/json"
+        If Not IsAdminRequest(context) Then
+            context.Response.StatusCode = 403
+            context.Response.Write(New JavaScriptSerializer().Serialize(New With {.success = False, .message = "Forbidden"}))
+            Return
+        End If
+
         Dim action As String = context.Request("action")
 
         If action = "getUsers" Then
@@ -83,6 +90,18 @@ Public Class UserHandler : Implements IHttpHandler
         End Using
         context.Response.Write(New JavaScriptSerializer().Serialize(New With {.success = True, .message = "User updated successfully"}))
     End Sub
+
+    Private Function IsAdminRequest(context As HttpContext) As Boolean
+        If context Is Nothing OrElse context.Session Is Nothing Then
+            Return False
+        End If
+
+        If context.Session("user") Is Nothing Then
+            Return False
+        End If
+
+        Return PermissionHelper.IsAdminRole(context.Session("UserRole"))
+    End Function
 
     Public ReadOnly Property IsReusable() As Boolean Implements IHttpHandler.IsReusable
         Get

@@ -24,7 +24,7 @@
         </button>
     </div>
     <ul class="sidebar-menu">
-        <li class="menu-item">
+        <li class="menu-item" id="grpmenuOTBPlan" runat="server">
             <a href="#" class="menu-link" onclick="toggleSubmenu(event, 'otbPlan')">
                 <i class="bi bi-clipboard-data"></i>
                 <span>OTB Plan / Revise</span>
@@ -35,7 +35,7 @@
                 <li id="menuApprovedOTBPlan" runat="server" ><a href="approvedOTB.aspx" class="menu-link">Approved OTB Plan</a></li>
             </ul>
         </li>
-        <li class="menu-item">
+        <li class="menu-item" id="grpmenuOTBSwitching" runat="server">
             <a href="#" class="menu-link" onclick="toggleSubmenu(event, 'otbSwitching')">
                 <i class="bi bi-arrow-left-right"></i>
                 <span>OTB Switching</span>
@@ -59,7 +59,7 @@
                 <li id="menuActualPO" runat="server" ><a href="actualPO.aspx" class="menu-link">Actual PO</a></li>
             </ul>
         </li>
-        <li class="menu-item">
+        <li class="menu-item" id="menuOTBRemaining" runat="server">
             <a href="otbRemaining.aspx" class="menu-link">
                 <i class="bi bi-bar-chart-line"></i>
                 <span>OTB Remaining</span>
@@ -75,6 +75,17 @@
                  <li id="menuVendor" runat="server" ><a href="master_vendor.aspx" class="menu-link">Master Vendor</a></li>
                  <li id="menuBrand" runat="server" ><a href="master_brand.aspx" class="menu-link">Master Brand</a></li>
                  <li id="menuCategory" runat="server" ><a href="master_category.aspx" class="menu-link active">Master Category</a></li>
+            </ul>
+        </li>
+        <li class="menu-item" id="grpmenuAdmin" runat="server">
+            <a href="#" class="menu-link" onclick="toggleSubmenu(event, 'adminTools')">
+                <i class="bi bi-shield-lock"></i>
+                <span>Admin</span>
+                <i class="bi bi-chevron-down"></i>
+            </a>
+            <ul class="submenu" id="adminTools">
+                <li id="menuAdminMatchPO" runat="server"><a href="admin_matchPO.aspx" class="menu-link">Admin Match PO</a></li>
+                <li id="menuManageUsers" runat="server"><a href="manage_users.aspx" class="menu-link">Manage Users</a></li>
             </ul>
         </li>
         <li class="menu-item"><a href="default.aspx" class="menu-link"><i class="bi bi-box-arrow-left"></i> Logout</a></li>
@@ -138,7 +149,7 @@
 
                 <!-- Export Button -->
                 <div class="export-section">
-                    <asp:Button ID="btnExport" runat="server" Text="📊 Export to Excel" CssClass="btn btn-export btn-custom" OnClick="btnExport_Click" />
+                    <asp:Button ID="btnExport" runat="server" Text="📊 Export to Excel" CssClass="btn btn-export btn-custom" OnClick="btnExport_Click" OnClientClick="BMSLoading.show('Exporting Category Master...', 'Preparing Excel file'); setTimeout(function () { BMSLoading.hide(); }, 10000);" />
                 </div>
 
                 <!-- Data Table -->
@@ -206,13 +217,17 @@
         </div>
         <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
         <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+        <script src="script/bms-loading.js"></script>
         <script type="text/javascript">
 
             let categoryModal; // ตัวแปรสำหรับ Bootstrap Modal Instance
 
             function showLoading(show) {
-                console.log(show ? "Loading..." : "Done.");
-                // (สามารถเพิ่ม Logic การแสดง Loading overlay ที่นี่)
+                if (show) {
+                    BMSLoading.show('Loading Category Master...', 'Please wait');
+                } else {
+                    BMSLoading.hide();
+                }
             }
 
             function toggleSidebar() {

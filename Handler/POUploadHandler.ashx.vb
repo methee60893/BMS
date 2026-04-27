@@ -83,17 +83,25 @@ Public Class POUploadHandler
 
             ' 1. แปลง JSON กลับเป็น List Object
             Dim selectedRows = JsonConvert.DeserializeObject(Of List(Of FrontendPORow))(jsonStr)
+            If selectedRows Is Nothing OrElse selectedRows.Count = 0 Then
+                Throw New Exception("No selected rows received.")
+            End If
+
             Dim itemsToSave As New List(Of POValidate.DraftPOItem)
 
-            For Each row In selectedRows
+            For i As Integer = 0 To selectedRows.Count - 1
+                Dim row = selectedRows(i)
+                Dim amountTHB As Decimal = row.AmountCCY * row.ExRate
+
                 itemsToSave.Add(New POValidate.DraftPOItem With {
+                    .RowIndex = i + 1,
                     .DraftPO_ID = 0,
                     .PO_Year = row.Year, .PO_Month = row.Month,
                     .Company_Code = row.Company, .Category_Code = row.Category,
                     .Segment_Code = row.Segment, .Brand_Code = row.Brand,
                     .Vendor_Code = row.Vendor, .PO_No = row.DraftPONo,
                     .Currency = row.CCY, .Amount_CCY = row.AmountCCY,
-                    .ExchangeRate = row.ExRate, .Amount_THB = row.AmountTHB
+                    .ExchangeRate = row.ExRate, .Amount_THB = amountTHB
                 })
             Next
 
@@ -102,50 +110,40 @@ Public Class POUploadHandler
             Dim valResult As POValidate.ValidationResult = validator.ValidateBatch(itemsToSave)
 
             If Not valResult.IsValid Then
-                Dim errorMsg As String = valResult.GlobalError
-                If valResult.RowErrors.Count > 0 Then errorMsg &= " (Data verification failed on server side)"
+                Dim errorMessages As New List(Of String)()
+                If Not String.IsNullOrWhiteSpace(valResult.GlobalError) Then
+                    errorMessages.Add(valResult.GlobalError)
+                End If
+                For Each rowError In valResult.RowErrors
+                    errorMessages.Add($"Row {rowError.Key}: {String.Join(", ", rowError.Value)}")
+                Next
+
+                Dim errorMsg As String = If(errorMessages.Count > 0, String.Join(" | ", errorMessages), "Data verification failed on server side.")
                 SendJsonResponse(context, False, errorMsg)
                 Return
             End If
 
-            ' 3. Save to Database (ใช้ SqlTransaction แทน TransactionScope)
-            Dim successCount As Integer = 0
+            ' 3. Save to Database (ใช้ SqlBulkCopy ภายใต้ SqlTransaction)
+            Dim bulkTable As DataTable = BuildDraftPOBulkTable(itemsToSave, uploadBy)
 
             Using conn As New SqlConnection(connectionString)
                 conn.Open()
                 ' เริ่ม Transaction
                 Using trans As SqlTransaction = conn.BeginTransaction()
                     Try
-                        For Each item In itemsToSave
-                            Dim query As String = "INSERT INTO [BMS].[dbo].[Draft_PO_Transaction] " &
-                                                  "([DraftPO_No], [PO_Year], [PO_Month], [Company_Code], [Category_Code], [Segment_Code], [Brand_Code], [Vendor_Code], " &
-                                                  "[CCY], [Exchange_Rate], [Amount_CCY], [Amount_THB], " &
-                                                  "[PO_Type], [Status], [Status_Date], [Status_By], [Remark], [Created_By], [Created_Date]) " &
-                                                  "VALUES " &
-                                                  "(@pono, @year, @month, @company, @category, @segment, @brand, @vendor, " &
-                                                  "@ccy, @exRate, @amtCCY, @amtTHB, " &
-                                                  "'Upload', 'Draft', GETDATE(), @user, NULL, @user, GETDATE())"
+                        If bulkTable.Rows.Count > 0 Then
+                            Using bulkCopy As New SqlBulkCopy(conn, SqlBulkCopyOptions.Default, trans)
+                                bulkCopy.DestinationTableName = "[dbo].[Draft_PO_Transaction]"
+                                bulkCopy.BatchSize = Math.Min(bulkTable.Rows.Count, 1000)
+                                bulkCopy.BulkCopyTimeout = 300
 
-                            ' ต้องส่ง trans เข้าไปใน SqlCommand ด้วย
-                            Using cmd As New SqlCommand(query, conn, trans)
-                                cmd.Parameters.AddWithValue("@pono", item.PO_No.Replace(" ", ""))
-                                cmd.Parameters.AddWithValue("@year", item.PO_Year)
-                                cmd.Parameters.AddWithValue("@month", item.PO_Month)
-                                cmd.Parameters.AddWithValue("@company", item.Company_Code)
-                                cmd.Parameters.AddWithValue("@category", item.Category_Code)
-                                cmd.Parameters.AddWithValue("@segment", item.Segment_Code)
-                                cmd.Parameters.AddWithValue("@brand", item.Brand_Code)
-                                cmd.Parameters.AddWithValue("@vendor", item.Vendor_Code)
-                                cmd.Parameters.AddWithValue("@ccy", item.Currency)
-                                cmd.Parameters.AddWithValue("@exRate", item.ExchangeRate)
-                                cmd.Parameters.AddWithValue("@amtCCY", item.Amount_CCY)
-                                cmd.Parameters.AddWithValue("@amtTHB", item.Amount_THB)
-                                cmd.Parameters.AddWithValue("@user", uploadBy)
-                                cmd.ExecuteNonQuery()
+                                For Each col As DataColumn In bulkTable.Columns
+                                    bulkCopy.ColumnMappings.Add(col.ColumnName, col.ColumnName)
+                                Next
+
+                                bulkCopy.WriteToServer(bulkTable)
                             End Using
-                            successCount += 1
-                        Next
-
+                        End If
                         ' ถ้าทุกอย่างผ่าน ให้ Commit
                         trans.Commit()
 
@@ -190,23 +188,26 @@ Public Class POUploadHandler
             Dim statusIcon As String = If(isError, "<i class='bi bi-x-circle text-danger'></i>", "<i class='bi bi-check-circle text-success'></i>")
             Dim msg As String = If(isError, String.Join(", ", result.RowErrors(item.RowIndex)), "Ready")
             Dim disabled As String = If(isError, "disabled", "")
+            Dim exRateText As String = item.ExchangeRate.ToString(Globalization.CultureInfo.InvariantCulture)
+            Dim amountCCYText As String = item.Amount_CCY.ToString(Globalization.CultureInfo.InvariantCulture)
+            Dim amountTHBText As String = item.Amount_THB.ToString(Globalization.CultureInfo.InvariantCulture)
 
-            Dim dataAttrs As String = $"data-pono='{item.PO_No}' data-year='{item.PO_Year}' data-month='{item.PO_Month}' " &
-                                      $"data-company='{item.Company_Code}' data-category='{item.Category_Code}' " &
-                                      $"data-segment='{item.Segment_Code}' data-brand='{item.Brand_Code}' " &
-                                      $"data-vendor='{item.Vendor_Code}' data-ccy='{item.Currency}' " &
-                                      $"data-exrate='{item.ExchangeRate}' data-amountccy='{item.Amount_CCY}' " &
-                                      $"data-amountthb='{item.Amount_THB}'"
+            Dim dataAttrs As String = $"data-pono=""{EncodeAttribute(item.PO_No)}"" data-year=""{EncodeAttribute(item.PO_Year)}"" data-month=""{EncodeAttribute(item.PO_Month)}"" " &
+                                      $"data-company=""{EncodeAttribute(item.Company_Code)}"" data-category=""{EncodeAttribute(item.Category_Code)}"" " &
+                                      $"data-segment=""{EncodeAttribute(item.Segment_Code)}"" data-brand=""{EncodeAttribute(item.Brand_Code)}"" " &
+                                      $"data-vendor=""{EncodeAttribute(item.Vendor_Code)}"" data-ccy=""{EncodeAttribute(item.Currency)}"" " &
+                                      $"data-exrate=""{EncodeAttribute(exRateText)}"" data-amountccy=""{EncodeAttribute(amountCCYText)}"" " &
+                                      $"data-amountthb=""{EncodeAttribute(amountTHBText)}"""
 
             sb.Append($"<tr class='{rowClass}'>")
             sb.Append($"<td class='text-center'><input type='checkbox' name='selectedRows' {disabled} {dataAttrs} checked ></td>")
             sb.Append($"<td>{item.RowIndex}</td>")
             sb.Append($"<td class='text-center'>{statusIcon}</td>")
-            sb.Append($"<td>{msg}</td>")
-            sb.Append($"<td>{item.PO_No}</td>")
-            sb.Append($"<td>{item.PO_Year}</td>")
-            sb.Append($"<td>{item.PO_Month}</td>")
-            sb.Append($"<td>{item.Vendor_Code}</td>")
+            sb.Append($"<td>{EncodeHtml(msg)}</td>")
+            sb.Append($"<td>{EncodeHtml(item.PO_No)}</td>")
+            sb.Append($"<td>{EncodeHtml(item.PO_Year)}</td>")
+            sb.Append($"<td>{EncodeHtml(item.PO_Month)}</td>")
+            sb.Append($"<td>{EncodeHtml(item.Vendor_Code)}</td>")
             sb.Append($"<td class='text-end'>{item.Amount_THB:N2}</td>")
             sb.Append("</tr>")
         Next
@@ -216,10 +217,68 @@ Public Class POUploadHandler
         Return sb.ToString()
     End Function
 
+    Private Function EncodeHtml(value As Object) As String
+        Return HttpUtility.HtmlEncode(If(value, "").ToString())
+    End Function
+
+    Private Function EncodeAttribute(value As Object) As String
+        Return HttpUtility.HtmlAttributeEncode(If(value, "").ToString())
+    End Function
+
     Private Sub SendJsonResponse(context As HttpContext, success As Boolean, message As String)
         Dim resp = New With {.success = success, .message = message}
         context.Response.Write(JsonConvert.SerializeObject(resp))
     End Sub
+
+    Private Function BuildDraftPOBulkTable(items As List(Of POValidate.DraftPOItem), uploadBy As String) As DataTable
+        Dim table As New DataTable()
+        table.Columns.Add("DraftPO_No", GetType(String))
+        table.Columns.Add("PO_Year", GetType(Integer))
+        table.Columns.Add("PO_Month", GetType(Integer))
+        table.Columns.Add("Company_Code", GetType(String))
+        table.Columns.Add("Category_Code", GetType(String))
+        table.Columns.Add("Segment_Code", GetType(String))
+        table.Columns.Add("Brand_Code", GetType(String))
+        table.Columns.Add("Vendor_Code", GetType(String))
+        table.Columns.Add("CCY", GetType(String))
+        table.Columns.Add("Exchange_Rate", GetType(Decimal))
+        table.Columns.Add("Amount_CCY", GetType(Decimal))
+        table.Columns.Add("Amount_THB", GetType(Decimal))
+        table.Columns.Add("PO_Type", GetType(String))
+        table.Columns.Add("Status", GetType(String))
+        table.Columns.Add("Status_Date", GetType(DateTime))
+        table.Columns.Add("Status_By", GetType(String))
+        table.Columns.Add("Remark", GetType(String))
+        table.Columns.Add("Created_By", GetType(String))
+        table.Columns.Add("Created_Date", GetType(DateTime))
+
+        Dim nowValue As DateTime = DateTime.Now
+        For Each item In items
+            Dim row As DataRow = table.NewRow()
+            row("DraftPO_No") = item.PO_No.Replace(" ", "")
+            row("PO_Year") = Convert.ToInt32(item.PO_Year)
+            row("PO_Month") = Convert.ToInt32(item.PO_Month)
+            row("Company_Code") = item.Company_Code
+            row("Category_Code") = item.Category_Code
+            row("Segment_Code") = item.Segment_Code
+            row("Brand_Code") = item.Brand_Code
+            row("Vendor_Code") = item.Vendor_Code
+            row("CCY") = item.Currency
+            row("Exchange_Rate") = item.ExchangeRate
+            row("Amount_CCY") = item.Amount_CCY
+            row("Amount_THB") = item.Amount_THB
+            row("PO_Type") = "Upload"
+            row("Status") = "Draft"
+            row("Status_Date") = nowValue
+            row("Status_By") = uploadBy
+            row("Remark") = DBNull.Value
+            row("Created_By") = uploadBy
+            row("Created_Date") = nowValue
+            table.Rows.Add(row)
+        Next
+
+        Return table
+    End Function
 
     Public Class FrontendPORow
         Public Property DraftPONo As String

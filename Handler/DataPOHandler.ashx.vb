@@ -215,46 +215,53 @@ Public Class DataPOHandler
                 End Using
             End Using
 
-            If currentData.Rows.Count > 0 Then
-                Dim oldRow As DataRow = currentData.Rows(0)
+            If currentData.Rows.Count = 0 Then
+                Throw New Exception("Record not found.")
+            End If
 
-                ' --- Helper 1: เปรียบเทียบ String ---
-                Dim IsStringChanged = Function(colName As String, newVal As String) As Boolean
-                                          Dim oldVal As String = If(oldRow(colName) Is DBNull.Value, "", oldRow(colName).ToString())
-                                          Return Not oldVal.Trim().Equals(newVal.Trim(), StringComparison.OrdinalIgnoreCase)
-                                      End Function
+            Dim oldRow As DataRow = currentData.Rows(0)
+            Dim currentStatus As String = If(oldRow("Status") Is DBNull.Value, "", oldRow("Status").ToString().Trim())
+            If currentStatus.Equals("Matched", StringComparison.OrdinalIgnoreCase) OrElse
+               currentStatus.Equals("Cancelled", StringComparison.OrdinalIgnoreCase) Then
+                Throw New Exception($"Cannot edit Draft PO because current status is '{currentStatus}'.")
+            End If
 
-                ' --- Helper 2: เปรียบเทียบตัวเลข แบบมี Tolerance (แก้ปัญหาทศนิยมไม่เท่ากันเป๊ะๆ) ---
-                Dim IsDecimalChanged = Function(colName As String, newVal As Decimal) As Boolean
-                                           Dim oldVal As Decimal = If(oldRow(colName) Is DBNull.Value, 0D, Convert.ToDecimal(oldRow(colName)))
-                                           ' *** แก้ไขจุดนี้: ถ้าต่างกันน้อยกว่า 0.0001 ให้ถือว่าเท่ากัน ***
-                                           Return Math.Abs(oldVal - newVal) > 0.0001D
-                                       End Function
+            ' --- Helper 1: เปรียบเทียบ String ---
+            Dim IsStringChanged = Function(colName As String, newVal As String) As Boolean
+                                      Dim oldVal As String = If(oldRow(colName) Is DBNull.Value, "", oldRow(colName).ToString())
+                                      Return Not oldVal.Trim().Equals(newVal.Trim(), StringComparison.OrdinalIgnoreCase)
+                                  End Function
 
-                ' ตรวจสอบ Dimension (ถ้าเปลี่ยน ต้อง Validate ใหม่)
-                Dim isYearChanged As Boolean = IsStringChanged("PO_Year", year)
-                Dim isMonthChanged As Boolean = IsStringChanged("PO_Month", month)
-                Dim isCompanyChanged As Boolean = IsStringChanged("Company_Code", company)
-                Dim isCategoryChanged As Boolean = IsStringChanged("Category_Code", category)
-                Dim isSegmentChanged As Boolean = IsStringChanged("Segment_Code", segment)
-                Dim isBrandChanged As Boolean = IsStringChanged("Brand_Code", brand)
-                Dim isVendorChanged As Boolean = IsStringChanged("Vendor_Code", vendor)
-                Dim isCCYChanged As Boolean = IsStringChanged("CCY", ccy)
+            ' --- Helper 2: เปรียบเทียบตัวเลข แบบมี Tolerance (แก้ปัญหาทศนิยมไม่เท่ากันเป๊ะๆ) ---
+            Dim IsDecimalChanged = Function(colName As String, newVal As Decimal) As Boolean
+                                       Dim oldVal As Decimal = If(oldRow(colName) Is DBNull.Value, 0D, Convert.ToDecimal(oldRow(colName)))
+                                       ' *** แก้ไขจุดนี้: ถ้าต่างกันน้อยกว่า 0.0001 ให้ถือว่าเท่ากัน ***
+                                       Return Math.Abs(oldVal - newVal) > 0.0001D
+                                   End Function
 
-                ' *** แก้ไขจุดนี้: ตรวจสอบเฉพาะ Amount_CCY และ ExRate ***
-                ' (ตัดการเช็ค Amount_THB ออก เพราะค่าจากการคำนวณมักมีเศษไม่ตรงกัน)
-                Dim isAmtCCYChanged As Boolean = IsDecimalChanged("Amount_CCY", amtCCY)
-                Dim isExRateChanged As Boolean = IsDecimalChanged("Exchange_Rate", exRate)
+            ' ตรวจสอบ Dimension (ถ้าเปลี่ยน ต้อง Validate ใหม่)
+            Dim isYearChanged As Boolean = IsStringChanged("PO_Year", year)
+            Dim isMonthChanged As Boolean = IsStringChanged("PO_Month", month)
+            Dim isCompanyChanged As Boolean = IsStringChanged("Company_Code", company)
+            Dim isCategoryChanged As Boolean = IsStringChanged("Category_Code", category)
+            Dim isSegmentChanged As Boolean = IsStringChanged("Segment_Code", segment)
+            Dim isBrandChanged As Boolean = IsStringChanged("Brand_Code", brand)
+            Dim isVendorChanged As Boolean = IsStringChanged("Vendor_Code", vendor)
+            Dim isCCYChanged As Boolean = IsStringChanged("CCY", ccy)
 
-                ' สรุป: ถ้า Dimension เดิม และ Input การเงิน (CCY, Rate) เดิม -> ถือว่าไม่เปลี่ยน
-                If Not isYearChanged AndAlso Not isMonthChanged AndAlso
-                   Not isCompanyChanged AndAlso Not isCategoryChanged AndAlso
-                   Not isSegmentChanged AndAlso Not isBrandChanged AndAlso
-                   Not isVendorChanged AndAlso Not isCCYChanged AndAlso
-                   Not isAmtCCYChanged AndAlso Not isExRateChanged Then
+            ' *** แก้ไขจุดนี้: ตรวจสอบเฉพาะ Amount_CCY และ ExRate ***
+            ' (ตัดการเช็ค Amount_THB ออก เพราะค่าจากการคำนวณมักมีเศษไม่ตรงกัน)
+            Dim isAmtCCYChanged As Boolean = IsDecimalChanged("Amount_CCY", amtCCY)
+            Dim isExRateChanged As Boolean = IsDecimalChanged("Exchange_Rate", exRate)
 
-                    needOTBValidation = False ' *** SKIP VALIDATION ***
-                End If
+            ' สรุป: ถ้า Dimension เดิม และ Input การเงิน (CCY, Rate) เดิม -> ถือว่าไม่เปลี่ยน
+            If Not isYearChanged AndAlso Not isMonthChanged AndAlso
+               Not isCompanyChanged AndAlso Not isCategoryChanged AndAlso
+               Not isSegmentChanged AndAlso Not isBrandChanged AndAlso
+               Not isVendorChanged AndAlso Not isCCYChanged AndAlso
+               Not isAmtCCYChanged AndAlso Not isExRateChanged Then
+
+                needOTBValidation = False ' *** SKIP VALIDATION ***
             End If
 
             ' ---------------------------------------------------------
@@ -307,7 +314,7 @@ Public Class DataPOHandler
                                       "[Segment_Code] = @segment, [Brand_Code] = @brand, [Vendor_Code] = @vendor, " &
                                       "[CCY] = @ccy, [Exchange_Rate] = @exRate, [Amount_CCY] = @amtCCY, [Amount_THB] = @amtTHB, " &
                                       "[Status] = 'Edited', [Status_Date] = GETDATE(), [Status_By] = @statusBy, [Remark] = @remark " &
-                                      "WHERE [DraftPO_ID] = @draftPOID"
+                                      "WHERE [DraftPO_ID] = @draftPOID AND ISNULL([Status], '') NOT IN ('Matched', 'Cancelled')"
 
                 Using cmd As New SqlCommand(query, conn)
                     cmd.Parameters.AddWithValue("@draftPono", draftPOno.Replace(" ", ""))
@@ -331,7 +338,7 @@ Public Class DataPOHandler
                         response("success") = True
                         response("message") = "Draft PO updated successfully."
                     Else
-                        Throw New Exception("No rows were updated. Record not found.")
+                        Throw New Exception("No rows were updated. Record not found or status is no longer editable.")
                     End If
                 End Using
             End Using

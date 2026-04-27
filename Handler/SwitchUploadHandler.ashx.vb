@@ -191,6 +191,11 @@ Public Class SwitchUploadHandler
             ' --- 2. Validation ---
             Dim amount As Decimal = 0
             If String.IsNullOrEmpty(_function) Then errors.Add("Missing Type")
+            If Not String.IsNullOrEmpty(_function) AndAlso
+               Not _function.Equals("Switch", StringComparison.OrdinalIgnoreCase) AndAlso
+               Not _function.Equals("Extra", StringComparison.OrdinalIgnoreCase) Then
+                errors.Add("Invalid Type (use Switch or Extra)")
+            End If
             If Not Decimal.TryParse(amtStr, amount) OrElse amount <= 0 Then errors.Add("Invalid Amount")
             If String.IsNullOrEmpty(fYear) OrElse String.IsNullOrEmpty(fMonth) OrElse String.IsNullOrEmpty(fComp) OrElse String.IsNullOrEmpty(fCate) OrElse String.IsNullOrEmpty(fSeg) OrElse String.IsNullOrEmpty(fBrand) OrElse String.IsNullOrEmpty(fVend) Then errors.Add("Missing Source")
 
@@ -331,7 +336,11 @@ Public Class SwitchUploadHandler
 
             ' Status & Error
             Dim status As String = If(isError, "<span class='badge bg-danger'>Fail</span>", "<span class='badge bg-success'>Pass</span>")
-            Dim errText As String = If(errors.Count > 0, String.Join("<br/>", errors), "")
+            Dim encodedErrors As New List(Of String)()
+            For Each errorMessage In errors
+                encodedErrors.Add(HttpUtility.HtmlEncode(errorMessage))
+            Next
+            Dim errText As String = If(errors.Count > 0, String.Join("<br/>", encodedErrors), "")
             sb.AppendFormat("<td class='text-center'>{0}</td><td class='text-danger small'>{1}</td>", status, errText)
             sb.Append("</tr>")
         Next
@@ -440,39 +449,53 @@ Public Class SwitchUploadHandler
             ' 1. ส่ง SAP API
             Dim sapRes = Task.Run(Async Function() Await SapApiHelper.SwitchOtbPlanAsync(sapRequest)).Result
             If sapRes Is Nothing Then Throw New Exception("No response from SAP API.")
+            If sapRes.Status Is Nothing Then Throw New Exception("SAP response did not include status.")
+            If sapRes.Results Is Nothing Then Throw New Exception("SAP response did not include results.")
 
             ' 2. จัดการ Mapping ผลลัพธ์ส่งกลับไปหน้าจอ
             Dim processResults As New List(Of Object)
             Dim hasError As Boolean = False
+            Dim sapSummaryMessage As String = ""
 
-            If sapRes.Results IsNot Nothing Then
-                For i As Integer = 0 To pendingDbInserts.Count - 1
-                    Dim status As String = "Success"
-                    Dim msg As String = "Success"
-
-                    If i < sapRes.Results.Count Then
-                        Dim resItem = sapRes.Results(i)
-                        If resItem.MessageType = "E" Then
-                            status = "Error"
-                            hasError = True
-                        End If
-                        msg = resItem.Message
-                    End If
-
-                    ' สร้างโครงสร้าง JSON ที่สมบูรณ์ส่งกลับไปให้ JavaScript
-                    processResults.Add(New With {
-                        .status = status,
-                        .message = msg,
-                        .row = New With {
-                            .Type = pendingDbInserts(i)("typeName"),
-                            .Function = pendingDbInserts(i)("actionType"),
-                            .Amount = pendingDbInserts(i)("amt"),
-                            .From = pendingDbInserts(i)("f"),
-                            .To = pendingDbInserts(i)("t") ' ถ้าเป็น Extra ค่านี้จะเป็น null โดยอัตโนมัติ
-                        }
-                    })
-                Next
+            If sapRes.Status.Total <> pendingDbInserts.Count OrElse
+               sapRes.Status.Success <> pendingDbInserts.Count OrElse
+               sapRes.Status.ErrorCount > 0 OrElse
+               sapRes.Results.Count <> pendingDbInserts.Count Then
+                hasError = True
+                sapSummaryMessage = $"SAP processing failed or was incomplete. Total: {sapRes.Status.Total}, Success: {sapRes.Status.Success}, Error: {sapRes.Status.ErrorCount}. No records were saved to the database."
             End If
+
+            For i As Integer = 0 To pendingDbInserts.Count - 1
+                Dim status As String = "Success"
+                Dim msg As String = "Success"
+
+                If i < sapRes.Results.Count Then
+                    Dim resItem = sapRes.Results(i)
+                    Dim messageType As String = If(resItem.MessageType, "").Trim()
+                    If Not messageType.Equals("S", StringComparison.OrdinalIgnoreCase) Then
+                        status = "Error"
+                        hasError = True
+                    End If
+                    msg = If(String.IsNullOrWhiteSpace(resItem.Message), $"SAP MessageType: {messageType}", resItem.Message)
+                Else
+                    status = "Error"
+                    msg = "SAP did not return a result for this row."
+                    hasError = True
+                End If
+
+                ' สร้างโครงสร้าง JSON ที่สมบูรณ์ส่งกลับไปให้ JavaScript
+                processResults.Add(New With {
+                    .status = status,
+                    .message = msg,
+                    .row = New With {
+                        .Type = pendingDbInserts(i)("typeName"),
+                        .Function = pendingDbInserts(i)("actionType"),
+                        .Amount = pendingDbInserts(i)("amt"),
+                        .From = pendingDbInserts(i)("f"),
+                        .To = pendingDbInserts(i)("t") ' ถ้าเป็น Extra ค่านี้จะเป็น null โดยอัตโนมัติ
+                    }
+                })
+            Next
 
             ' 3. บันทึกฐานข้อมูล (กรณีไม่มี Error จาก SAP เลย)
             If Not hasError Then
@@ -497,7 +520,7 @@ Public Class SwitchUploadHandler
             ' 4. ส่ง JSON Response
             context.Response.Write(New JavaScriptSerializer().Serialize(New With {
                 .success = Not hasError,
-                .message = If(hasError, "Batch processed with some errors at SAP.", "Upload & Save Completed Successfully."),
+                .message = If(hasError, If(String.IsNullOrEmpty(sapSummaryMessage), "Batch processed with some errors at SAP. No records were saved to the database.", sapSummaryMessage), "Upload & Save Completed Successfully."),
                 .results = processResults
             }))
 

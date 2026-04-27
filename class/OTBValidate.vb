@@ -101,7 +101,7 @@ Public Class OTBValidate
             Using conn As New SqlConnection(connectionString)
                 conn.Open()
                 ' โหลดข้อมูล OTB ที่ Approved แล้ว
-                Dim query As String = "SELECT [Type], [Year], [Month], [Category], [Company], [Segment], [Brand], [Vendor]
+                Dim query As String = "SELECT [Type], [Year], [Month], [Category], [Company], [Segment], [Brand], [Vendor], [Version]
                                       FROM [BMS].[dbo].[OTB_Transaction]
                                       WHERE [OTBStatus] = 'Approved'"
                 Using cmd As New SqlCommand(query, conn)
@@ -329,7 +329,7 @@ Public Class OTBValidate
 
     ''' <summary>
     ''' (NEW LOGIC - Replaces GetLatestVersionFromDB)
-    ''' Calculates the next version (A1, R1...R15) for a key based *only* on dtApprovedOTB (OTB_Transaction).
+    ''' Calculates the next version (A1, R1...R15) for an upload year based *only* on dtApprovedOTB (OTB_Transaction).
     ''' Throws exception if next version > R15.
     ''' </summary>
     ''' <returns>The next version string (e.g., "A1", "R2")</returns>
@@ -352,16 +352,10 @@ Public Class OTBValidate
                                 Return -1 ' Unknown format
                             End Function
 
-        ' Check Approved table (OTB_Transaction) ONLY
+        ' Version is an annual upload cycle, so check Approved table by Year only.
         If dtApprovedOTB IsNot Nothing AndAlso dtApprovedOTB.Columns.Contains("Version") Then
             Try
-                Dim filter As String = $"[Year] = '{year.Replace("'", "''")}' AND " &
-                                      $"[Month] = '{month.Replace("'", "''")}' AND " &
-                                      $"[Category] = '{category.Replace("'", "''")}' AND " &
-                                      $"[Company] = '{company.Replace("'", "''")}' AND " &
-                                      $"[Segment] = '{segment.Replace("'", "''")}' AND " &
-                                      $"[Brand] = '{brand.Replace("'", "''")}' AND " &
-                                      $"[Vendor] = '{vendor.Replace("'", "''")}'"
+                Dim filter As String = BuildYearFilter(year)
 
                 For Each row As DataRow In dtApprovedOTB.Select(filter)
                     Dim currentVersionStr As String = row("Version").ToString()
@@ -397,10 +391,19 @@ Public Class OTBValidate
         End If
     End Function
 
+    Private Function BuildYearFilter(year As String) As String
+        Dim parsedYear As Integer
+        If Integer.TryParse(If(year, "").Trim(), parsedYear) Then
+            Return $"[Year] = {parsedYear}"
+        End If
+
+        Return $"[Year] = '{If(year, "").Replace("'", "''")}'"
+    End Function
+
     ''' <summary>
     ''' (NEW LOGIC) Validate_All.
     ''' 1. Ignores file 'Type' field.
-    ''' 2. Calculates Version based *only* on OTB_Transaction (A1, R1..R15).
+    ''' 2. Calculates Version by upload year based *only* on OTB_Transaction (A1, R1..R15).
     ''' 3. Adds non-blocking WARNING if key already in OTB_Transaction (Rule 2).
     ''' 4. Allows overwriting Drafts (Rule 3).
     ''' </summary>
@@ -471,7 +474,7 @@ Public Class OTBValidate
     ' (ลบฟังก์ชัน ValidateTypeWithData และ GetLatestVersionFromDB ของเก่าทิ้งไปได้เลย)
 
     ''' <summary>
-    ''' (MODIFIED) Finds the latest version (e.g., A1, R1, R2) for a specific OTB key 
+    ''' (MODIFIED) Finds the latest version (e.g., A1, R1, R2) for an upload year
     ''' by checking only the Approved table (OTB_Transaction) loaded in memory.
     ''' </summary>
     ''' <returns>The latest version string (e.g., "R2") or Nothing if not found.</returns>
@@ -482,13 +485,7 @@ Public Class OTBValidate
         Dim latestVersion As String = Nothing
         Dim latestVersionNum As Integer = -1 ' A1 = 0, R1 = 1, R2 = 2
 
-        Dim filter As String = $"[Year] = '{year.Replace("'", "''")}' AND " &
-                              $"[Month] = '{month.Replace("'", "''")}' AND " &
-                              $"[Category] = '{category.Replace("'", "''")}' AND " &
-                              $"[Company] = '{company.Replace("'", "''")}' AND " &
-                              $"[Segment] = '{segment.Replace("'", "''")}' AND " &
-                              $"[Brand] = '{brand.Replace("'", "''")}' AND " &
-                              $"[Vendor] = '{vendor.Replace("'", "''")}'"
+        Dim filter As String = BuildYearFilter(year)
 
         ' Helper function to parse version string
         Dim getVersionNum = Function(v As String)

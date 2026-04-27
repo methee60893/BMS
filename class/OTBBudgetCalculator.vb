@@ -29,7 +29,7 @@ Public Class OTBBudgetCalculator
                 ' --- โหลดข้อมูล OTB_Transaction (สำหรับ Original และ Revise) ---
                 Dim queryOtb As String = "
                     SELECT [Type], [Year], [Month], [Category], [Company], [Segment], 
-                           [Brand], [Vendor], [Amount], [Version] 
+                           [Brand], [Vendor], [Amount], [RevisedDiff], [Version]
                     FROM [dbo].[OTB_Transaction] 
                     WHERE [OTBStatus] = 'Approved'"
 
