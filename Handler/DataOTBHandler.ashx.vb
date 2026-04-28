@@ -8,6 +8,7 @@ Imports System.Text
 Imports System.Web
 Imports System.Web.Script.Serialization
 Imports System.Web.Services.Description
+Imports System.Collections.Generic
 Imports ExcelDataReader
 Imports Newtonsoft.Json
 Imports OfficeOpenXml
@@ -33,6 +34,50 @@ Public Class DataOTBHandler
         Public Property TotalBudget As Decimal
         Public Property TotalActualDraft As Decimal
     End Class
+
+    Private Class ReportBudgetRow
+        Public Property Year As String
+        Public Property Month As String
+        Public Property Category As String
+        Public Property Company As String
+        Public Property Segment As String
+        Public Property Brand As String
+        Public Property Vendor As String
+        Public Property Original As Decimal
+        Public Property RevDiff As Decimal
+        Public Property Extra As Decimal
+        Public Property SwitchIn As Decimal
+        Public Property BalanceIn As Decimal
+        Public Property CarryIn As Decimal
+        Public Property SwitchOut As Decimal
+        Public Property BalanceOut As Decimal
+        Public Property CarryOut As Decimal
+
+        Public ReadOnly Property Total As Decimal
+            Get
+                Return Original + RevDiff + Extra + SwitchIn + BalanceIn + CarryIn - SwitchOut - BalanceOut - CarryOut
+            End Get
+        End Property
+    End Class
+
+    Private Class ReportUsageRow
+        Public Property Year As String
+        Public Property Month As String
+        Public Property Category As String
+        Public Property Company As String
+        Public Property Segment As String
+        Public Property Brand As String
+        Public Property Vendor As String
+        Public Property DraftPO As Decimal
+        Public Property ActualPO As Decimal
+
+        Public ReadOnly Property TotalUsage As Decimal
+            Get
+                Return DraftPO + ActualPO
+            End Get
+        End Property
+    End Class
+
     Sub ProcessRequest(ByVal context As HttpContext) Implements IHttpHandler.ProcessRequest
 
         Try
@@ -317,6 +362,7 @@ Public Class DataOTBHandler
             context.Response.Clear()
             context.Response.ContentType = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
             context.Response.AddHeader("content-disposition", $"attachment; filename={filename}")
+            MarkDownloadReady(context)
             context.Response.BinaryWrite(package.GetAsByteArray())
             context.Response.Flush()
             context.ApplicationInstance.CompleteRequest()
@@ -423,6 +469,7 @@ Public Class DataOTBHandler
             context.Response.Clear()
             context.Response.ContentType = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
             context.Response.AddHeader("content-disposition", $"attachment; filename=OTB_Plan_Summary_{year}_{DateTime.Now.ToString("yyyyMMdd")}.xlsx")
+            MarkDownloadReady(context)
             context.Response.BinaryWrite(package.GetAsByteArray())
             context.Response.Flush()
             context.ApplicationInstance.CompleteRequest()
@@ -1260,6 +1307,19 @@ Public Class DataOTBHandler
 
         parameter.Value = text
     End Sub
+
+    Private Sub MarkDownloadReady(context As HttpContext)
+        Dim token As String = If(context.Request.QueryString("_downloadToken"), "")
+        If String.IsNullOrWhiteSpace(token) Then Return
+
+        Dim cookie As New HttpCookie("BMSDownloadToken", token.Trim()) With {
+            .HttpOnly = False,
+            .Path = "/",
+            .Expires = DateTime.Now.AddMinutes(5)
+        }
+        context.Response.Cookies.Set(cookie)
+    End Sub
+
     ' ===================================================================
     ' ===== END: REPLACEMENT LOGIC ======================================
     ' ===================================================================
@@ -1326,9 +1386,11 @@ Public Class DataOTBHandler
     End Sub
 
     Private Function GetMonthName(month As Object) As String
-        If month Is DBNull.Value Then Return ""
+        If month Is Nothing OrElse month Is DBNull.Value Then Return ""
 
-        Dim monthInt As Integer = Convert.ToInt32(month)
+        Dim monthInt As Integer
+        If Not Integer.TryParse(month.ToString(), monthInt) Then Return ""
+
         Select Case monthInt
             Case 1 : Return "Jan"
             Case 2 : Return "Feb"
@@ -1406,32 +1468,21 @@ Public Class DataOTBHandler
     ' ===================================================================
 
     Private Sub HandleExportOTBMovement(context As HttpContext)
-        ' 1. รับ Parameters
-        Dim year As String = context.Request.QueryString("OTByear")
-        Dim month As String = context.Request.QueryString("OTBmonth")
-        Dim company As String = context.Request.QueryString("OTBCompany")
-        Dim category As String = context.Request.QueryString("OTBCategory")
-        Dim segment As String = context.Request.QueryString("OTBSegment")
-        Dim brand As String = context.Request.QueryString("OTBBrand")
-        Dim vendor As String = context.Request.QueryString("OTBVendor")
+        Dim year As String = NormalizeReportFilter(context.Request.QueryString("OTByear"))
+        Dim month As String = NormalizeReportFilter(context.Request.QueryString("OTBmonth"))
+        Dim company As String = NormalizeReportFilter(context.Request.QueryString("OTBCompany"))
+        Dim category As String = NormalizeReportFilter(context.Request.QueryString("OTBCategory"))
+        Dim segment As String = NormalizeReportFilter(context.Request.QueryString("OTBSegment"))
+        Dim brand As String = NormalizeReportFilter(context.Request.QueryString("OTBBrand"))
+        Dim vendor As String = NormalizeReportFilter(context.Request.QueryString("OTBVendor"))
         Dim masterinstance As New MasterDataUtil
+
         If String.IsNullOrEmpty(year) Then Throw New Exception("Year is required.")
 
-        ' 2. เตรียมข้อมูล
-        ' 2.1 เรียก Calculator (ซึ่งจะโหลด Approved Transaction ทั้งหมดเข้า Memory)
-        Dim budgetCalc As New OTBBudgetCalculator()
+        Dim budgetByKey As Dictionary(Of String, ReportBudgetRow) = LoadBudgetBreakdownForReport(year, month, company, category, segment, brand, vendor)
+        Dim usageByKey As Dictionary(Of String, ReportUsageRow) = LoadPOUsageForReport(year, month, company, category, segment, brand, vendor)
+        Dim reportKeys As List(Of String) = BuildSortedReportKeys(budgetByKey, usageByKey)
 
-        ' 2.2 โหลด Draft PO และ Actual PO เข้า Memory เพื่อความเร็วในการ Lookup
-        Dim dtDraftPO As DataTable = LoadDraftPOForReport(year, month, company, category, segment, brand, vendor)
-        Dim dtActualPO As DataTable = LoadActualPOForReport(year, month, company, category, segment, brand, vendor)
-
-        '
-
-        ' 2.3 หา Distinct Keys ทั้งหมดที่มีการเคลื่อนไหว (จาก OTB Transaction, Draft PO, Actual PO)
-        ' เพื่อให้มั่นใจว่าแสดงครบทุกบรรทัดที่มีข้อมูล แม้จะไม่มี Budget แต่มี PO
-        Dim dtKeys As DataTable = GetDistinctKeysForReport(year, month, company, category, segment, brand, vendor)
-
-        ' 3. สร้าง DataTable ผลลัพธ์
         Dim dtExport As New DataTable("OTBMovement")
         dtExport.Columns.Add("Year")
         dtExport.Columns.Add("Month")
@@ -1464,40 +1515,42 @@ Public Class DataOTBHandler
         dtExport.Columns.Add("Total Actual + Draft PO", GetType(Decimal))
         dtExport.Columns.Add("Remaining", GetType(Decimal))
 
-        ' 4. Loop คำนวณ
-        For Each rowKey As DataRow In dtKeys.Rows
-            Dim kYear As String = rowKey("Year").ToString()
-            Dim kMonth As String = rowKey("Month").ToString() ' เป็นตัวเลข
-            Dim kCate As String = rowKey("Category").ToString()
-            Dim kCateName As String = masterinstance.GetCategoryName(rowKey("Category").ToString())
-            Dim kComp As String = rowKey("Company").ToString()
-            Dim kCompName As String = masterinstance.GetCompanyName(rowKey("Company").ToString())
-            Dim kSeg As String = rowKey("Segment").ToString()
-            Dim kSegName As String = masterinstance.GetSegmentName(rowKey("Segment").ToString())
-            Dim kBrand As String = rowKey("Brand").ToString()
-            Dim kBrandName As String = masterinstance.GetBrandName(rowKey("Brand").ToString())
-            Dim kVendor As String = rowKey("Vendor").ToString()
-            Dim kVendorName As String = masterinstance.GetVendorName(rowKey("Vendor").ToString())
+        For Each reportKey As String In reportKeys
+            Dim budget As ReportBudgetRow = Nothing
+            Dim usage As ReportUsageRow = Nothing
+            Dim hasBudget As Boolean = budgetByKey.TryGetValue(reportKey, budget)
+            Dim hasUsage As Boolean = usageByKey.TryGetValue(reportKey, usage)
+
+            Dim kYear As String = If(hasBudget, budget.Year, usage.Year)
+            Dim kMonth As String = If(hasBudget, budget.Month, usage.Month)
+            Dim kCate As String = If(hasBudget, budget.Category, usage.Category)
+            Dim kComp As String = If(hasBudget, budget.Company, usage.Company)
+            Dim kSeg As String = If(hasBudget, budget.Segment, usage.Segment)
+            Dim kBrand As String = If(hasBudget, budget.Brand, usage.Brand)
+            Dim kVendor As String = If(hasBudget, budget.Vendor, usage.Vendor)
+
+            Dim kCateName As String = masterinstance.GetCategoryName(kCate)
+            Dim kCompName As String = masterinstance.GetCompanyName(kComp)
+            Dim kSegName As String = masterinstance.GetSegmentName(kSeg)
+            Dim kBrandName As String = masterinstance.GetBrandName(kBrand)
+            Dim kVendorName As String = masterinstance.GetVendorName(kVendor)
             Dim kMonthName As String = GetMonthName(kMonth)
 
-            ' 4.1 คำนวณ Budget (ใช้ Logic ของ OTBBudgetCalculator ที่มีอยู่แล้ว)
-            Dim budgetBreakdown = budgetCalc.GetBudgetBreakdown(kYear, kMonth, kCate, kComp, kSeg, kBrand, kVendor)
-
-            ' 4.2 คำนวณ PO (ใช้ Compute จาก DataTable ใน Memory)
-            Dim filterPO As String = $"Year = '{kYear}' AND Month = '{kMonth}' AND Category = '{kCate}' AND Company = '{kComp}' AND Segment = '{kSeg}' AND Brand = '{kBrand}' AND Vendor = '{kVendor}'"
-
-            Dim sumDraftObj As Object = dtDraftPO.Compute("SUM(Amount)", filterPO)
-            Dim sumActualObj As Object = dtActualPO.Compute("SUM(Amount)", filterPO)
-
-            Dim sumDraft As Decimal = If(IsDBNull(sumDraftObj), 0, Convert.ToDecimal(sumDraftObj))
-            Dim sumActual As Decimal = If(IsDBNull(sumActualObj), 0, Convert.ToDecimal(sumActualObj))
-
-            Dim totalBudget As Decimal = budgetBreakdown("Total")
+            Dim original As Decimal = If(hasBudget, budget.Original, 0D)
+            Dim revDiff As Decimal = If(hasBudget, budget.RevDiff, 0D)
+            Dim extra As Decimal = If(hasBudget, budget.Extra, 0D)
+            Dim switchIn As Decimal = If(hasBudget, budget.SwitchIn, 0D)
+            Dim balanceIn As Decimal = If(hasBudget, budget.BalanceIn, 0D)
+            Dim carryIn As Decimal = If(hasBudget, budget.CarryIn, 0D)
+            Dim switchOut As Decimal = If(hasBudget, budget.SwitchOut, 0D)
+            Dim balanceOut As Decimal = If(hasBudget, budget.BalanceOut, 0D)
+            Dim carryOut As Decimal = If(hasBudget, budget.CarryOut, 0D)
+            Dim totalBudget As Decimal = If(hasBudget, budget.Total, 0D)
+            Dim sumDraft As Decimal = If(hasUsage, usage.DraftPO, 0D)
+            Dim sumActual As Decimal = If(hasUsage, usage.ActualPO, 0D)
             Dim totalUsage As Decimal = sumDraft + sumActual
             Dim remaining As Decimal = totalBudget - totalUsage
 
-            ' 4.3 Add Row (เฉพาะแถวที่มีค่าอย่างน้อย 1 อย่าง)
-            'If totalBudget <> 0 OrElse totalUsage <> 0 Then
             dtExport.Rows.Add(
                     kYear,
                     kMonthName,
@@ -1511,186 +1564,362 @@ Public Class DataOTBHandler
                     kBrandName,
                     kVendor,
                     kVendorName,
-                    budgetBreakdown("Original"),
-                    budgetBreakdown("RevDiff"),
-                    budgetBreakdown("Extra"),
-                    budgetBreakdown("SwitchIn"),
-                    budgetBreakdown("BalanceIn"),
-                    budgetBreakdown("CarryIn"),
-                    budgetBreakdown("SwitchOut"),
-                    budgetBreakdown("BalanceOut"),
-                    budgetBreakdown("CarryOut"),
+                    original,
+                    revDiff,
+                    extra,
+                    switchIn,
+                    balanceIn,
+                    carryIn,
+                    switchOut,
+                    balanceOut,
+                    carryOut,
                     totalBudget,
                     sumActual,
                     sumDraft,
                     totalUsage,
                     remaining
                 )
-            'End If
         Next
 
-        ' 5. สร้าง Excel File
         GenerateExcelOTBMovement(context, dtExport, $"OTB_Movement_{DateTime.Now:yyyyMMdd_HHmmss}.xlsx")
     End Sub
 
-    ' --- Helper Methods for Data Loading ---
-    Private Function LoadDraftPOForReport(year As String, month As String, company As String, category As String, segment As String, brand As String, vendor As String) As DataTable
-        Dim dt As New DataTable()
+    Private Function NormalizeReportFilter(value As String) As String
+        If String.IsNullOrWhiteSpace(value) Then Return Nothing
+        Return value.Trim()
+    End Function
+
+    Private Function NormalizeReportKeyPart(value As String) As String
+        Return If(value, "").Trim().ToUpperInvariant()
+    End Function
+
+    Private Function BuildReportKey(year As String, month As String, category As String, company As String,
+                                    segment As String, brand As String, vendor As String) As String
+        Return String.Join("|", New String() {
+            NormalizeReportKeyPart(year),
+            NormalizeReportKeyPart(month),
+            NormalizeReportKeyPart(category),
+            NormalizeReportKeyPart(company),
+            NormalizeReportKeyPart(segment),
+            NormalizeReportKeyPart(brand),
+            NormalizeReportKeyPart(vendor)
+        })
+    End Function
+
+    Private Function GetReportString(reader As SqlDataReader, columnName As String) As String
+        Dim value As Object = reader(columnName)
+        If value Is DBNull.Value Then Return ""
+        Return value.ToString().Trim()
+    End Function
+
+    Private Function GetReportDecimal(reader As SqlDataReader, columnName As String) As Decimal
+        Dim value As Object = reader(columnName)
+        If value Is DBNull.Value Then Return 0D
+        Return Convert.ToDecimal(value)
+    End Function
+
+    Private Sub AddReportFilterParameters(cmd As SqlCommand, year As String, month As String, company As String,
+                                          category As String, segment As String, brand As String, vendor As String)
+        AddOptionalIntParameter(cmd, "@Year", year, "Year")
+        AddOptionalIntParameter(cmd, "@Month", month, "Month")
+        AddOptionalNVarCharParameter(cmd, "@Company", company, 20)
+        AddOptionalNVarCharParameter(cmd, "@Category", category, 20)
+        AddOptionalNVarCharParameter(cmd, "@Segment", segment, 20)
+        AddOptionalNVarCharParameter(cmd, "@Brand", brand, 30)
+        AddOptionalNVarCharParameter(cmd, "@Vendor", vendor, 30)
+    End Sub
+
+    Private Sub AddOptionalIntParameter(cmd As SqlCommand, name As String, value As String, label As String)
+        Dim parsedValue As Integer
+        Dim parameter As SqlParameter = cmd.Parameters.Add(name, SqlDbType.Int)
+        If String.IsNullOrWhiteSpace(value) Then
+            parameter.Value = DBNull.Value
+        ElseIf Integer.TryParse(value, parsedValue) Then
+            parameter.Value = parsedValue
+        Else
+            Throw New Exception(label & " is invalid.")
+        End If
+    End Sub
+
+    Private Sub AddOptionalNVarCharParameter(cmd As SqlCommand, name As String, value As String, size As Integer)
+        Dim parameter As SqlParameter = cmd.Parameters.Add(name, SqlDbType.NVarChar, size)
+        If String.IsNullOrWhiteSpace(value) Then
+            parameter.Value = DBNull.Value
+        Else
+            parameter.Value = value.Trim()
+        End If
+    End Sub
+
+    Private Function BuildSortedReportKeys(budgetByKey As Dictionary(Of String, ReportBudgetRow),
+                                           usageByKey As Dictionary(Of String, ReportUsageRow)) As List(Of String)
+        Dim allKeys As New Dictionary(Of String, Boolean)(StringComparer.OrdinalIgnoreCase)
+
+        For Each key As String In budgetByKey.Keys
+            If Not allKeys.ContainsKey(key) Then allKeys.Add(key, True)
+        Next
+
+        For Each key As String In usageByKey.Keys
+            If Not allKeys.ContainsKey(key) Then allKeys.Add(key, True)
+        Next
+
+        Dim sortedKeys As New List(Of String)(allKeys.Keys)
+        sortedKeys.Sort()
+        Return sortedKeys
+    End Function
+
+    Private Function LoadBudgetBreakdownForReport(year As String, month As String, company As String, category As String,
+                                                  segment As String, brand As String, vendor As String) As Dictionary(Of String, ReportBudgetRow)
+        Dim result As New Dictionary(Of String, ReportBudgetRow)(StringComparer.OrdinalIgnoreCase)
+
+        Dim query As String = "
+            WITH BudgetRows AS (
+                SELECT
+                    CONVERT(nvarchar(10), [Year]) AS [Year],
+                    CONVERT(nvarchar(10), [Month]) AS [Month],
+                    Category,
+                    Company,
+                    Segment,
+                    Brand,
+                    Vendor,
+                    CASE WHEN [Type] = 'Original' THEN ISNULL(Amount, 0) ELSE 0 END AS Original,
+                    CASE WHEN [Type] = 'Revise' THEN ISNULL(RevisedDiff, 0) ELSE 0 END AS RevDiff,
+                    CAST(0 AS decimal(18,2)) AS Extra,
+                    CAST(0 AS decimal(18,2)) AS SwitchIn,
+                    CAST(0 AS decimal(18,2)) AS BalanceIn,
+                    CAST(0 AS decimal(18,2)) AS CarryIn,
+                    CAST(0 AS decimal(18,2)) AS SwitchOut,
+                    CAST(0 AS decimal(18,2)) AS BalanceOut,
+                    CAST(0 AS decimal(18,2)) AS CarryOut
+                FROM [BMS].[dbo].[OTB_Transaction]
+                WHERE OTBStatus = 'Approved'
+                  AND (@Year IS NULL OR [Year] = @Year)
+                  AND (@Month IS NULL OR [Month] = @Month)
+                  AND (@Company IS NULL OR Company = @Company)
+                  AND (@Category IS NULL OR Category = @Category)
+                  AND (@Segment IS NULL OR Segment = @Segment)
+                  AND (@Brand IS NULL OR Brand = @Brand)
+                  AND (@Vendor IS NULL OR Vendor = @Vendor)
+
+                UNION ALL
+
+                SELECT
+                    CONVERT(nvarchar(10), [Year]) AS [Year],
+                    CONVERT(nvarchar(10), [Month]) AS [Month],
+                    Category,
+                    Company,
+                    Segment,
+                    Brand,
+                    Vendor,
+                    CAST(0 AS decimal(18,2)) AS Original,
+                    CAST(0 AS decimal(18,2)) AS RevDiff,
+                    CASE WHEN [From] = 'E' THEN ISNULL(BudgetAmount, 0) ELSE 0 END AS Extra,
+                    CAST(0 AS decimal(18,2)) AS SwitchIn,
+                    CAST(0 AS decimal(18,2)) AS BalanceIn,
+                    CAST(0 AS decimal(18,2)) AS CarryIn,
+                    CASE WHEN [From] = 'D' THEN ISNULL(BudgetAmount, 0) ELSE 0 END AS SwitchOut,
+                    CASE WHEN [From] = 'I' THEN ISNULL(BudgetAmount, 0) ELSE 0 END AS BalanceOut,
+                    CASE WHEN [From] = 'G' THEN ISNULL(BudgetAmount, 0) ELSE 0 END AS CarryOut
+                FROM [BMS].[dbo].[OTB_Switching_Transaction]
+                WHERE OTBStatus = 'Approved'
+                  AND (@Year IS NULL OR [Year] = @Year)
+                  AND (@Month IS NULL OR [Month] = @Month)
+                  AND (@Company IS NULL OR Company = @Company)
+                  AND (@Category IS NULL OR Category = @Category)
+                  AND (@Segment IS NULL OR Segment = @Segment)
+                  AND (@Brand IS NULL OR Brand = @Brand)
+                  AND (@Vendor IS NULL OR Vendor = @Vendor)
+
+                UNION ALL
+
+                SELECT
+                    CONVERT(nvarchar(10), SwitchYear) AS [Year],
+                    CONVERT(nvarchar(10), SwitchMonth) AS [Month],
+                    SwitchCategory AS Category,
+                    SwitchCompany AS Company,
+                    SwitchSegment AS Segment,
+                    SwitchBrand AS Brand,
+                    SwitchVendor AS Vendor,
+                    CAST(0 AS decimal(18,2)) AS Original,
+                    CAST(0 AS decimal(18,2)) AS RevDiff,
+                    CAST(0 AS decimal(18,2)) AS Extra,
+                    CASE WHEN [To] = 'C' THEN ISNULL(BudgetAmount, 0) ELSE 0 END AS SwitchIn,
+                    CASE WHEN [To] = 'H' THEN ISNULL(BudgetAmount, 0) ELSE 0 END AS BalanceIn,
+                    CASE WHEN [To] = 'F' THEN ISNULL(BudgetAmount, 0) ELSE 0 END AS CarryIn,
+                    CAST(0 AS decimal(18,2)) AS SwitchOut,
+                    CAST(0 AS decimal(18,2)) AS BalanceOut,
+                    CAST(0 AS decimal(18,2)) AS CarryOut
+                FROM [BMS].[dbo].[OTB_Switching_Transaction]
+                WHERE OTBStatus = 'Approved'
+                  AND [To] IS NOT NULL
+                  AND SwitchYear IS NOT NULL
+                  AND SwitchMonth IS NOT NULL
+                  AND NULLIF(LTRIM(RTRIM(SwitchCompany)), '') IS NOT NULL
+                  AND NULLIF(LTRIM(RTRIM(SwitchCategory)), '') IS NOT NULL
+                  AND NULLIF(LTRIM(RTRIM(SwitchSegment)), '') IS NOT NULL
+                  AND NULLIF(LTRIM(RTRIM(SwitchBrand)), '') IS NOT NULL
+                  AND NULLIF(LTRIM(RTRIM(SwitchVendor)), '') IS NOT NULL
+                  AND (@Year IS NULL OR SwitchYear = @Year)
+                  AND (@Month IS NULL OR SwitchMonth = @Month)
+                  AND (@Company IS NULL OR SwitchCompany = @Company)
+                  AND (@Category IS NULL OR SwitchCategory = @Category)
+                  AND (@Segment IS NULL OR SwitchSegment = @Segment)
+                  AND (@Brand IS NULL OR SwitchBrand = @Brand)
+                  AND (@Vendor IS NULL OR SwitchVendor = @Vendor)
+            )
+            SELECT
+                [Year],
+                [Month],
+                Category,
+                Company,
+                Segment,
+                Brand,
+                Vendor,
+                SUM(Original) AS Original,
+                SUM(RevDiff) AS RevDiff,
+                SUM(Extra) AS Extra,
+                SUM(SwitchIn) AS SwitchIn,
+                SUM(BalanceIn) AS BalanceIn,
+                SUM(CarryIn) AS CarryIn,
+                SUM(SwitchOut) AS SwitchOut,
+                SUM(BalanceOut) AS BalanceOut,
+                SUM(CarryOut) AS CarryOut
+            FROM BudgetRows
+            GROUP BY [Year], [Month], Category, Company, Segment, Brand, Vendor"
+
         Using conn As New SqlConnection(connectionString)
             conn.Open()
+            Using cmd As New SqlCommand(query, conn)
+                AddReportFilterParameters(cmd, year, month, company, category, segment, brand, vendor)
+                Using reader As SqlDataReader = cmd.ExecuteReader()
+                    While reader.Read()
+                        Dim item As New ReportBudgetRow With {
+                            .Year = GetReportString(reader, "Year"),
+                            .Month = GetReportString(reader, "Month"),
+                            .Category = GetReportString(reader, "Category"),
+                            .Company = GetReportString(reader, "Company"),
+                            .Segment = GetReportString(reader, "Segment"),
+                            .Brand = GetReportString(reader, "Brand"),
+                            .Vendor = GetReportString(reader, "Vendor"),
+                            .Original = GetReportDecimal(reader, "Original"),
+                            .RevDiff = GetReportDecimal(reader, "RevDiff"),
+                            .Extra = GetReportDecimal(reader, "Extra"),
+                            .SwitchIn = GetReportDecimal(reader, "SwitchIn"),
+                            .BalanceIn = GetReportDecimal(reader, "BalanceIn"),
+                            .CarryIn = GetReportDecimal(reader, "CarryIn"),
+                            .SwitchOut = GetReportDecimal(reader, "SwitchOut"),
+                            .BalanceOut = GetReportDecimal(reader, "BalanceOut"),
+                            .CarryOut = GetReportDecimal(reader, "CarryOut")
+                        }
+                        result(BuildReportKey(item.Year, item.Month, item.Category, item.Company, item.Segment, item.Brand, item.Vendor)) = item
+                    End While
+                End Using
+            End Using
+        End Using
 
+        Return result
+    End Function
 
-            Dim query As String = "
-                SELECT PO_Year AS Year, PO_Month AS Month, Company_Code AS Company, Category_Code AS Category, 
-                       Segment_Code AS Segment, Brand_Code AS Brand, Vendor_Code AS Vendor, Amount_THB AS Amount
+    Private Function LoadPOUsageForReport(year As String, month As String, company As String, category As String,
+                                          segment As String, brand As String, vendor As String) As Dictionary(Of String, ReportUsageRow)
+        Dim result As New Dictionary(Of String, ReportUsageRow)(StringComparer.OrdinalIgnoreCase)
+
+        Dim actualSegmentExpression As String = "SUBSTRING(ISNULL(a.Segment_Code, ''), 2, CASE WHEN LEN(ISNULL(a.Segment_Code, '')) > 2 THEN LEN(a.Segment_Code) - 2 ELSE 0 END)"
+        Dim query As String = "
+            WITH UsageRows AS (
+                SELECT
+                    CONVERT(nvarchar(10), d.PO_Year) AS [Year],
+                    CONVERT(nvarchar(10), d.PO_Month) AS [Month],
+                    d.Category_Code AS Category,
+                    d.Company_Code AS Company,
+                    d.Segment_Code AS Segment,
+                    d.Brand_Code AS Brand,
+                    d.Vendor_Code AS Vendor,
+                    SUM(ISNULL(d.Amount_THB, 0)) AS DraftPO,
+                    CAST(0 AS decimal(18,2)) AS ActualPO
                 FROM [BMS].[dbo].[Draft_PO_Transaction] d
-                WHERE ISNULL([Status], 'Draft') NOT IN ('Matched', 'ForceMatching', 'Matching', 'Cancelled')
-                 AND NOT EXISTS (
-                          SELECT 1 FROM [dbo].[Actual_PO_Summary] a 
-                          WHERE a.[Status] = 'Matched' AND (a.Draft_PO_Ref = d.DraftPO_No OR a.PO_No = d.Actual_PO_No)
-                      )
-                AND (@Year IS NULL OR PO_Year = @Year)
-                AND (@Month IS NULL OR PO_Month = @Month)
-                AND (@Company IS NULL OR Company_Code = @Company)
-                AND (@Category IS NULL OR Category_Code = @Category)
-                AND (@Segment IS NULL OR Segment_Code = @Segment)
-                AND (@Brand IS NULL OR Brand_Code = @Brand)
-                AND (@Vendor IS NULL OR Vendor_Code = @Vendor)
-                "
-            ' (Add filters parameters as needed logic similar to other functions)
-            Using cmd As New SqlCommand(query, conn)
-                cmd.Parameters.AddWithValue("@Year", If(String.IsNullOrEmpty(year), DBNull.Value, year))
-                cmd.Parameters.AddWithValue("@Month", If(String.IsNullOrEmpty(month), DBNull.Value, month))
-                cmd.Parameters.AddWithValue("@Company", If(String.IsNullOrEmpty(company), DBNull.Value, company))
-                cmd.Parameters.AddWithValue("@Category", If(String.IsNullOrEmpty(category), DBNull.Value, category))
-                cmd.Parameters.AddWithValue("@Segment", If(String.IsNullOrEmpty(segment), DBNull.Value, segment))
-                cmd.Parameters.AddWithValue("@Brand", If(String.IsNullOrEmpty(brand), DBNull.Value, brand))
-                cmd.Parameters.AddWithValue("@Vendor", If(String.IsNullOrEmpty(vendor), DBNull.Value, vendor))
-                Using da As New SqlDataAdapter(cmd)
-                    da.Fill(dt)
-                End Using
-            End Using
-        End Using
-        Return dt
-    End Function
+                WHERE ISNULL(d.[Status], 'Draft') NOT IN ('Matched', 'ForceMatching', 'Matching', 'Cancelled')
+                  AND NOT EXISTS (
+                      SELECT 1
+                      FROM [BMS].[dbo].[Actual_PO_Summary] a2
+                      WHERE a2.[Status] = 'Matched'
+                        AND (a2.Draft_PO_Ref = d.DraftPO_No OR a2.PO_No = d.Actual_PO_No)
+                  )
+                  AND (@Year IS NULL OR d.PO_Year = @Year)
+                  AND (@Month IS NULL OR d.PO_Month = @Month)
+                  AND (@Company IS NULL OR d.Company_Code = @Company)
+                  AND (@Category IS NULL OR d.Category_Code = @Category)
+                  AND (@Segment IS NULL OR d.Segment_Code = @Segment)
+                  AND (@Brand IS NULL OR d.Brand_Code = @Brand)
+                  AND (@Vendor IS NULL OR d.Vendor_Code = @Vendor)
+                GROUP BY d.PO_Year, d.PO_Month, d.Category_Code, d.Company_Code, d.Segment_Code, d.Brand_Code, d.Vendor_Code
 
-    Private Function LoadActualPOForReport(year As String, month As String, company As String, category As String, segment As String, brand As String, vendor As String) As DataTable
-        Dim dt As New DataTable()
+                UNION ALL
+
+                SELECT
+                    CONVERT(nvarchar(10), a.OTB_Year) AS [Year],
+                    CONVERT(nvarchar(10), a.OTB_Month) AS [Month],
+                    a.Category_Code AS Category,
+                    a.Company_Code AS Company,
+                    " & actualSegmentExpression & " AS Segment,
+                    a.Brand_Code AS Brand,
+                    a.Vendor_Code AS Vendor,
+                    CAST(0 AS decimal(18,2)) AS DraftPO,
+                    SUM(ISNULL(a.Amount_THB, 0)) AS ActualPO
+                FROM [BMS].[dbo].[Actual_PO_Summary] a
+                WHERE ISNULL(a.[Status], '') IN ('Matching', 'ForceMatching', 'Matched')
+                  AND a.OTB_Year IS NOT NULL
+                  AND a.OTB_Month IS NOT NULL
+                  AND NULLIF(LTRIM(RTRIM(a.Company_Code)), '') IS NOT NULL
+                  AND NULLIF(LTRIM(RTRIM(a.Category_Code)), '') IS NOT NULL
+                  AND NULLIF(LTRIM(RTRIM(" & actualSegmentExpression & ")), '') IS NOT NULL
+                  AND NULLIF(LTRIM(RTRIM(a.Brand_Code)), '') IS NOT NULL
+                  AND NULLIF(LTRIM(RTRIM(a.Vendor_Code)), '') IS NOT NULL
+                  AND (@Year IS NULL OR a.OTB_Year = @Year)
+                  AND (@Month IS NULL OR a.OTB_Month = @Month)
+                  AND (@Company IS NULL OR a.Company_Code = @Company)
+                  AND (@Category IS NULL OR a.Category_Code = @Category)
+                  AND (@Segment IS NULL OR " & actualSegmentExpression & " = @Segment)
+                  AND (@Brand IS NULL OR a.Brand_Code = @Brand)
+                  AND (@Vendor IS NULL OR a.Vendor_Code = @Vendor)
+                GROUP BY a.OTB_Year, a.OTB_Month, a.Category_Code, a.Company_Code, " & actualSegmentExpression & ", a.Brand_Code, a.Vendor_Code
+            )
+            SELECT
+                [Year],
+                [Month],
+                Category,
+                Company,
+                Segment,
+                Brand,
+                Vendor,
+                SUM(DraftPO) AS DraftPO,
+                SUM(ActualPO) AS ActualPO
+            FROM UsageRows
+            GROUP BY [Year], [Month], Category, Company, Segment, Brand, Vendor"
+
         Using conn As New SqlConnection(connectionString)
             conn.Open()
-            ' ดึง Actual PO (จาก Staging หรือ View)
-            Dim query As String = "
-                SELECT Otb_Year AS Year, Otb_Month AS Month, Company_Code AS Company, Category_Code As Category, 
-                       SUBSTRING(Segment_Code, 2, CASE WHEN LEN(ISNULL(Segment_Code, '')) > 2 THEN LEN(Segment_Code) - 2 ELSE 0 END) As Segment,Brand_Code As Brand,Vendor_Code As Vendor, Amount_THB AS Amount
-                FROM [BMS].[dbo].[Actual_PO_Summary]
-                WHERE ISNULL(Status, '') IN ('Matching','ForceMatching','Matched' )
-                AND (@Year IS NULL OR Otb_Year = @Year)
-                AND (@Month IS NULL OR Otb_Month = @Month)
-                AND (@Company IS NULL OR Company_Code = @Company)
-                AND (@Category IS NULL OR Category_Code = @Category)
-                AND (@Segment IS NULL OR SUBSTRING(Segment_Code, 2, CASE WHEN LEN(ISNULL(Segment_Code, '')) > 2 THEN LEN(Segment_Code) - 2 ELSE 0 END) = @Segment)
-                AND (@Brand IS NULL OR Brand_Code = @Brand)
-                AND (@Vendor IS NULL OR Vendor_Code = @Vendor)
-                "
             Using cmd As New SqlCommand(query, conn)
-                cmd.Parameters.AddWithValue("@Year", If(String.IsNullOrEmpty(year), DBNull.Value, year))
-                cmd.Parameters.AddWithValue("@Month", If(String.IsNullOrEmpty(month), DBNull.Value, month))
-                cmd.Parameters.AddWithValue("@Company", If(String.IsNullOrEmpty(company), DBNull.Value, company))
-                cmd.Parameters.AddWithValue("@Category", If(String.IsNullOrEmpty(category), DBNull.Value, category))
-                cmd.Parameters.AddWithValue("@Segment", If(String.IsNullOrEmpty(segment), DBNull.Value, segment))
-                cmd.Parameters.AddWithValue("@Brand", If(String.IsNullOrEmpty(brand), DBNull.Value, brand))
-                cmd.Parameters.AddWithValue("@Vendor", If(String.IsNullOrEmpty(vendor), DBNull.Value, vendor))
-                Using da As New SqlDataAdapter(cmd)
-                    da.Fill(dt)
+                AddReportFilterParameters(cmd, year, month, company, category, segment, brand, vendor)
+                Using reader As SqlDataReader = cmd.ExecuteReader()
+                    While reader.Read()
+                        Dim item As New ReportUsageRow With {
+                            .Year = GetReportString(reader, "Year"),
+                            .Month = GetReportString(reader, "Month"),
+                            .Category = GetReportString(reader, "Category"),
+                            .Company = GetReportString(reader, "Company"),
+                            .Segment = GetReportString(reader, "Segment"),
+                            .Brand = GetReportString(reader, "Brand"),
+                            .Vendor = GetReportString(reader, "Vendor"),
+                            .DraftPO = GetReportDecimal(reader, "DraftPO"),
+                            .ActualPO = GetReportDecimal(reader, "ActualPO")
+                        }
+                        result(BuildReportKey(item.Year, item.Month, item.Category, item.Company, item.Segment, item.Brand, item.Vendor)) = item
+                    End While
                 End Using
             End Using
         End Using
-        Return dt
-    End Function
 
-    Private Function GetDistinctKeysForReport(year As String, month As String, company As String, category As String, segment As String, brand As String, vendor As String) As DataTable
-        ' รวม Key จากทุกตารางเพื่อให้ได้รายการครบถ้วน
-        Dim dt As New DataTable()
-        Using conn As New SqlConnection(connectionString)
-            conn.Open()
-            Dim query As String = "
-                SELECT DISTINCT Year, Month, Category, Company, Segment, Brand, Vendor 
-                FROM [dbo].[OTB_Transaction] 
-                WHERE OTBStatus='Approved' 
-                AND (@Year IS NULL OR Year = @Year)
-                AND (@Month IS NULL OR Month = @Month)
-                AND (@Company IS NULL OR Company = @Company)
-                AND (@Category IS NULL OR Category = @Category)
-                AND (@Segment IS NULL OR Segment = @Segment)
-                AND (@Brand IS NULL OR Brand = @Brand)
-                AND (@Vendor IS NULL OR Vendor = @Vendor)
-
-                UNION
-
-                SELECT DISTINCT Year, Month, Category, Company, Segment, Brand, Vendor 
-                FROM [dbo].[OTB_Switching_Transaction] 
-                WHERE OTBStatus='Approved' 
-                AND (@Year IS NULL OR Year = @Year)
-                AND (@Month IS NULL OR Month = @Month)
-                AND (@Company IS NULL OR Company = @Company)
-                AND (@Category IS NULL OR Category = @Category)
-                AND (@Segment IS NULL OR Segment = @Segment)
-                AND (@Brand IS NULL OR Brand = @Brand)
-                AND (@Vendor IS NULL OR Vendor = @Vendor)
-
-                UNION
-
-                SELECT DISTINCT SwitchYear AS Year, SwitchMonth AS Month, SwitchCategory AS Category, SwitchCompany AS Company, SwitchSegment AS Segment, SwitchBrand AS Brand, SwitchVendor AS Vendor 
-                FROM [dbo].[OTB_Switching_Transaction] 
-                WHERE OTBStatus='Approved' AND [To] IS NOT NULL 
-                AND (@Year IS NULL OR SwitchYear = @Year)
-                AND (@Month IS NULL OR SwitchMonth = @Month)
-                AND (@Company IS NULL OR SwitchCompany = @Company)
-                AND (@Category IS NULL OR SwitchCategory = @Category)
-                AND (@Segment IS NULL OR SwitchSegment = @Segment)
-                AND (@Brand IS NULL OR SwitchBrand = @Brand)
-                AND (@Vendor IS NULL OR SwitchVendor = @Vendor)
-
-                UNION
-
-                SELECT DISTINCT PO_Year AS Year, PO_Month AS Month, Category_Code AS Category, Company_Code AS Company, Segment_Code AS Segment, Brand_Code AS Brand, Vendor_Code AS Vendor 
-                FROM [dbo].[Draft_PO_Transaction] 
-                WHERE ISNULL(Status,'')<>'Cancelled' 
-                AND (@Year IS NULL OR PO_Year = @Year)
-                AND (@Month IS NULL OR PO_Month = @Month)
-                AND (@Company IS NULL OR Company_Code = @Company)
-                AND (@Category IS NULL OR Category_Code = @Category)
-                AND (@Segment IS NULL OR Segment_Code = @Segment)
-                AND (@Brand IS NULL OR Brand_Code = @Brand)
-                AND (@Vendor IS NULL OR Vendor_Code = @Vendor)
-
-                UNION
-
-                SELECT DISTINCT Otb_Year, Otb_Month, Category, Company_Code, Fund, Brand, Supplier 
-                FROM [dbo].[Actual_PO_Staging] 
-                WHERE ISNULL(Deletion_Flag,'')<>'L' 
-                AND (@Year IS NULL OR Otb_Year = @Year)
-                AND (@Month IS NULL OR Otb_Month = @Month)
-                AND (@Company IS NULL OR Company_Code = @Company)
-                AND (@Category IS NULL OR Category = @Category)
-                AND (@Segment IS NULL OR Fund = @Segment)
-                AND (@Brand IS NULL OR Brand = @Brand)
-                AND (@Vendor IS NULL OR Supplier = @Vendor)
-            "
-            Using cmd As New SqlCommand(query, conn)
-                cmd.Parameters.AddWithValue("@Year", If(String.IsNullOrEmpty(year), DBNull.Value, year))
-                cmd.Parameters.AddWithValue("@Month", If(String.IsNullOrEmpty(month), DBNull.Value, month))
-                cmd.Parameters.AddWithValue("@Company", If(String.IsNullOrEmpty(company), DBNull.Value, company))
-                cmd.Parameters.AddWithValue("@Category", If(String.IsNullOrEmpty(category), DBNull.Value, category))
-                cmd.Parameters.AddWithValue("@Segment", If(String.IsNullOrEmpty(segment), DBNull.Value, segment))
-                cmd.Parameters.AddWithValue("@Brand", If(String.IsNullOrEmpty(brand), DBNull.Value, brand))
-                cmd.Parameters.AddWithValue("@Vendor", If(String.IsNullOrEmpty(vendor), DBNull.Value, vendor))
-                Using da As New SqlDataAdapter(cmd)
-                    da.Fill(dt)
-                End Using
-            End Using
-        End Using
-        Return dt
+        Return result
     End Function
 
     ' --- Excel Generation ---
@@ -1771,7 +2000,9 @@ Public Class DataOTBHandler
             ws.Cells(2, 23, 2, 24).Style.Fill.BackgroundColor.SetColor(Color.FromArgb(0, 90, 160))
 
             ' Number Format
-            ws.Cells(3, 13, dt.Rows.Count + 2, 26).Style.Numberformat.Format = "#,##0.00"
+            If dt.Rows.Count > 0 Then
+                ws.Cells(3, 13, dt.Rows.Count + 2, 26).Style.Numberformat.Format = "#,##0.00"
+            End If
 
             ' AutoFit
             ws.Cells.AutoFitColumns()
@@ -1780,6 +2011,7 @@ Public Class DataOTBHandler
             context.Response.Clear()
             context.Response.ContentType = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
             context.Response.AddHeader("content-disposition", $"attachment; filename={filename}")
+            MarkDownloadReady(context)
             context.Response.BinaryWrite(package.GetAsByteArray())
             context.Response.Flush()
             context.ApplicationInstance.CompleteRequest()
@@ -1790,93 +2022,60 @@ Public Class DataOTBHandler
     ' ===== NEW: SUMMARY OTB BY CATEGORY REPORT ========================
     ' ==================================================================
     Private Sub HandleExportSummaryCategory(context As HttpContext)
-        ' 1. รับ Parameters
-        Dim year As String = context.Request.QueryString("OTByear")
-        Dim month As String = context.Request.QueryString("OTBmonth")
-        Dim company As String = context.Request.QueryString("OTBCompany")
-        Dim category As String = context.Request.QueryString("OTBCategory")
-        Dim segment As String = context.Request.QueryString("OTBSegment")
+        Dim year As String = NormalizeReportFilter(context.Request.QueryString("OTByear"))
+        Dim month As String = NormalizeReportFilter(context.Request.QueryString("OTBmonth"))
+        Dim company As String = NormalizeReportFilter(context.Request.QueryString("OTBCompany"))
+        Dim category As String = NormalizeReportFilter(context.Request.QueryString("OTBCategory"))
+        Dim segment As String = NormalizeReportFilter(context.Request.QueryString("OTBSegment"))
         Dim masterinstance As New MasterDataUtil
-        ' *สำคัญ* เราต้องดึงข้อมูลระดับ Brand/Vendor ทั้งหมดภายใต้ Filter นี้มาคำนวณก่อน แล้วค่อย Group รวม
-        Dim brand As String = context.Request.QueryString("OTBBrand")
-        Dim vendor As String = context.Request.QueryString("OTBVendor")
-
+        Dim brand As String = NormalizeReportFilter(context.Request.QueryString("OTBBrand"))
+        Dim vendor As String = NormalizeReportFilter(context.Request.QueryString("OTBVendor"))
 
         If String.IsNullOrEmpty(year) Then Throw New Exception("Year is required.")
 
-        ' 2. เตรียม Calculator และโหลดข้อมูลดิบ
-        Dim budgetCalc As New OTBBudgetCalculator()
-        Dim dtDraftPO As DataTable = LoadDraftPOForReport(year, month, company, category, segment, brand, vendor)
-        Dim dtActualPO As DataTable = LoadActualPOForReport(year, month, company, category, segment, brand, vendor)
+        Dim budgetByKey As Dictionary(Of String, ReportBudgetRow) = LoadBudgetBreakdownForReport(year, month, company, category, segment, brand, vendor)
+        Dim usageByKey As Dictionary(Of String, ReportUsageRow) = LoadPOUsageForReport(year, month, company, category, segment, brand, vendor)
+        Dim reportKeys As List(Of String) = BuildSortedReportKeys(budgetByKey, usageByKey)
+        Dim summaryByKey As New Dictionary(Of String, SummaryRawItem)(StringComparer.OrdinalIgnoreCase)
 
-        ' ดึง Key ทั้งหมดที่มีข้อมูล (ระดับละเอียด)
-        Dim dtKeys As DataTable = GetDistinctKeysForReport(year, month, company, category, segment, brand, vendor)
+        For Each reportKey As String In reportKeys
+            Dim budget As ReportBudgetRow = Nothing
+            Dim usage As ReportUsageRow = Nothing
+            Dim hasBudget As Boolean = budgetByKey.TryGetValue(reportKey, budget)
+            Dim hasUsage As Boolean = usageByKey.TryGetValue(reportKey, usage)
 
-        ' 3. สร้าง List ชั่วคราวเพื่อเก็บข้อมูลระดับละเอียดก่อน Group
-        Dim rawList As New List(Of SummaryRawItem)
-
-        For Each rowKey As DataRow In dtKeys.Rows
-            Dim kYear As String = rowKey("Year").ToString()
-            Dim kMonth As String = rowKey("Month").ToString()
-            Dim kCate As String = rowKey("Category").ToString()
-            Dim kCateName As String = masterinstance.GetCategoryName(rowKey("Category").ToString())
-            Dim kComp As String = rowKey("Company").ToString()
-            Dim kCompName As String = masterinstance.GetCompanyName(rowKey("Company").ToString())
-            Dim kSeg As String = rowKey("Segment").ToString()
-            Dim kSegName As String = masterinstance.GetSegmentName(rowKey("Segment").ToString())
-            Dim kBrand As String = rowKey("Brand").ToString()
-            Dim kBrandName As String = masterinstance.GetBrandName(rowKey("Brand").ToString())
-            Dim kVendor As String = rowKey("Vendor").ToString()
-            Dim kVendorName As String = masterinstance.GetVendorName(rowKey("Vendor").ToString())
+            Dim kYear As String = If(hasBudget, budget.Year, usage.Year)
+            Dim kMonth As String = If(hasBudget, budget.Month, usage.Month)
+            Dim kCate As String = If(hasBudget, budget.Category, usage.Category)
+            Dim kComp As String = If(hasBudget, budget.Company, usage.Company)
+            Dim kSeg As String = If(hasBudget, budget.Segment, usage.Segment)
             Dim kMonthName As String = GetMonthName(kMonth)
 
-            ' 3.1 คำนวณ Budget (ระดับละเอียด)
-            Dim budgetBreakdown = budgetCalc.GetBudgetBreakdown(kYear, kMonth, kCate, kComp, kSeg, kBrand, kVendor)
-            Dim totalBudgetApproved As Decimal = budgetBreakdown("Total")
-
-            ' 3.2 คำนวณ PO (ระดับละเอียด)
-            Dim filterPO As String = $"Year = '{kYear}' AND Month = '{kMonth}' AND Category = '{kCate}' AND Company = '{kComp}' AND Segment = '{kSeg}' AND Brand = '{kBrand}' AND Vendor = '{kVendor}'"
-            Dim sumDraft As Decimal = If(IsDBNull(dtDraftPO.Compute("SUM(Amount)", filterPO)), 0, Convert.ToDecimal(dtDraftPO.Compute("SUM(Amount)", filterPO)))
-            Dim sumActual As Decimal = If(IsDBNull(dtActualPO.Compute("SUM(Amount)", filterPO)), 0, Convert.ToDecimal(dtActualPO.Compute("SUM(Amount)", filterPO)))
-
-            ' เก็บลง List
-            rawList.Add(New SummaryRawItem With {
-                .Year = kYear,
-                .Month = kMonth,
-                .MonthName = kMonthName,
-                .Category = kCate,
-                .CategoryName = kCateName,
-                .Company = kComp,
-                .CompanyName = kCompName,
-                .Segment = kSeg,
-                .SegmentName = kSegName,
-                .TotalBudget = totalBudgetApproved,
-                .TotalActualDraft = sumDraft + sumActual
+            Dim summaryKey As String = String.Join("|", New String() {
+                NormalizeReportKeyPart(kComp),
+                NormalizeReportKeyPart(kYear),
+                NormalizeReportKeyPart(kMonth),
+                NormalizeReportKeyPart(kCate),
+                NormalizeReportKeyPart(kSeg)
             })
+
+            If Not summaryByKey.ContainsKey(summaryKey) Then
+                summaryByKey.Add(summaryKey, New SummaryRawItem With {
+                    .Year = kYear,
+                    .Month = kMonth,
+                    .MonthName = kMonthName,
+                    .Category = kCate,
+                    .Company = kComp,
+                    .Segment = kSeg,
+                    .TotalBudget = 0D,
+                    .TotalActualDraft = 0D
+                })
+            End If
+
+            summaryByKey(summaryKey).TotalBudget += If(hasBudget, budget.Total, 0D)
+            summaryByKey(summaryKey).TotalActualDraft += If(hasUsage, usage.TotalUsage, 0D)
         Next
 
-        ' 4. (สำคัญ) Group By Category & Segment ด้วย LINQ
-        ' *** FIXED: Group.Sum จะใช้ Decimal overload อัตโนมัติเพราะ rawList เป็น Strongly Typed ***
-        Dim groupedQuery = From item In rawList
-                           Group item By Key = New With {
-                               Key .Company = item.Company,
-                               Key .Year = item.Year,
-                               Key .MonthName = item.MonthName,
-                               Key .Category = item.Category,
-                               Key .Segment = item.Segment
-                           } Into Group
-                           Select New With {
-                               .Company = Key.Company,
-                               .Year = Key.Year,
-                               .Month = Key.MonthName,
-                               .Category = Key.Category,
-                               .Segment = Key.Segment,
-                               .TotalBudgetApproved = Group.Sum(Function(x) x.TotalBudget),
-                               .TotalActualDraft = Group.Sum(Function(x) x.TotalActualDraft),
-                               .Remaining = Group.Sum(Function(x) x.TotalBudget) - Group.Sum(Function(x) x.TotalActualDraft)
-                           }
-
-        ' 5. สร้าง DataTable สำหรับ Export
         Dim dtExport As New DataTable("SummaryOTB")
         dtExport.Columns.Add("Company")
         dtExport.Columns.Add("CompanyName")
@@ -1890,26 +2089,28 @@ Public Class DataOTBHandler
         dtExport.Columns.Add("Total Actual + Draft PO", GetType(Decimal))
         dtExport.Columns.Add("Remaining", GetType(Decimal))
 
-        For Each row In groupedQuery
-            ' Filter out rows with zero values everywhere if desired, or keep all
-            If row.TotalBudgetApproved <> 0 OrElse row.TotalActualDraft <> 0 Then
+        Dim summaryKeys As New List(Of String)(summaryByKey.Keys)
+        summaryKeys.Sort()
+
+        For Each summaryKey As String In summaryKeys
+            Dim row As SummaryRawItem = summaryByKey(summaryKey)
+            If row.TotalBudget <> 0 OrElse row.TotalActualDraft <> 0 Then
                 dtExport.Rows.Add(
                     row.Company,
                     masterinstance.GetCompanyName(row.Company),
                     row.Year,
-                    row.Month,
+                    row.MonthName,
                     row.Category,
                     masterinstance.GetCategoryName(row.Category),
                     row.Segment,
                     masterinstance.GetSegmentName(row.Segment),
-                    row.TotalBudgetApproved,
+                    row.TotalBudget,
                     row.TotalActualDraft,
-                    row.Remaining
+                    row.TotalBudget - row.TotalActualDraft
                 )
             End If
         Next
 
-        ' 6. Generate Excel
         GenerateExcelSummaryCategory(context, dtExport, $"Summary_OTB_Category_{DateTime.Now:yyyyMMdd_HHmmss}.xlsx")
     End Sub
 
@@ -1947,15 +2148,18 @@ Public Class DataOTBHandler
             End Using
 
             ' Format Numbers
-            Using rng = ws.Cells(4, 9, dt.Rows.Count + 3, 11)
-                rng.Style.Numberformat.Format = "#,##0.00"
-            End Using
+            If dt.Rows.Count > 0 Then
+                Using rng = ws.Cells(4, 9, dt.Rows.Count + 3, 11)
+                    rng.Style.Numberformat.Format = "#,##0.00"
+                End Using
+            End If
 
             ws.Cells.AutoFitColumns()
 
             context.Response.Clear()
             context.Response.ContentType = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
             context.Response.AddHeader("content-disposition", $"attachment; filename={filename}")
+            MarkDownloadReady(context)
             context.Response.BinaryWrite(package.GetAsByteArray())
             context.Response.Flush()
             context.ApplicationInstance.CompleteRequest()

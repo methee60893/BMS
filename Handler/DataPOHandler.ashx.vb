@@ -16,6 +16,18 @@ Public Class DataPOHandler
 
     Private Shared connectionString As String = ConfigurationManager.ConnectionStrings("BMSConnectionString")?.ConnectionString
 
+    Private Sub MarkDownloadReady(context As HttpContext)
+        Dim token As String = If(context.Request.QueryString("_downloadToken"), "")
+        If String.IsNullOrWhiteSpace(token) Then Return
+
+        Dim cookie As New HttpCookie("BMSDownloadToken", token.Trim()) With {
+            .HttpOnly = False,
+            .Path = "/",
+            .Expires = DateTime.Now.AddMinutes(5)
+        }
+        context.Response.Cookies.Set(cookie)
+    End Sub
+
     Sub ProcessRequest(ByVal context As HttpContext) Implements IHttpHandler.ProcessRequest
         Dim action As String = If(context.Request("action"), "").ToLower().Trim()
 
@@ -788,6 +800,7 @@ Public Class DataPOHandler
             context.Response.Clear()
             context.Response.ContentType = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
             context.Response.AddHeader("content-disposition", $"attachment; filename={filename}")
+            MarkDownloadReady(context)
             context.Response.BinaryWrite(package.GetAsByteArray())
             context.Response.Flush()
             context.ApplicationInstance.CompleteRequest()
