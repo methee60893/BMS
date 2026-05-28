@@ -294,7 +294,7 @@ Public Class POMatchingHandler
 
         Catch ex As Exception
             context.Response.ContentType = "application/json"
-            context.Response.StatusCode = 500
+            context.Response.StatusCode = 200
             Dim errorResponse As New With {
                 .success = False,
                 .message = ex.Message & If(ex.InnerException IsNot Nothing, " | Inner: " & ex.InnerException.Message, "")
@@ -350,7 +350,7 @@ Public Class POMatchingHandler
 
         Catch ex As Exception
             context.Response.ContentType = "application/json"
-            context.Response.StatusCode = 500
+            context.Response.StatusCode = 200
             Dim errorResponse As New With {
                 .success = False,
                 .message = ex.Message & If(ex.InnerException IsNot Nothing, " | Inner: " & ex.InnerException.Message, "")
@@ -401,7 +401,7 @@ Public Class POMatchingHandler
 
         Catch ex As Exception
             context.Response.ContentType = "application/json"
-            context.Response.StatusCode = 500
+            context.Response.StatusCode = 200
             Dim errorResponse As New With {
                 .success = False,
                 .message = ex.Message & If(ex.InnerException IsNot Nothing, " | Inner: " & ex.InnerException.Message, "")
@@ -535,7 +535,7 @@ Public Class POMatchingHandler
 
         Catch ex As Exception
             context.Response.ContentType = "application/json"
-            context.Response.StatusCode = 500
+            context.Response.StatusCode = 200
             Dim errorResponse As New With {
                 .success = False,
                 .message = ex.Message & If(ex.InnerException IsNot Nothing, " | Inner: " & ex.InnerException.Message, "")

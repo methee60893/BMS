@@ -34,7 +34,7 @@ Public Class UploadHandler : Implements IHttpHandler
                 Dim jsonData As String = context.Request.Form("selectedData")
                 SaveFromPreview(jsonData, uploadBy, context) ' เรียก Method ใหม่
             Catch ex As Exception
-                context.Response.StatusCode = 500
+                context.Response.StatusCode = 200
                 context.Response.Write($"<div class='alert alert-danger'>Error: {HttpUtility.HtmlEncode(ex.Message)}</div>")
             End Try
             Return ' ออกจากการทำงานทันที
