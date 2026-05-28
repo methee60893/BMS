@@ -722,6 +722,52 @@ Public Class POMatchingHandler
                         bulkCopy.WriteToServer(dtPOs)
                     End Using
 
+                    Dim staleMovedRowsMarkedCount As Integer = 0
+                    Dim markStaleMovedRowsQuery As String = "
+                        ;WITH IncomingRanked AS (
+                            SELECT
+                                PO,
+                                PO_Item,
+                                Otb_Year,
+                                Otb_Month,
+                                ROW_NUMBER() OVER (
+                                    PARTITION BY PO, PO_Item
+                                    ORDER BY Modified_Date DESC, BMS_Last_Synced DESC
+                                ) AS Rn
+                            FROM #TempSAPPOs
+                            WHERE ISNULL(Deletion_Flag, N'') <> N'L'
+                        ),
+                        IncomingActivePOs AS (
+                            SELECT PO, PO_Item, Otb_Year, Otb_Month
+                            FROM IncomingRanked
+                            WHERE Rn = 1
+                        ),
+                        StaleMovedRows AS (
+                            SELECT DISTINCT T.StagingID
+                            FROM [BMS].[dbo].[Actual_PO_Staging] AS T
+                            INNER JOIN IncomingActivePOs AS S
+                                ON T.PO = S.PO
+                               AND T.PO_Item = S.PO_Item
+                            WHERE ISNULL(T.Deletion_Flag, N'') <> N'L'
+                              AND (
+                                    ISNULL(T.Otb_Year, -2147483648) <> ISNULL(S.Otb_Year, -2147483648)
+                                 OR ISNULL(T.Otb_Month, -2147483648) <> ISNULL(S.Otb_Month, -2147483648)
+                              )
+                        )
+                        UPDATE T
+                            SET T.Deletion_Flag = N'L',
+                                T.BMS_Last_Synced = @SyncTime
+                        FROM [BMS].[dbo].[Actual_PO_Staging] AS T
+                        INNER JOIN StaleMovedRows AS M
+                            ON T.StagingID = M.StagingID;
+                    "
+
+                    Using cmdMarkStale As New SqlCommand(markStaleMovedRowsQuery, conn, transaction)
+                        cmdMarkStale.CommandTimeout = 300
+                        cmdMarkStale.Parameters.AddWithValue("@SyncTime", syncTime)
+                        staleMovedRowsMarkedCount = cmdMarkStale.ExecuteNonQuery()
+                    End Using
+
                     ' 3.2 MERGE Statement (Upsert)
                     ' (Key ทั้ง 9 ตัวตามที่คุณระบุ)
                     Dim mergeQuery As String = "
@@ -818,7 +864,7 @@ Public Class POMatchingHandler
 
                     transaction.Commit()
 
-                    Return $"Sync completed. Total SAP (2 days): {poList.Count} | Inserted: {insertedCount} | Updated: {updatedCount}"
+                    Return $"Sync completed. Total SAP (2 days): {poList.Count} | Inserted: {insertedCount} | Updated: {updatedCount} | Marked old OTB rows as L: {staleMovedRowsMarkedCount}"
 
                 Catch ex As Exception
                     transaction.Rollback()

@@ -198,8 +198,28 @@ AS
 BEGIN
     SET NOCOUNT ON;
 
-    MERGE dbo.Actual_PO_Summary AS T
-    USING
+    CREATE TABLE #CurrentActualPO
+    (
+        PO_No nvarchar(50) NOT NULL,
+        PO_Item nvarchar(20) NOT NULL,
+        OTB_Year int NULL,
+        OTB_Month int NULL,
+        Company_Code nvarchar(20) NULL,
+        Category_Code nvarchar(20) NULL,
+        Segment_Code nvarchar(20) NULL,
+        Brand_Code nvarchar(30) NULL,
+        Vendor_Code nvarchar(30) NULL,
+        Actual_PO_Date datetime2(0) NULL,
+        Amount_THB decimal(18,2) NULL,
+        Amount_CCY decimal(18,2) NULL,
+        CCY nvarchar(10) NULL,
+        Exchange_Rate decimal(18,6) NULL,
+        Source_Modified_Date datetime2(0) NULL,
+        BMS_Last_Synced datetime2(0) NULL,
+        SyncStatus nvarchar(30) NULL
+    );
+
+    ;WITH RankedStaging AS
     (
         SELECT
             s.PO AS PO_No,
@@ -221,9 +241,63 @@ BEGIN
             CASE
                 WHEN ISNULL(s.Deletion_Flag, N'') = N'L' THEN N'Cancelled'
                 ELSE NULL
-            END AS SyncStatus
+            END AS SyncStatus,
+            ROW_NUMBER() OVER
+            (
+                PARTITION BY s.PO, s.PO_Item
+                ORDER BY
+                    CASE WHEN ISNULL(s.Deletion_Flag, N'') = N'L' THEN 1 ELSE 0 END,
+                    s.Modified_Date DESC,
+                    s.BMS_Last_Synced DESC,
+                    s.StagingID DESC
+            ) AS rn
         FROM dbo.Actual_PO_Staging s
-    ) AS S
+    )
+    INSERT INTO #CurrentActualPO
+    (
+        PO_No, PO_Item, OTB_Year, OTB_Month, Company_Code, Category_Code, Segment_Code,
+        Brand_Code, Vendor_Code, Actual_PO_Date, Amount_THB, Amount_CCY, CCY, Exchange_Rate,
+        Source_Modified_Date, BMS_Last_Synced, SyncStatus
+    )
+    SELECT
+        PO_No, PO_Item, OTB_Year, OTB_Month, Company_Code, Category_Code, Segment_Code,
+        Brand_Code, Vendor_Code, Actual_PO_Date, Amount_THB, Amount_CCY, CCY, Exchange_Rate,
+        Source_Modified_Date, BMS_Last_Synced, SyncStatus
+    FROM RankedStaging
+    WHERE rn = 1;
+
+    UPDATE d
+        SET d.Actual_PO_Ref = NULL,
+            d.[Status] = N'Draft',
+            d.Status_Date = sysdatetime(),
+            d.Status_By = N'System Sync'
+    FROM dbo.Draft_PO_Transaction d
+    INNER JOIN dbo.Actual_PO_Summary a
+        ON d.DraftPO_No = a.Draft_PO_Ref
+       AND d.Actual_PO_Ref = a.PO_No
+       AND d.PO_Year = a.OTB_Year
+       AND d.PO_Month = a.OTB_Month
+       AND d.Company_Code = a.Company_Code
+       AND d.Category_Code = a.Category_Code
+       AND d.Segment_Code = CASE
+                                WHEN LEN(ISNULL(a.Segment_Code, N'')) > 2 THEN SUBSTRING(a.Segment_Code, 2, LEN(a.Segment_Code) - 2)
+                                ELSE a.Segment_Code
+                            END
+       AND d.Brand_Code = a.Brand_Code
+       AND d.Vendor_Code = a.Vendor_Code
+    INNER JOIN #CurrentActualPO s
+        ON a.PO_No = s.PO_No
+       AND a.PO_Item = s.PO_Item
+    WHERE a.Draft_PO_Ref IS NOT NULL
+      AND ISNULL(d.[Status], N'') IN (N'Matching', N'ForceMatching', N'Matched')
+      AND (
+            s.SyncStatus = N'Cancelled'
+         OR ISNULL(a.OTB_Year, -2147483648) <> ISNULL(s.OTB_Year, -2147483648)
+         OR ISNULL(a.OTB_Month, -2147483648) <> ISNULL(s.OTB_Month, -2147483648)
+      );
+
+    MERGE dbo.Actual_PO_Summary AS T
+    USING #CurrentActualPO AS S
         ON T.PO_No = S.PO_No
        AND T.PO_Item = S.PO_Item
     WHEN MATCHED THEN
@@ -242,7 +316,35 @@ BEGIN
             T.Exchange_Rate = S.Exchange_Rate,
             T.Source_Modified_Date = S.Source_Modified_Date,
             T.BMS_Last_Synced = S.BMS_Last_Synced,
-            T.[Status] = COALESCE(S.SyncStatus, T.[Status]),
+            T.Draft_PO_Ref = CASE
+                WHEN S.SyncStatus = N'Cancelled'
+                  OR ISNULL(T.OTB_Year, -2147483648) <> ISNULL(S.OTB_Year, -2147483648)
+                  OR ISNULL(T.OTB_Month, -2147483648) <> ISNULL(S.OTB_Month, -2147483648)
+                THEN NULL
+                ELSE T.Draft_PO_Ref
+            END,
+            T.Matching_Date = CASE
+                WHEN S.SyncStatus = N'Cancelled'
+                  OR ISNULL(T.OTB_Year, -2147483648) <> ISNULL(S.OTB_Year, -2147483648)
+                  OR ISNULL(T.OTB_Month, -2147483648) <> ISNULL(S.OTB_Month, -2147483648)
+                THEN NULL
+                ELSE T.Matching_Date
+            END,
+            T.[Status] = CASE
+                WHEN S.SyncStatus IS NOT NULL THEN S.SyncStatus
+                WHEN ISNULL(T.OTB_Year, -2147483648) <> ISNULL(S.OTB_Year, -2147483648)
+                  OR ISNULL(T.OTB_Month, -2147483648) <> ISNULL(S.OTB_Month, -2147483648)
+                  OR ISNULL(T.[Status], N'') = N'Cancelled'
+                THEN NULL
+                ELSE T.[Status]
+            END,
+            T.Changed_By = CASE
+                WHEN S.SyncStatus = N'Cancelled'
+                  OR ISNULL(T.OTB_Year, -2147483648) <> ISNULL(S.OTB_Year, -2147483648)
+                  OR ISNULL(T.OTB_Month, -2147483648) <> ISNULL(S.OTB_Month, -2147483648)
+                THEN N'System Sync'
+                ELSE T.Changed_By
+            END,
             T.Changed_Date = sysdatetime()
     WHEN NOT MATCHED BY TARGET THEN
         INSERT
