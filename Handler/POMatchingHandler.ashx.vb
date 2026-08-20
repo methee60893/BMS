@@ -1,4 +1,4 @@
-﻿Imports System
+Imports System
 Imports System.Data
 Imports System.Data.SqlClient
 Imports System.Globalization ' (เพิ่ม Import นี้สำหรับ CultureInfo)
@@ -76,25 +76,16 @@ Public Class POMatchingHandler
                 conn.Open()
 
                 ' ---------------------------------------------------------
-                ' 2. Get Draft PO Data
+                ' 2. Get Actual PO Data for Validation
                 ' ---------------------------------------------------------
-                Dim checkQuery As String = "SELECT * FROM [BMS].[dbo].[Draft_PO_Transaction] WHERE [DraftPO_No] = @DraftPONo AND ISNULL(Status, '') <> 'Cancelled'"
-                Using cmdCheck As New SqlCommand(checkQuery, conn)
-                    cmdCheck.Parameters.AddWithValue("@DraftPONo", draftPONo)
-                    Dim dt As New DataTable()
-                    Using da As New SqlDataAdapter(cmdCheck)
-                        da.Fill(dt)
-                    End Using
-                    If dt.Rows.Count = 0 Then
-                        Throw New Exception($"Draft PO No. '{draftPONo}' not found or is cancelled.")
-                    End If
-                    draftData = dt.Rows(0)
-                End Using
-
-                ' ---------------------------------------------------------
-                ' 3. [NEW] Get Actual PO Data for Validation
-                ' ---------------------------------------------------------
-                Dim actualQuery As String = "SELECT OTB_Year, OTB_Month, Company_Code, Category_Code, Segment_Code, Brand_Code, Vendor_Code FROM [BMS].[dbo].[Actual_PO_Summary] WHERE [ActualPO_ID] = @ActualPOID"
+                Dim actualQuery As String = "
+                    SELECT ActualPO_ID, PO_No, OTB_Year, OTB_Month, Company_Code, Category_Code,
+                           COALESCE(NULLIF(Clean_Segment, ''), CASE WHEN LEFT(ISNULL(Segment_Code, ''), 1) = 'O' AND RIGHT(ISNULL(Segment_Code, ''), 1) = '0' AND LEN(ISNULL(Segment_Code, '')) > 2 THEN SUBSTRING(Segment_Code, 2, LEN(Segment_Code) - 2) ELSE Segment_Code END) AS Segment_Code,
+                           Brand_Code, Vendor_Code
+                    FROM [BMS].[dbo].[Actual_PO_Summary]
+                    WHERE [ActualPO_ID] = @ActualPOID
+                      AND ISNULL([Status], '') NOT IN ('Cancelled', 'Deleted')
+                "
                 Using cmdAct As New SqlCommand(actualQuery, conn)
                     cmdAct.Parameters.AddWithValue("@ActualPOID", actualPO_ID)
                     Dim dtAct As New DataTable()
@@ -108,6 +99,42 @@ Public Class POMatchingHandler
                 End Using
 
                 ' ---------------------------------------------------------
+                ' 3. Get matching Draft PO by PO No. plus Actual business key
+                ' ---------------------------------------------------------
+                Dim checkQuery As String = "
+                    SELECT TOP (1) *
+                    FROM [BMS].[dbo].[Draft_PO_Transaction]
+                    WHERE [DraftPO_No] = @DraftPONo
+                      AND ISNULL([Status], '') NOT IN ('Matched', 'Cancelled')
+                      AND [PO_Year] = @Year
+                      AND [PO_Month] = @Month
+                      AND [Company_Code] = @Company
+                      AND [Category_Code] = @Category
+                      AND [Segment_Code] = @Segment
+                      AND [Brand_Code] = @Brand
+                      AND [Vendor_Code] = @Vendor
+                    ORDER BY CASE WHEN ISNULL([Actual_PO_Ref], '') = '' THEN 0 ELSE 1 END, [DraftPO_ID]
+                "
+                Using cmdCheck As New SqlCommand(checkQuery, conn)
+                    cmdCheck.Parameters.AddWithValue("@DraftPONo", draftPONo)
+                    cmdCheck.Parameters.AddWithValue("@Year", actualData("OTB_Year"))
+                    cmdCheck.Parameters.AddWithValue("@Month", actualData("OTB_Month"))
+                    cmdCheck.Parameters.AddWithValue("@Company", actualData("Company_Code"))
+                    cmdCheck.Parameters.AddWithValue("@Category", actualData("Category_Code"))
+                    cmdCheck.Parameters.AddWithValue("@Segment", actualData("Segment_Code"))
+                    cmdCheck.Parameters.AddWithValue("@Brand", actualData("Brand_Code"))
+                    cmdCheck.Parameters.AddWithValue("@Vendor", actualData("Vendor_Code"))
+                    Dim dt As New DataTable()
+                    Using da As New SqlDataAdapter(cmdCheck)
+                        da.Fill(dt)
+                    End Using
+                    If dt.Rows.Count = 0 Then
+                        Throw New Exception($"Draft PO No. '{draftPONo}' not found for the selected Actual PO business key.")
+                    End If
+                    draftData = dt.Rows(0)
+                End Using
+
+                ' ---------------------------------------------------------
                 ' 4. [NEW] Validate Match Logic
                 ' ---------------------------------------------------------
                 ValidatePoMatching(draftData, actualData)
@@ -118,8 +145,9 @@ Public Class POMatchingHandler
                 Using transaction As SqlTransaction = conn.BeginTransaction()
                     Try
                         ' Update Actual PO Summary
-                        Dim updateActual As String = "UPDATE [BMS].[dbo].[Actual_PO_Summary] SET [Draft_PO_Ref] = @DraftPONo, [Status] = 'ForceMatching', [Matching_Date] = GETDATE(), [Changed_By] = @UpdateBy, [Changed_date] = GETDATE() WHERE [ActualPO_ID] = @ActualPOID"
+                        Dim updateActual As String = "UPDATE [BMS].[dbo].[Actual_PO_Summary] SET [Draft_PO_ID_Ref] = @DraftPOID, [Draft_PO_Ref] = @DraftPONo, [Status] = 'ForceMatching', [Matching_Date] = GETDATE(), [Status_Date] = GETDATE(), [Status_By] = @UpdateBy, [Changed_By] = @UpdateBy, [Changed_date] = GETDATE(), [Updated_By] = @UpdateBy, [Updated_Date] = GETDATE() WHERE [ActualPO_ID] = @ActualPOID"
                         Using cmd As New SqlCommand(updateActual, conn, transaction)
+                            cmd.Parameters.AddWithValue("@DraftPOID", draftData("DraftPO_ID"))
                             cmd.Parameters.AddWithValue("@DraftPONo", draftPONo)
                             cmd.Parameters.AddWithValue("@ActualPOID", actualPO_ID)
                             cmd.Parameters.AddWithValue("@UpdateBy", updateBy)
@@ -127,9 +155,9 @@ Public Class POMatchingHandler
                         End Using
 
                         ' Update Draft PO Transaction
-                        Dim updateDraft As String = "UPDATE [BMS].[dbo].[Draft_PO_Transaction] SET [Actual_PO_Ref] = @ActualPONo, [Status] = 'ForceMatching', [Status_Date] = GETDATE(), [Status_By] = @UpdateBy WHERE [DraftPO_No] = @DraftPONo"
+                        Dim updateDraft As String = "UPDATE [BMS].[dbo].[Draft_PO_Transaction] SET [Actual_PO_Ref] = @ActualPONo, [Status] = 'ForceMatching', [Status_Date] = GETDATE(), [Status_By] = @UpdateBy WHERE [DraftPO_ID] = @DraftPOID"
                         Using cmd As New SqlCommand(updateDraft, conn, transaction)
-                            cmd.Parameters.AddWithValue("@DraftPONo", draftPONo)
+                            cmd.Parameters.AddWithValue("@DraftPOID", draftData("DraftPO_ID"))
                             cmd.Parameters.AddWithValue("@ActualPONo", actualPONo)
                             cmd.Parameters.AddWithValue("@UpdateBy", updateBy)
                             cmd.ExecuteNonQuery()
@@ -212,7 +240,7 @@ Public Class POMatchingHandler
         Dim actualSeg As String = getStr(actual, "Segment_Code")
 
         ' Clean Actual Segment Logic (ตรงกับที่ใช้ในหน้าจอ Grid)
-        If actualSeg.Length > 2 Then
+        If actualSeg.StartsWith("O", StringComparison.OrdinalIgnoreCase) AndAlso actualSeg.EndsWith("0", StringComparison.OrdinalIgnoreCase) AndAlso actualSeg.Length > 2 Then
             ' สมมติ format เป็น (XXX) หรือ /XXX/ ให้ตัดตัวหน้าและตัวท้าย
             actualSeg = actualSeg.Substring(1, actualSeg.Length - 2)
         End If
@@ -479,12 +507,12 @@ Public Class POMatchingHandler
                         ' 2. Update Actual PO (Matching -> Matched) ด้วย Key และ Logic การจัดการ Segment_Code
                         Dim updateActualQuery As String = "
                         UPDATE [BMS].[dbo].[Actual_PO_Summary]
-                        SET [Status] = 'Matched', [Matching_Date] = GETDATE(), [Changed_By] = @StatusBy, [Changed_date] = GETDATE()
+                        SET [Status] = 'Matched', [Matching_Date] = GETDATE(), [Status_Date] = GETDATE(), [Status_By] = @StatusBy, [Changed_By] = @StatusBy, [Changed_date] = GETDATE(), [Updated_By] = @StatusBy, [Updated_Date] = GETDATE()
                         WHERE [PO_No] = @ActualPONo
                           AND [OTB_Year] = @Year
                           AND (@Month IS NULL OR [OTB_Month] = @Month)
                           AND [Company_Code] = @Company AND [Category_Code] = @Category
-                          AND CASE WHEN LEN([Segment_Code]) > 2 THEN SUBSTRING([Segment_Code], 2, LEN([Segment_Code]) - 2) ELSE [Segment_Code] END = @Segment
+                          AND COALESCE(NULLIF([Clean_Segment], ''), CASE WHEN LEFT(ISNULL([Segment_Code], ''), 1) = 'O' AND RIGHT(ISNULL([Segment_Code], ''), 1) = '0' AND LEN(ISNULL([Segment_Code], '')) > 2 THEN SUBSTRING([Segment_Code], 2, LEN([Segment_Code]) - 2) ELSE [Segment_Code] END) = @Segment
                           AND [Brand_Code] = @Brand AND [Vendor_Code] = @Vendor
                           AND ISNULL([Status], '') IN ('Matching', 'ForceMatching')
                     "
@@ -552,7 +580,7 @@ Public Class POMatchingHandler
         Dim query As String = "
               SELECT DISTINCT
                   A.ActualPO_ID, A.OTB_Year, A.OTB_Month, A.Company_Code, A.Category_Code, 
-                  CASE WHEN LEN(A.Segment_Code) > 2 THEN SUBSTRING(A.Segment_Code, 2, LEN(A.Segment_Code) - 2) ELSE A.Segment_Code END AS Segment_Code,
+                  COALESCE(NULLIF(A.Clean_Segment, ''), CASE WHEN LEFT(ISNULL(A.Segment_Code, ''), 1) = 'O' AND RIGHT(ISNULL(A.Segment_Code, ''), 1) = '0' AND LEN(ISNULL(A.Segment_Code, '')) > 2 THEN SUBSTRING(A.Segment_Code, 2, LEN(A.Segment_Code) - 2) ELSE A.Segment_Code END) AS Segment_Code,
                   A.Brand_Code, A.Vendor_Code, A.PO_No AS ActualPONo, A.Actual_PO_Date,
                   ISNULL(A.Amount_THB, 0) AS ActualAmountTHB, ISNULL(A.Amount_CCY, 0) AS ActualAmountCCY,
                   A.CCY AS ActualCCY, ISNULL(A.Exchange_Rate, 0) AS ActualExRate,
@@ -568,14 +596,14 @@ Public Class POMatchingHandler
               AND A.Company_Code = D.Company_Code
               AND A.OTB_Year = D.PO_Year
               AND A.OTB_Month = D.PO_Month
-              AND CASE WHEN LEN(A.Segment_Code) > 2 THEN SUBSTRING(A.Segment_Code, 2, LEN(A.Segment_Code) - 2) ELSE A.Segment_Code END = D.Segment_Code
+              AND COALESCE(NULLIF(A.Clean_Segment, ''), CASE WHEN LEFT(ISNULL(A.Segment_Code, ''), 1) = 'O' AND RIGHT(ISNULL(A.Segment_Code, ''), 1) = '0' AND LEN(ISNULL(A.Segment_Code, '')) > 2 THEN SUBSTRING(A.Segment_Code, 2, LEN(A.Segment_Code) - 2) ELSE A.Segment_Code END) = D.Segment_Code
               AND A.Vendor_Code = D.Vendor_Code
               WHERE (ISNULL(A.Status, '') NOT IN ('Cancelled','Matched')) AND (ISNULL(D.Status, '') NOT IN ('Matched','Cancelled'))
                 AND a.Category_Code <> 'ZPA'
                 AND A.Company_Code IN ('1000','2000','3000')
-                AND LEN(A.Segment_Code) > 0
+                AND LEN(COALESCE(NULLIF(A.Clean_Segment, ''), CASE WHEN LEFT(ISNULL(A.Segment_Code, ''), 1) = 'O' AND RIGHT(ISNULL(A.Segment_Code, ''), 1) = '0' AND LEN(ISNULL(A.Segment_Code, '')) > 2 THEN SUBSTRING(A.Segment_Code, 2, LEN(A.Segment_Code) - 2) ELSE A.Segment_Code END)) > 0
 		              AND LEN(A.Brand_Code) > 0
-		              AND ( ISNULL(A.Segment_Code, '') NOT IN ('000')  OR (ISNULL(A.Brand_Code, '') NOT IN ('','000')))
+		              AND ( ISNULL(COALESCE(NULLIF(A.Clean_Segment, ''), CASE WHEN LEFT(ISNULL(A.Segment_Code, ''), 1) = 'O' AND RIGHT(ISNULL(A.Segment_Code, ''), 1) = '0' AND LEN(ISNULL(A.Segment_Code, '')) > 2 THEN SUBSTRING(A.Segment_Code, 2, LEN(A.Segment_Code) - 2) ELSE A.Segment_Code END), '') NOT IN ('000')  OR (ISNULL(A.Brand_Code, '') NOT IN ('','000')))
                       AND ( (A.OTB_Year >= 2026)  OR EOMONTH(DATEFROMPARTS(A.OTB_Year, A.OTB_Month, 1)) > '2025-12-01' )
                 ORDER BY A.Actual_PO_Date DESC
         "
@@ -623,7 +651,8 @@ Public Class POMatchingHandler
                         Else
                             ' ถ้าไม่มีคู่ ให้เป็น Nothing (หน้าจอจะแสดงเป็นช่องว่าง)
                             item.Draft = Nothing
-                            item.MatchStatus = "Unmatched"
+                            Dim dbStatus As String = If(r("ActualStatus") IsNot DBNull.Value, r("ActualStatus").ToString(), "")
+                            item.MatchStatus = If(String.IsNullOrWhiteSpace(dbStatus), "Active", dbStatus)
                         End If
 
                         list.Add(item)
@@ -712,13 +741,46 @@ Public Class POMatchingHandler
             Using transaction As SqlTransaction = conn.BeginTransaction()
                 Try
                     ' 3.1 Bulk copy to Temp Table
-                    ' (แก้ไข) ใช้ SELECT INTO ... WHERE 1=0 แทน LIKE
-                    Using cmdCreateTemp As New SqlCommand("SELECT * INTO #TempSAPPOs FROM [BMS].[dbo].[Actual_PO_Staging] WHERE 1 = 0", conn, transaction)
+                    Dim createTempQuery As String = "
+                        CREATE TABLE #TempSAPPOs
+                        (
+                            PO nvarchar(50) NOT NULL,
+                            PO_Item nvarchar(10) NOT NULL,
+                            Otb_Year nvarchar(4) NULL,
+                            Otb_Month nvarchar(2) NULL,
+                            Company_Code nvarchar(10) NULL,
+                            Supplier nvarchar(20) NULL,
+                            Fund nvarchar(20) NULL,
+                            Category nvarchar(20) NULL,
+                            Brand nvarchar(20) NULL,
+                            Otb_Date datetime2(0) NULL,
+                            Supplier_Name nvarchar(100) NULL,
+                            Fund_Name nvarchar(100) NULL,
+                            Brand_Name nvarchar(100) NULL,
+                            Category_Name nvarchar(100) NULL,
+                            PO_Amount decimal(18,2) NULL,
+                            PO_Currency nvarchar(5) NULL,
+                            PO_Local_Amount decimal(18,2) NULL,
+                            PO_Local_Currency nvarchar(5) NULL,
+                            Exchange_Rate decimal(18,6) NULL,
+                            Deletion_Flag nvarchar(1) NULL,
+                            Delivery_Completed_Flag bit NULL,
+                            Final_Invoice_Flag bit NULL,
+                            Create_On datetime2(0) NULL,
+                            Change_On datetime2(0) NULL,
+                            Modified_Date datetime2(0) NULL,
+                            BMS_Last_Synced datetime2(0) NULL
+                        );
+                    "
+                    Using cmdCreateTemp As New SqlCommand(createTempQuery, conn, transaction)
                         cmdCreateTemp.ExecuteNonQuery()
                     End Using
 
                     Using bulkCopy As New SqlBulkCopy(conn, SqlBulkCopyOptions.Default, transaction)
                         bulkCopy.DestinationTableName = "#TempSAPPOs"
+                        For Each col As DataColumn In dtPOs.Columns
+                            bulkCopy.ColumnMappings.Add(col.ColumnName, col.ColumnName)
+                        Next
                         bulkCopy.WriteToServer(dtPOs)
                     End Using
 
@@ -730,6 +792,11 @@ Public Class POMatchingHandler
                                 PO_Item,
                                 Otb_Year,
                                 Otb_Month,
+                                Company_Code,
+                                Supplier,
+                                Fund,
+                                Category,
+                                Brand,
                                 ROW_NUMBER() OVER (
                                     PARTITION BY PO, PO_Item
                                     ORDER BY Modified_Date DESC, BMS_Last_Synced DESC
@@ -738,28 +805,27 @@ Public Class POMatchingHandler
                             WHERE ISNULL(Deletion_Flag, N'') <> N'L'
                         ),
                         IncomingActivePOs AS (
-                            SELECT PO, PO_Item, Otb_Year, Otb_Month
+                            SELECT PO, PO_Item, Otb_Year, Otb_Month, Company_Code, Supplier, Fund, Category, Brand
                             FROM IncomingRanked
                             WHERE Rn = 1
-                        ),
-                        StaleMovedRows AS (
-                            SELECT DISTINCT T.StagingID
-                            FROM [BMS].[dbo].[Actual_PO_Staging] AS T
-                            INNER JOIN IncomingActivePOs AS S
-                                ON T.PO = S.PO
-                               AND T.PO_Item = S.PO_Item
-                            WHERE ISNULL(T.Deletion_Flag, N'') <> N'L'
-                              AND (
-                                    ISNULL(T.Otb_Year, -2147483648) <> ISNULL(S.Otb_Year, -2147483648)
-                                 OR ISNULL(T.Otb_Month, -2147483648) <> ISNULL(S.Otb_Month, -2147483648)
-                              )
                         )
                         UPDATE T
                             SET T.Deletion_Flag = N'L',
                                 T.BMS_Last_Synced = @SyncTime
                         FROM [BMS].[dbo].[Actual_PO_Staging] AS T
-                        INNER JOIN StaleMovedRows AS M
-                            ON T.StagingID = M.StagingID;
+                        INNER JOIN IncomingActivePOs AS S
+                            ON T.PO = S.PO
+                           AND T.PO_Item = S.PO_Item
+                        WHERE ISNULL(T.Deletion_Flag, N'') <> N'L'
+                          AND (
+                                ISNULL(RIGHT(REPLICATE(N'0', 4) + CONVERT(nvarchar(10), T.Otb_Year), 4), N'') <> ISNULL(RIGHT(REPLICATE(N'0', 4) + CONVERT(nvarchar(10), S.Otb_Year), 4), N'')
+                             OR ISNULL(RIGHT(REPLICATE(N'0', 2) + CONVERT(nvarchar(10), T.Otb_Month), 2), N'') <> ISNULL(RIGHT(REPLICATE(N'0', 2) + CONVERT(nvarchar(10), S.Otb_Month), 2), N'')
+                             OR ISNULL(T.Company_Code, N'') <> ISNULL(S.Company_Code, N'')
+                             OR ISNULL(T.Supplier, N'') <> ISNULL(S.Supplier, N'')
+                             OR ISNULL(T.Fund, N'') <> ISNULL(S.Fund, N'')
+                             OR ISNULL(T.Category, N'') <> ISNULL(S.Category, N'')
+                             OR ISNULL(T.Brand, N'') <> ISNULL(S.Brand, N'')
+                          );
                     "
 
                     Using cmdMarkStale As New SqlCommand(markStaleMovedRowsQuery, conn, transaction)

@@ -363,7 +363,7 @@
                 // [BMS Gem Logic Fix]: กำหนดสีตามสถานะ และ ตรวจสอบว่า Lock หรือไม่
                 let rowClass = '';
                 const isMatched = matchStatus.toLowerCase() === 'matched';
-                const isMatching = matchStatus.toLowerCase() === 'matching';
+                const isMatching = matchStatus.toLowerCase() === 'matching' || matchStatus.toLowerCase() === 'forcematching';
 
                 if (isMatched) {
                     rowClass = 'table-success';
@@ -401,6 +401,13 @@
                                        data-draft-pos="${draft ? (draft.DraftPONo || draft.draftPONo) : ''}"
                                        data-actual-po="${actualPONo}"
                                        data-status="${matchStatus}"
+                                       data-year="${getVal(key, 'Year')}"
+                                       data-month="${getVal(key, 'Month')}"
+                                       data-company="${getVal(key, 'CompanyCode')}"
+                                       data-category="${getVal(key, 'Category')}"
+                                       data-segment="${getVal(key, 'Segment')}"
+                                       data-brand="${getVal(key, 'Brand')}"
+                                       data-vendor="${getVal(key, 'Vendor')}"
                                 >
                                 <button type="button" class="btn btn-sm btn-outline-secondary" 
                                         onclick="openManualMatchModal('${actualPOID}', '${actualPONo}', ${index})"
@@ -474,7 +481,14 @@
             document.querySelectorAll('.match-checkbox:checked').forEach(cb => {
                 selectedMatches.push({
                     DraftPOs: cb.dataset.draftPos, // "PO-001"
-                    ActualPO: cb.dataset.actualPo  // "SAP-12345"
+                    ActualPO: cb.dataset.actualPo,  // "SAP-12345"
+                    Year: cb.dataset.year,
+                    Month: cb.dataset.month,
+                    Company: cb.dataset.company,
+                    Category: cb.dataset.category,
+                    Segment: cb.dataset.segment,
+                    Brand: cb.dataset.brand,
+                    Vendor: cb.dataset.vendor
                 });
             });
 

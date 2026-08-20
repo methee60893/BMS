@@ -234,7 +234,11 @@ Public Class DataOTBHandler
 
         ' 1. Get Raw Data
         Dim dtRaw As DataTable = GetOTBDraftDataWithFilter(OTBtype, OTByear, OTBmonth, OTBCompany, OTBCategory, OTBSegment, OTBBrand, OTBVendor)
-        Dim budgetCalculator As New OTBBudgetCalculator()
+        Dim hasStoredProcDiff As Boolean = dtRaw.Columns.Contains("CurrentApproved") AndAlso dtRaw.Columns.Contains("Diff")
+        Dim budgetCalculator As OTBBudgetCalculator = Nothing
+        If Not hasStoredProcDiff Then
+            budgetCalculator = New OTBBudgetCalculator()
+        End If
         Dim budgetCache As New Dictionary(Of String, Decimal)(StringComparer.OrdinalIgnoreCase)
         ' 2. Create Export-formatted DataTable (to match the HTML table)
         Dim dtExport As New DataTable("DraftOTB")
@@ -268,16 +272,21 @@ Public Class DataOTBHandler
             Dim OTBBrand_Calc As String = If(row("OTBBrand") IsNot DBNull.Value, row("OTBBrand").ToString(), "")
             Dim OTBVendor_Calc As String = If(row("OTBVendor") IsNot DBNull.Value, row("OTBVendor").ToString(), "")
 
-            Dim amountValue As Decimal = 0
-            Decimal.TryParse(If(row("Amount") IsNot DBNull.Value, row("Amount").ToString(), ""), amountValue)
+            Dim amountValue As Decimal = GetDecimalValue(row, If(dtRaw.Columns.Contains("ToBeAmountTHB"), "ToBeAmountTHB", "Amount"))
 
             Dim budgetKey As String = BuildOTBBudgetKey(OTBYear_Calc, OTBMonth_Calc, OTBCategory_Calc, OTBCompany_Calc, OTBSegment_Calc, OTBBrand_Calc, OTBVendor_Calc)
-            Dim currentBudget As Decimal = 0
-            If Not budgetCache.TryGetValue(budgetKey, currentBudget) Then
-                currentBudget = budgetCalculator.CalculateCurrentApprovedBudget(OTBYear_Calc, OTBMonth_Calc, OTBCategory_Calc, OTBCompany_Calc, OTBSegment_Calc, OTBBrand_Calc, OTBVendor_Calc)
-                budgetCache(budgetKey) = currentBudget
+            Dim currentBudget As Decimal
+            Dim diffAmount As Decimal
+            If hasStoredProcDiff Then
+                currentBudget = GetDecimalValue(row, "CurrentApproved")
+                diffAmount = GetDecimalValue(row, "Diff")
+            Else
+                If Not budgetCache.TryGetValue(budgetKey, currentBudget) Then
+                    currentBudget = budgetCalculator.CalculateCurrentApprovedBudget(OTBYear_Calc, OTBMonth_Calc, OTBCategory_Calc, OTBCompany_Calc, OTBSegment_Calc, OTBBrand_Calc, OTBVendor_Calc)
+                    budgetCache(budgetKey) = currentBudget
+                End If
+                diffAmount = amountValue - currentBudget
             End If
-            Dim diffAmount As Decimal = amountValue - currentBudget
             Dim OTBStatus As String = If(row("OTBStatus") IsNot DBNull.Value, row("OTBStatus").ToString(), "Draft")
 
             dtExport.Rows.Add(
@@ -293,7 +302,7 @@ Public Class DataOTBHandler
                 OTBBrand_Calc,
                 If(row("BrandName") IsNot DBNull.Value, row("BrandName").ToString(), ""),
                 OTBVendor_Calc,
-                If(row("Vendor") IsNot DBNull.Value, row("Vendor").ToString(), ""),
+                GetStringValue(row, If(dtRaw.Columns.Contains("Vendor"), "Vendor", "VendorName")),
                 currentBudget,
                 amountValue,
                 diffAmount,
@@ -482,7 +491,11 @@ Public Class DataOTBHandler
 
     Private Function GenerateHtmlDraftTable(dt As DataTable) As String
         Dim sb As New StringBuilder()
-        Dim budgetCalculator As New OTBBudgetCalculator()
+        Dim hasStoredProcDiff As Boolean = dt.Columns.Contains("CurrentApproved") AndAlso dt.Columns.Contains("Diff")
+        Dim budgetCalculator As OTBBudgetCalculator = Nothing
+        If Not hasStoredProcDiff Then
+            budgetCalculator = New OTBBudgetCalculator()
+        End If
         Dim budgetCache As New Dictionary(Of String, Decimal)(StringComparer.OrdinalIgnoreCase)
         If dt.Rows.Count = 0 Then
             sb.Append("<tr><td colspan='21' class='text-center text-muted'>No Draft OTB records found</td></tr>")
@@ -504,23 +517,27 @@ Public Class DataOTBHandler
                 Dim OTBBrand As String = If(dt.Rows(i)("OTBBrand") IsNot DBNull.Value, dt.Rows(i)("OTBBrand").ToString(), "")
                 Dim BrandName As String = If(dt.Rows(i)("BrandName") IsNot DBNull.Value, dt.Rows(i)("BrandName").ToString(), "")
                 Dim OTBVendor As String = If(dt.Rows(i)("OTBVendor") IsNot DBNull.Value, dt.Rows(i)("OTBVendor").ToString(), "")
-                Dim Vendor As String = If(dt.Rows(i)("Vendor") IsNot DBNull.Value, dt.Rows(i)("Vendor").ToString(), "")
+                Dim Vendor As String = GetStringValue(dt.Rows(i), If(dt.Columns.Contains("Vendor"), "Vendor", "VendorName"))
                 Dim Amount As String = "0.00"
                 Dim CurrentBudgetAmount As String = "0.00"
                 Dim Diff As String = "0.00"
-                Dim amountValue As Decimal
-                If Decimal.TryParse(If(dt.Rows(i)("Amount") IsNot DBNull.Value, dt.Rows(i)("Amount").ToString(), ""), amountValue) Then
-                    Amount = amountValue.ToString("N2")
-                End If
+                Dim amountValue As Decimal = GetDecimalValue(dt.Rows(i), If(dt.Columns.Contains("ToBeAmountTHB"), "ToBeAmountTHB", "Amount"))
+                Amount = amountValue.ToString("N2")
                 Dim budgetKey As String = BuildOTBBudgetKey(OTBYear, OTBMonth, OTBCategory, OTBCompany, OTBSegment, OTBBrand, OTBVendor)
                 Dim currentBudget As Decimal = 0
-                If Not budgetCache.TryGetValue(budgetKey, currentBudget) Then
-                    currentBudget = budgetCalculator.CalculateCurrentApprovedBudget(OTBYear, OTBMonth, OTBCategory, OTBCompany, OTBSegment, OTBBrand, OTBVendor)
-                    budgetCache(budgetKey) = currentBudget
+                Dim diffamout As Decimal
+                If hasStoredProcDiff Then
+                    currentBudget = GetDecimalValue(dt.Rows(i), "CurrentApproved")
+                    diffamout = GetDecimalValue(dt.Rows(i), "Diff")
+                Else
+                    If Not budgetCache.TryGetValue(budgetKey, currentBudget) Then
+                        currentBudget = budgetCalculator.CalculateCurrentApprovedBudget(OTBYear, OTBMonth, OTBCategory, OTBCompany, OTBSegment, OTBBrand, OTBVendor)
+                        budgetCache(budgetKey) = currentBudget
+                    End If
+                    diffamout = amountValue - currentBudget
                 End If
                 CurrentBudgetAmount = currentBudget.ToString("N2")
 
-                Dim diffamout As Decimal = amountValue - currentBudget
                 Diff = diffamout.ToString("N2")
 
                 Dim Batch As String = If(dt.Rows(i)("Batch") IsNot DBNull.Value, dt.Rows(i)("Batch").ToString(), "")
@@ -583,6 +600,25 @@ Public Class DataOTBHandler
     Private Function BuildOTBBudgetKey(year As String, month As String, category As String, company As String, segment As String, brand As String, vendor As String) As String
         Return String.Join("|", New String() {year, month, category, company, segment, brand, vendor})
     End Function
+
+    Private Function GetStringValue(row As DataRow, columnName As String) As String
+        If row Is Nothing OrElse row.Table Is Nothing OrElse Not row.Table.Columns.Contains(columnName) OrElse row(columnName) Is DBNull.Value Then
+            Return ""
+        End If
+
+        Return row(columnName).ToString()
+    End Function
+
+    Private Function GetDecimalValue(row As DataRow, columnName As String) As Decimal
+        Dim value As Decimal = 0D
+        If row Is Nothing OrElse row.Table Is Nothing OrElse Not row.Table.Columns.Contains(columnName) OrElse row(columnName) Is DBNull.Value Then
+            Return value
+        End If
+
+        Decimal.TryParse(row(columnName).ToString(), value)
+        Return value
+    End Function
+
     Private Function GenerateHtmlApprovedTable(dt As DataTable) As String
         Dim sb As New StringBuilder()
 
@@ -807,52 +843,22 @@ Public Class DataOTBHandler
         Return dt
     End Function
 
-    Private Function GetOTBDraftDataWithFilter(OTBtype As String, OTByear As String, OTBmonth As String, OTBCompany As String, OTBCategory As String, OTBSegment As String, OTBBrand As String, OTBVendor As String) As DataTable
+    Private Function GetOTBDraftDataWithFilter(OTBtype As String, OTByear As String, OTBmonth As String, OTBCompany As String, OTBCategory As String, OTBSegment As String, OTBBrand As String, OTBVendor As String, Optional OTBVersion As String = "") As DataTable
         Dim dt As New DataTable()
         Using conn As New SqlConnection(connectionString)
             conn.Open()
-            Dim query As String = "SELECT  [RunNo]
-                                           ,[OTBVendor]
-                                           ,[Vendor]
-                                           ,[OTBCompany]
-                                          ,[CompanyName]
-                                          ,[OTBMonth]
-                                          ,[month_name_sh]
-                                          ,[OTBCategory]
-                                          ,[CateName]
-                                          ,[OTBType]
-                                          ,[OTBYear]
-                                          ,[OTBBrand]
-                                          ,[BrandName]
-                                          ,[SegmentName]
-                                          ,[OTBSegment]
-                                          ,[Amount]
-                                          ,[Batch]
-                                          ,[CreateDT]
-                                          ,[UploadBy]
-                                           ,[Remark]
-                                           ,[Version]
-                                           ,[OTBStatus]
-                                       FROM [BMS].[dbo].[View_OTB_Draft]
-                                       WHERE (@OTBtype = '' OR OTBType = @OTBtype)
-                                       AND (@OTByear = '' OR OTBYear = @OTByear)
-                                      AND (@OTBmonth = '' OR OTBMonth = @OTBmonth)
-                                      AND (@OTBCompany = '' OR OTBCompany = @OTBCompany)
-                                      AND (@OTBCategory = '' OR OTBCategory = @OTBCategory)
-                                       AND (@OTBSegment = '' OR OTBSegment = @OTBSegment)
-                                       AND (@OTBBrand = '' OR OTBBrand = @OTBBrand)
-                                       AND (@OTBVendor = '' OR OTBVendor = @OTBVendor)
-                                       ORDER BY CreateDT DESC
-                                    "
-            Using cmd As New SqlCommand(query, conn)
-                cmd.Parameters.AddWithValue("@OTBtype", OTBtype)
-                cmd.Parameters.AddWithValue("@OTByear", OTByear)
-                cmd.Parameters.AddWithValue("@OTBmonth", OTBmonth)
-                cmd.Parameters.AddWithValue("@OTBCompany", OTBCompany)
-                cmd.Parameters.AddWithValue("@OTBCategory", OTBCategory)
-                cmd.Parameters.AddWithValue("@OTBSegment", OTBSegment)
-                cmd.Parameters.AddWithValue("@OTBBrand", OTBBrand)
-                cmd.Parameters.AddWithValue("@OTBVendor", OTBVendor)
+            Using cmd As New SqlCommand("dbo.SP_Get_Draft_OTB_Diff", conn)
+                cmd.CommandType = CommandType.StoredProcedure
+                AddOptionalNVarCharParameter(cmd, "@Version", OTBVersion, 20)
+                AddOptionalNVarCharParameter(cmd, "@Type", OTBtype, 20)
+                AddOptionalNVarCharParameter(cmd, "@Year", OTByear, 10)
+                AddOptionalNVarCharParameter(cmd, "@Month", OTBmonth, 10)
+                AddOptionalNVarCharParameter(cmd, "@Company", OTBCompany, 20)
+                AddOptionalNVarCharParameter(cmd, "@Category", OTBCategory, 20)
+                AddOptionalNVarCharParameter(cmd, "@Segment", OTBSegment, 20)
+                AddOptionalNVarCharParameter(cmd, "@Brand", OTBBrand, 30)
+                AddOptionalNVarCharParameter(cmd, "@Vendor", OTBVendor, 30)
+
                 Using reader As SqlDataReader = cmd.ExecuteReader()
                     dt.Load(reader)
                 End Using
@@ -1823,7 +1829,7 @@ Public Class DataOTBHandler
                                           segment As String, brand As String, vendor As String) As Dictionary(Of String, ReportUsageRow)
         Dim result As New Dictionary(Of String, ReportUsageRow)(StringComparer.OrdinalIgnoreCase)
 
-        Dim actualSegmentExpression As String = "SUBSTRING(ISNULL(a.Segment_Code, ''), 2, CASE WHEN LEN(ISNULL(a.Segment_Code, '')) > 2 THEN LEN(a.Segment_Code) - 2 ELSE 0 END)"
+        Dim actualSegmentExpression As String = "COALESCE(NULLIF(a.Clean_Segment, ''), CASE WHEN LEFT(ISNULL(a.Segment_Code, ''), 1) = 'O' AND RIGHT(ISNULL(a.Segment_Code, ''), 1) = '0' AND LEN(ISNULL(a.Segment_Code, '')) > 2 THEN SUBSTRING(a.Segment_Code, 2, LEN(a.Segment_Code) - 2) ELSE ISNULL(a.Segment_Code, '') END)"
         Dim query As String = "
             WITH UsageRows AS (
                 SELECT
@@ -1837,13 +1843,7 @@ Public Class DataOTBHandler
                     SUM(ISNULL(d.Amount_THB, 0)) AS DraftPO,
                     CAST(0 AS decimal(18,2)) AS ActualPO
                 FROM [BMS].[dbo].[Draft_PO_Transaction] d
-                WHERE ISNULL(d.[Status], 'Draft') NOT IN ('Matched', 'ForceMatching', 'Matching', 'Cancelled')
-                  AND NOT EXISTS (
-                      SELECT 1
-                      FROM [BMS].[dbo].[Actual_PO_Summary] a2
-                      WHERE a2.[Status] = 'Matched'
-                        AND (a2.Draft_PO_Ref = d.DraftPO_No OR a2.PO_No = d.Actual_PO_No)
-                  )
+                WHERE ISNULL(d.[Status], 'Draft') NOT IN ('Matched', 'Cancelled', 'Canceled')
                   AND (@Year IS NULL OR d.PO_Year = @Year)
                   AND (@Month IS NULL OR d.PO_Month = @Month)
                   AND (@Company IS NULL OR d.Company_Code = @Company)
@@ -1866,7 +1866,7 @@ Public Class DataOTBHandler
                     CAST(0 AS decimal(18,2)) AS DraftPO,
                     SUM(ISNULL(a.Amount_THB, 0)) AS ActualPO
                 FROM [BMS].[dbo].[Actual_PO_Summary] a
-                WHERE ISNULL(a.[Status], '') IN ('Matching', 'ForceMatching', 'Matched')
+                WHERE ISNULL(a.[Status], '') = 'Matched'
                   AND a.OTB_Year IS NOT NULL
                   AND a.OTB_Month IS NOT NULL
                   AND NULLIF(LTRIM(RTRIM(a.Company_Code)), '') IS NOT NULL

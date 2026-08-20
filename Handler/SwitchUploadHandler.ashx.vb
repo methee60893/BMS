@@ -190,13 +190,23 @@ Public Class SwitchUploadHandler
 
             ' --- 2. Validation ---
             Dim amount As Decimal = 0
+            Dim isAmountValid As Boolean = False
             If String.IsNullOrEmpty(_function) Then errors.Add("Missing Type")
             If Not String.IsNullOrEmpty(_function) AndAlso
                Not _function.Equals("Switch", StringComparison.OrdinalIgnoreCase) AndAlso
                Not _function.Equals("Extra", StringComparison.OrdinalIgnoreCase) Then
                 errors.Add("Invalid Type (use Switch or Extra)")
             End If
-            If Not Decimal.TryParse(amtStr, amount) OrElse amount <= 0 Then errors.Add("Invalid Amount")
+            Try
+                amount = share_class.ParseAndRoundAmount(amtStr)
+                If amount <= 0 Then
+                    errors.Add("Invalid Amount")
+                Else
+                    isAmountValid = True
+                End If
+            Catch ex As FormatException
+                errors.Add("Invalid Amount")
+            End Try
             If String.IsNullOrEmpty(fYear) OrElse String.IsNullOrEmpty(fMonth) OrElse String.IsNullOrEmpty(fComp) OrElse String.IsNullOrEmpty(fCate) OrElse String.IsNullOrEmpty(fSeg) OrElse String.IsNullOrEmpty(fBrand) OrElse String.IsNullOrEmpty(fVend) Then errors.Add("Missing Source")
 
             If Not String.IsNullOrEmpty(fMonth) AndAlso Not IsValidMaster(dtMonth, "month_code", fMonth) Then errors.Add($"Invalid From Month ({fMonth})")
@@ -235,7 +245,7 @@ Public Class SwitchUploadHandler
             End If
 
             ' --- 3. Budget Check ---
-            If errors.Count = 0 AndAlso amount > 0 AndAlso _function.Equals("Switch", StringComparison.OrdinalIgnoreCase) Then
+            If errors.Count = 0 AndAlso isAmountValid AndAlso _function.Equals("Switch", StringComparison.OrdinalIgnoreCase) Then
                 Try
                     Dim key As String = $"{fYear}|{fMonth}|{fCate}|{fComp}|{fSeg}|{fBrand}|{fVend}"
 
@@ -376,6 +386,41 @@ Public Class SwitchUploadHandler
             Dim json As String = context.Request.Form("data")
             Dim rows As List(Of Dictionary(Of String, Object)) = New JavaScriptSerializer().Deserialize(Of List(Of Dictionary(Of String, Object)))(json)
 
+            ' Revalidate the submitted JSON against live PO usage. Preview data is not trusted here.
+            ' Source locks serialize concurrent single/bulk saves for the same OTB dimension.
+            Using budgetLockConn As New SqlConnection(connectionString)
+                budgetLockConn.Open()
+                Dim sourceKeys As New List(Of String)()
+                For Each submittedRow In rows
+                    If submittedRow("Function").ToString().Equals("Switch", StringComparison.OrdinalIgnoreCase) Then
+                        Dim source = TryCast(submittedRow("From"), Dictionary(Of String, Object))
+                        sourceKeys.Add(OTBSwitchBudgetGuard.BuildSourceKey(
+                            source("Year").ToString(), source("Month").ToString(), source("Company").ToString(),
+                            source("Category").ToString(), source("Segment").ToString(), source("Brand").ToString(), source("Vendor").ToString()))
+                    End If
+                Next
+                OTBSwitchBudgetGuard.AcquireSourceLocks(budgetLockConn, sourceKeys)
+
+                Dim liveCalculator As New OTBBudgetCalculator()
+                Dim livePOValidator As New POValidate()
+                Dim batchUsage As New Dictionary(Of String, Decimal)(StringComparer.OrdinalIgnoreCase)
+                For Each submittedRow In rows
+                    If submittedRow("Function").ToString().Equals("Switch", StringComparison.OrdinalIgnoreCase) Then
+                        Dim source = TryCast(submittedRow("From"), Dictionary(Of String, Object))
+                        Dim submittedAmount = share_class.ParseAndRoundAmount(Convert.ToString(submittedRow("Amount"), CultureInfo.InvariantCulture))
+                        Dim sourceKey = OTBSwitchBudgetGuard.BuildSourceKey(
+                            source("Year").ToString(), source("Month").ToString(), source("Company").ToString(),
+                            source("Category").ToString(), source("Segment").ToString(), source("Brand").ToString(), source("Vendor").ToString())
+                        Dim alreadyRequested = If(batchUsage.ContainsKey(sourceKey), batchUsage(sourceKey), 0D)
+                        Dim budgetCheck = OTBSwitchBudgetGuard.Check(
+                            source("Year").ToString(), source("Month").ToString(), source("Category").ToString(), source("Company").ToString(),
+                            source("Segment").ToString(), source("Brand").ToString(), source("Vendor").ToString(), liveCalculator, livePOValidator)
+                        budgetCheck.AvailableBudget -= alreadyRequested
+                        OTBSwitchBudgetGuard.EnsureSufficient(budgetCheck, submittedAmount)
+                        batchUsage(sourceKey) = alreadyRequested + submittedAmount
+                    End If
+                Next
+
             Dim sapRequest As New OtbSwitchRequest()
             sapRequest.TestMode = ""
 
@@ -383,7 +428,7 @@ Public Class SwitchUploadHandler
 
             For Each row In rows
                 Dim _func As String = row("Function").ToString()
-                Dim amt As Decimal = Convert.ToDecimal(row("Amount"))
+                Dim amt As Decimal = share_class.ParseAndRoundAmount(Convert.ToString(row("Amount"), CultureInfo.InvariantCulture))
                 Dim f = TryCast(row("From"), Dictionary(Of String, Object))
                 Dim t = TryCast(row("To"), Dictionary(Of String, Object))
 
@@ -409,7 +454,7 @@ Public Class SwitchUploadHandler
                 Dim item As New OtbSwitchItem With {
                     .DocYearFrom = f("Year").ToString(), .PeriodFrom = f("Month").ToString(), .FmAreaFrom = f("Company").ToString(),
                     .CatFrom = f("Category").ToString(), .SegmentFrom = f("Segment").ToString(), .BrandFrom = f("Brand").ToString(), .VendorFrom = f("Vendor").ToString(),
-                    .Budget = amt.ToString("F2"), .TypeFrom = fromCode
+                    .Budget = share_class.FormatAmountForSap(amt), .TypeFrom = fromCode
                 }
 
                 ' --- Mapping ข้อมูลชื่อฝั่ง From (ต้องมีทุกประเภทรายการ) ---
@@ -523,6 +568,7 @@ Public Class SwitchUploadHandler
                 .message = If(hasError, If(String.IsNullOrEmpty(sapSummaryMessage), "Batch processed with some errors at SAP. No records were saved to the database.", sapSummaryMessage), "Upload & Save Completed Successfully."),
                 .results = processResults
             }))
+            End Using
 
         Catch ex As Exception
             context.Response.Write(New JavaScriptSerializer().Serialize(New With {.success = False, .message = ex.Message}))

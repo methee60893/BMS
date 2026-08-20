@@ -366,30 +366,39 @@ Public Class POValidate
     End Function
 
     Public Function GetUsedBudgetFromDBForOTB(year As String, month As String, cat As String, com As String,
-                                         seg As String, brand As String, ven As String) As Decimal
-        Return CalculateUsedBudgetFromDB(year, month, cat, com, seg, brand, ven, Nothing)
+                                          seg As String, brand As String, ven As String) As Decimal
+        Dim usage = GetUsedBudgetBreakdownForOTB(year, month, cat, com, seg, brand, ven)
+        Return usage("DraftPO") + usage("ActualPO")
+    End Function
+
+    Public Function GetUsedBudgetBreakdownForOTB(year As String, month As String, cat As String, com As String,
+                                                  seg As String, brand As String, ven As String) As Dictionary(Of String, Decimal)
+        Return CalculateUsedBudgetBreakdownFromDB(year, month, cat, com, seg, brand, ven, Nothing)
     End Function
 
     Private Function CalculateUsedBudgetFromDB(year As String, month As String, cat As String, com As String,
-                                         seg As String, brand As String, ven As String,
-                                         excludeIDs As List(Of Integer)) As Decimal
-        Dim totalUsed As Decimal = 0
+                                          seg As String, brand As String, ven As String,
+                                          excludeIDs As List(Of Integer)) As Decimal
+        Dim usage = CalculateUsedBudgetBreakdownFromDB(year, month, cat, com, seg, brand, ven, excludeIDs)
+        Return usage("DraftPO") + usage("ActualPO")
+    End Function
+
+    Private Function CalculateUsedBudgetBreakdownFromDB(year As String, month As String, cat As String, com As String,
+                                                         seg As String, brand As String, ven As String,
+                                                         excludeIDs As List(Of Integer)) As Dictionary(Of String, Decimal)
+        Dim draftUsed As Decimal = 0
+        Dim actualUsed As Decimal = 0
         Using conn As New SqlConnection(connectionString)
             conn.Open()
 
-            ' 1. Sum Draft PO (Exclude Cancelled AND Exclude Self IDs)
+            ' Business rule: count every Draft PO status except cancelled/canceled and matched.
             Dim sqlDraft As String = "
                                         SELECT SUM(ISNULL(Amount_THB, 0)) 
                                         FROM [BMS].[dbo].[Draft_PO_Transaction] d
                                         WHERE d.PO_Year = @Y AND d.PO_Month = @M AND d.Company_Code = @Com 
                                           AND d.Category_Code = @Cat AND d.Segment_Code = @Seg 
                                           AND d.Brand_Code = @Brand AND d.Vendor_Code = @Ven 
-                                          AND ISNULL(d.Status, 'Draft') NOT IN ('Matched', 'ForceMatching', 'Matching', 'Cancelled')
-                                          AND NOT EXISTS (
-                                              SELECT 1 FROM [BMS].[dbo].[Actual_PO_Summary] a 
-                                              WHERE a.[Status] = 'Matched' 
-                                                AND (a.Draft_PO_Ref = d.DraftPO_No OR a.PO_No = d.Actual_PO_No)
-                                          )"
+                                          AND ISNULL(d.Status, 'Draft') NOT IN ('Matched', 'Cancelled', 'Canceled')"
 
             ' ถ้ามี ID ที่ต้อง Exclude (เช่นกำลัง Edit) ให้ใส่เงื่อนไข
             Dim excludeParamNames As New List(Of String)()
@@ -417,17 +426,18 @@ Public Class POValidate
                 Next
 
                 Dim res = cmd.ExecuteScalar()
-                If res IsNot DBNull.Value Then totalUsed += Convert.ToDecimal(res)
+                If res IsNot DBNull.Value Then draftUsed = Convert.ToDecimal(res)
             End Using
 
-            ' 2. Sum Actual PO (Matched/Matching) - (ถ้า OTB Calculator คำนวณ Actual ให้แล้ว อาจไม่ต้องรวมตรงนี้)
-            ' แต่ตาม Logic เดิมที่เคยเห็น น่าจะรวม Actual ด้วยเพื่อความชัวร์
+            ' Business rule: count Actual PO only after it is fully matched.
             Dim sqlActual As String = "SELECT SUM(ISNULL(Amount_THB, 0)) FROM [BMS].[dbo].[Actual_PO_Summary] " &
                                       "WHERE OTB_Year = @Y AND OTB_Month = @M AND Company_Code = @Com " &
                                       "AND Category_Code = @Cat " &
-                                      "AND (Segment_Code = @Seg OR SUBSTRING(ISNULL(Segment_Code, ''), 2, CASE WHEN LEN(ISNULL(Segment_Code, '')) > 2 THEN LEN(Segment_Code) - 2 ELSE 0 END) = @Seg) " &
+                                      "AND COALESCE(NULLIF(Clean_Segment, ''), CASE " &
+                                      "WHEN LEFT(ISNULL(Segment_Code, ''), 1) = 'O' AND RIGHT(ISNULL(Segment_Code, ''), 1) = '0' AND LEN(ISNULL(Segment_Code, '')) > 2 " &
+                                      "THEN SUBSTRING(Segment_Code, 2, LEN(Segment_Code) - 2) ELSE ISNULL(Segment_Code, '') END) = @Seg " &
                                       "AND Brand_Code = @Brand AND Vendor_Code = @Ven " &
-                                      "AND [Status] IN ('Matched', 'Matching', 'ForceMatching')"
+                                      "AND [Status] = 'Matched'"
 
             Using cmd As New SqlCommand(sqlActual, conn)
                 cmd.Parameters.AddWithValue("@Y", year)
@@ -439,11 +449,15 @@ Public Class POValidate
                 cmd.Parameters.AddWithValue("@Ven", ven)
 
                 Dim res = cmd.ExecuteScalar()
-                If res IsNot DBNull.Value Then totalUsed += Convert.ToDecimal(res)
+                If res IsNot DBNull.Value Then actualUsed = Convert.ToDecimal(res)
             End Using
         End Using
 
-        Return totalUsed
+        Return New Dictionary(Of String, Decimal) From {
+            {"DraftPO", draftUsed},
+            {"ActualPO", actualUsed},
+            {"Total", draftUsed + actualUsed}
+        }
     End Function
 
     Private Sub LoadAllMasterData()

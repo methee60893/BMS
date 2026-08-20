@@ -57,7 +57,7 @@ Public Class DataOTBRemainingHandler
     Private Function GetRemainingDetail(year As String, month As String, company As String, category As String,
                                         segment As String, brand As String, vendor As String) As DataTable
         Dim dt As New DataTable()
-        Dim actualSegmentExpression As String = "SUBSTRING(ISNULL(a.Segment_Code, ''), 2, CASE WHEN LEN(ISNULL(a.Segment_Code, '')) > 2 THEN LEN(a.Segment_Code) - 2 ELSE 0 END)"
+        Dim actualSegmentExpression As String = "COALESCE(NULLIF(a.Clean_Segment, ''), CASE WHEN LEFT(ISNULL(a.Segment_Code, ''), 1) = 'O' AND RIGHT(ISNULL(a.Segment_Code, ''), 1) = '0' AND LEN(ISNULL(a.Segment_Code, '')) > 2 THEN SUBSTRING(a.Segment_Code, 2, LEN(a.Segment_Code) - 2) ELSE ISNULL(a.Segment_Code, '') END)"
 
         Dim query As String = "
             WITH BudgetRows AS (
@@ -151,13 +151,7 @@ Public Class DataOTBRemainingHandler
                     SUM(ISNULL(d.Amount_THB, 0)) AS DraftPO,
                     CAST(0 AS decimal(18,2)) AS ActualPO
                 FROM [BMS].[dbo].[Draft_PO_Transaction] d
-                WHERE ISNULL(d.[Status], 'Draft') NOT IN ('Matched', 'ForceMatching', 'Matching', 'Cancelled')
-                  AND NOT EXISTS (
-                      SELECT 1
-                      FROM [BMS].[dbo].[Actual_PO_Summary] a2
-                      WHERE a2.[Status] = 'Matched'
-                        AND (a2.Draft_PO_Ref = d.DraftPO_No OR a2.PO_No = d.Actual_PO_No)
-                  )
+                WHERE ISNULL(d.[Status], 'Draft') NOT IN ('Matched', 'Cancelled', 'Canceled')
                   AND (@Year IS NULL OR d.PO_Year = @Year)
                   AND (@Month IS NULL OR d.PO_Month = @Month)
                   AND (@Company IS NULL OR d.Company_Code = @Company)
@@ -172,7 +166,7 @@ Public Class DataOTBRemainingHandler
                     CAST(0 AS decimal(18,2)) AS DraftPO,
                     SUM(ISNULL(a.Amount_THB, 0)) AS ActualPO
                 FROM [BMS].[dbo].[Actual_PO_Summary] a
-                WHERE ISNULL(a.[Status], '') IN ('Matching', 'ForceMatching', 'Matched')
+                WHERE ISNULL(a.[Status], '') = 'Matched'
                   AND a.OTB_Year IS NOT NULL
                   AND a.OTB_Month IS NOT NULL
                   AND NULLIF(LTRIM(RTRIM(a.Company_Code)), '') IS NOT NULL
@@ -217,17 +211,17 @@ Public Class DataOTBRemainingHandler
             FROM BudgetTotals b
             CROSS JOIN UsageTotals u"
 
-            Using conn As New SqlConnection(connectionString)
-                conn.Open()
-                Using cmd As New SqlCommand(query, conn)
-                    AddFilterParameters(cmd, year, month, company, category, segment, brand, vendor)
-                    Using adapter As New SqlDataAdapter(cmd)
-                        adapter.Fill(dt)
-                    End Using
+        Using conn As New SqlConnection(connectionString)
+            conn.Open()
+            Using cmd As New SqlCommand(query, conn)
+                AddFilterParameters(cmd, year, month, company, category, segment, brand, vendor)
+                Using adapter As New SqlDataAdapter(cmd)
+                    adapter.Fill(dt)
                 End Using
             End Using
+        End Using
 
-            Return dt
+        Return dt
     End Function
 
     Private Sub AddFilterParameters(cmd As SqlCommand, year As String, month As String, company As String,

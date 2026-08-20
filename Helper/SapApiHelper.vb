@@ -83,6 +83,14 @@ Public Module SapApiHelper
 
     Public Async Function SwitchOtbPlanAsync(switchRequest As OtbSwitchRequest) As Task(Of SapApiResponse(Of SapSwitchResultItem))
         Dim endpoint As String = "/ZPaymentPlan/OTBPlanSwitch"
+        If switchRequest IsNot Nothing AndAlso switchRequest.Data IsNot Nothing Then
+            For Each item In switchRequest.Data
+                If item IsNot Nothing AndAlso Not String.IsNullOrWhiteSpace(item.Budget) Then
+                    item.Budget = share_class.FormatAmountForSap(share_class.ParseAndRoundAmount(item.Budget))
+                End If
+            Next
+        End If
+
         Dim jsonBody As String = JsonConvert.SerializeObject(switchRequest)
 
         Dim jsonResponse As String = Await PostAsync(endpoint, jsonBody)

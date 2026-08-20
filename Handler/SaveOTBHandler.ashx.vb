@@ -56,7 +56,7 @@ Public Class SaveOTBHandler
             Dim brandTo As String = context.Request.Form("brandTo")
             Dim vendorTo As String = context.Request.Form("vendorTo")
 
-            Dim amount As Decimal = Convert.ToDecimal(context.Request.Form("amount"))
+            Dim amount As Decimal = share_class.ParseAndRoundAmount(context.Request.Form("amount"))
             Dim createdBy As String = If(String.IsNullOrEmpty(context.Request.Form("createdBy")), "System", context.Request.Form("createdBy"))
             Dim actionBy As String = If(String.IsNullOrEmpty(context.Request.Form("createdBy")), "System", context.Request.Form("createdBy"))
             Dim remark As String = If(String.IsNullOrEmpty(context.Request.Form("remark")), "", context.Request.Form("remark"))
@@ -76,6 +76,19 @@ Public Class SaveOTBHandler
                 toCode = "H" ' Balance In
             End If
 
+            ' Lock this source dimension and re-check the live PO usage immediately before SAP/DB save.
+            ' This prevents Confirm/direct endpoint calls from bypassing the Preview validation and
+            ' serializes concurrent switch requests for the same OTB source.
+            Using budgetLockConn As New SqlConnection(connectionString)
+                budgetLockConn.Open()
+                Dim sourceKey = OTBSwitchBudgetGuard.BuildSourceKey(
+                    yearFrom.ToString(), monthFrom.ToString(), companyFrom, categoryFrom, segmentFrom, brandFrom, vendorFrom)
+                OTBSwitchBudgetGuard.AcquireSourceLocks(budgetLockConn, New String() {sourceKey})
+
+                Dim budgetCheck = OTBSwitchBudgetGuard.Check(
+                    yearFrom.ToString(), monthFrom.ToString(), categoryFrom, companyFrom, segmentFrom, brandFrom, vendorFrom)
+                OTBSwitchBudgetGuard.EnsureSufficient(budgetCheck, amount)
+
             Dim sapRequest As New OtbSwitchRequest()
             'sapRequest.TestMode = "X" ' (ถ้าต้องการ Test)
             Dim switchItem As New OtbSwitchItem With {
@@ -87,7 +100,7 @@ Public Class SaveOTBHandler
                 .TypeFrom = fromCode,
                 .BrandFrom = brandFrom,
                 .VendorFrom = vendorFrom.ToString(),
-                .Budget = amount.ToString("F2"),
+                .Budget = share_class.FormatAmountForSap(amount),
                 .DocYearTo = yearTo.ToString(),
                 .PeriodTo = monthTo.ToString(),
                 .FmAreaTo = companyTo.ToString(),
@@ -204,6 +217,7 @@ Public Class SaveOTBHandler
                     End Try
                 End Using
             End Using
+            End Using
 
         Catch ex As Exception
             ' ส่ง Error กลับเป็น JSON
@@ -230,7 +244,7 @@ Public Class SaveOTBHandler
             Dim brand As String = context.Request.Form("brand")
             Dim vendor As String = context.Request.Form("vendor")
 
-            Dim amount As Decimal = Convert.ToDecimal(context.Request.Form("amount"))
+            Dim amount As Decimal = share_class.ParseAndRoundAmount(context.Request.Form("amount"))
             Dim createdBy As String = If(String.IsNullOrEmpty(context.Request.Form("createdBy")), "System", context.Request.Form("createdBy"))
             Dim actionBy As String = If(String.IsNullOrEmpty(context.Request.Form("createdBy")), "System", context.Request.Form("createdBy"))
             Dim remark As String = If(String.IsNullOrEmpty(context.Request.Form("remark")), "", context.Request.Form("remark"))
@@ -247,7 +261,7 @@ Public Class SaveOTBHandler
                 .TypeFrom = "E", ' <--- Type E
                 .BrandFrom = brand,
                 .VendorFrom = vendor.ToString(),
-                .Budget = amount.ToString("F2"),
+                .Budget = share_class.FormatAmountForSap(amount),
                 .DocYearTo = Nothing,
                 .PeriodTo = Nothing,
                 .FmAreaTo = Nothing,

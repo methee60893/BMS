@@ -661,7 +661,7 @@
                     var previewSwitchModal = new bootstrap.Modal(document.getElementById('previewSwitchModal'), { keyboard: false });
                     previewSwitchModal.show();
                 } else {
-                    showErrorModal(result.errors, 'Switch Transaction', '', result.availableBudget);
+                    showErrorModal(result.errors, 'Switch Transaction', '', result.availableBudget, result.approvedBudget, result.draftPO, result.actualPO);
                 }
             } catch (error) {
                 showLoading(false);
@@ -725,7 +725,7 @@
         // ==========================================
         // Show Validation Error Modal (Existing)
         // ==========================================
-        function showErrorModal(errors, transactionType, suffix, availableBudget) {
+        function showErrorModal(errors, transactionType, suffix, availableBudget, approvedBudget, draftPO, actualPO) {
             transactionType = transactionType || 'Transaction';
             suffix = suffix || '';
             document.getElementById('errorValidationModalTitle').textContent = 'Validation Error';
@@ -762,7 +762,14 @@
                 var summary = 'Found ' + errorCount + ' validation error' + (errorCount > 1 ? 's' : '') + ' in your ' + transactionType;
                 if (availableBudget !== null && availableBudget !== undefined) {
                     var budgetFormatted = parseFloat(availableBudget).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-                    summary += '<br><small class="text-muted">Available Budget: <strong>' + budgetFormatted + ' THB</strong></small>';
+                    summary += '<br><small class="text-muted">OTB Remaining: <strong>' + budgetFormatted + ' THB</strong>';
+                    if (approvedBudget !== null && approvedBudget !== undefined) {
+                        var approvedFormatted = parseFloat(approvedBudget || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+                        var draftFormatted = parseFloat(draftPO || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+                        var actualFormatted = parseFloat(actualPO || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+                        summary += '<br>Approved: ' + approvedFormatted + ' − Draft PO: ' + draftFormatted + ' − Actual PO (Matched): ' + actualFormatted;
+                    }
+                    summary += '</small>';
                 }
                 summaryText.innerHTML = summary;
             }
@@ -899,7 +906,7 @@
                     InitMSData();
                 } else {
                     bootstrap.Modal.getInstance(document.getElementById('previewSwitchModal')).hide();
-                    showSapErrorModal('Save Failed (SAP Error)', result.message);
+                    showSapErrorModal('Save Failed', result.message);
                 }
             } catch (error) {
                 showLoading(false);

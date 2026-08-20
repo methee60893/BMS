@@ -310,7 +310,7 @@ Public Class POUploadHandler
         For i As Integer = 0 To dt.Rows.Count - 1
             Dim row As DataRow = dt.Rows(i)
             Dim item As New POValidate.DraftPOItem With {
-                .RowIndex = i + 1,
+                .RowIndex = i + 2, ' Excel row 1 is the header
                 .DraftPO_ID = 0,
                 .PO_No = GetSafeString(row, "Draft PO no.").Replace(" ", ""),
                 .PO_Year = GetSafeString(row, "Year"),
