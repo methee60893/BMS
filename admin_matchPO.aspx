@@ -187,7 +187,7 @@
                 <div class="review-section">
                     Review
                 </div>
-                <div class="table-responsive">
+                <div class="table-responsive bms-data-table-scroll" tabindex="0" role="region" aria-label="Admin matching results">
                     <table class="table table-hover mb-0">
                         <thead>
                             <tr>
@@ -577,7 +577,7 @@
                         buildTable(response.data);
                     } else {
                         alert('Error: ' + response.message);
-                        tableBody.innerHTML = `<tr><td colspan="15" class="text-center p-4 text-danger">${response.message}</td></tr>`;
+                        tableBody.innerHTML = `<tr><td colspan="18" class="text-center p-4 text-danger">${response.message}</td></tr>`;
                     }
                 },
                 error: function (xhr, status, error) {

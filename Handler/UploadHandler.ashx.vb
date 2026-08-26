@@ -1068,7 +1068,7 @@ Public Class UploadHandler : Implements IHttpHandler, IReadOnlySessionState
 
         Dim sb As New StringBuilder()
         ' ... (โค้ด CSS Style และ Table Header เหมือนเดิม) ...
-        sb.Append("<div class='table-responsive' style='max-height:600px; overflow:auto;'>")
+        sb.Append("<div class='table-responsive' style='max-height:600px; overflow:auto;' tabindex='0' role='region' aria-label='Draft OTB upload preview'>")
         sb.Append("<table id='previewTable' class='table table-bordered table-striped table-sm table-hover'>")
         sb.Append("<thead class='table-primary sticky-header'><tr>")
         sb.Append("<th class='text-center' style='width:60px;'>Select</th>")

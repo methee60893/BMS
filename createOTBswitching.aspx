@@ -243,7 +243,7 @@
 
                         <div id="bulkResultContainer" class="mt-4" style="display:none;">
                             <h5>Upload Results (SAP)</h5>
-                            <div class="table-responsive" style="max-height:400px;">
+                            <div class="table-responsive" style="max-height:400px;" tabindex="0" role="region" aria-label="Bulk OTB switching results">
                                 <table class="table table-bordered table-sm" id="tblBulkResult">
                                     <thead class="table-success sticky-top">
                                         <tr>

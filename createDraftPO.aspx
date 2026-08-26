@@ -274,7 +274,7 @@
                     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
                 <div class="modal-body">
-                    <div id="previewTableContainer"></div>
+                    <div id="previewTableContainer" class="table-responsive" style="max-height: 65vh;" tabindex="0" role="region" aria-label="Draft PO upload preview"></div>
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
@@ -469,7 +469,7 @@
             <div class="modal-body">
                 <div id="uploadResultSummary" class="alert alert-info mb-3"></div>
                 
-                <div class="table-responsive" style="max-height: 500px; overflow-y: auto;">
+                <div class="table-responsive" style="max-height: 500px; overflow-y: auto;" tabindex="0" role="region" aria-label="Draft PO upload results">
                     <table class="table table-bordered table-hover" id="tblUploadResults">
                         <thead class="table-light sticky-top" style="top: 0; z-index: 1;">
                             <tr>

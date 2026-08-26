@@ -775,7 +775,7 @@ Public Class DataOTBHandler
         Dim sb As New StringBuilder()
 
         If dt.Rows.Count = 0 Then
-            sb.Append("<tr><td colspan='30' class='text-center text-muted'>No switch OTB records found</td></tr>")
+            sb.Append("<tr><td colspan='27' class='text-center text-muted'>No switch OTB records found</td></tr>")
         Else
             For Each row As DataRow In dt.Rows
                 sb.Append("<tr>")

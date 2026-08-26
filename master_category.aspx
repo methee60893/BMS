@@ -154,6 +154,7 @@
 
                 <!-- Data Table -->
                 <div class="table-container">
+                    <div class="table-responsive bms-data-table-scroll" tabindex="0" role="region" aria-label="Category master results">
                     <table id="categoryTable" class="table table-hover mb-0">
                         <thead class="bg-light text-dark">
                             <tr>
@@ -172,6 +173,7 @@
                             </tr>
                         </tbody>
                     </table>
+                    </div>
                 </div>
 
                 <div class="modal fade" id="categoryModal" tabindex="-1" aria-labelledby="categoryModalLabel" data-bs-backdrop="static" data-bs-keyboard="false">

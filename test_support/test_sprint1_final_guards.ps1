@@ -68,4 +68,6 @@ Assert-Before $remainingPage 'Total Actual PO' 'Total Draft PO' 'OTB Remaining m
 Assert-Before $remainingPage 'Total Draft PO' 'Total Actual + Draft PO' 'OTB Remaining combined total order is wrong.'
 Assert-Before $remainingPage 'Total Actual + Draft PO' '<strong>Remaining</strong>' 'OTB Remaining must follow the combined total.'
 
+& (Join-Path $PSScriptRoot 'test_issue5_responsive_layout.ps1')
+
 Write-Output 'Sprint 1 final security, recovery, and ordering guards passed.'

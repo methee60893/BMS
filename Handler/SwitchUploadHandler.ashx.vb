@@ -182,7 +182,7 @@ Public Class SwitchUploadHandler
         Dim allValid As Boolean = True
         Dim hasAnyWarnings As Boolean = False
 
-        sb.Append("<div class='table-responsive' style='max-height: 500px;'>")
+        sb.Append("<div class='table-responsive' style='max-height: 500px;' tabindex='0' role='region' aria-label='Bulk OTB switching preview'>")
         sb.Append("<table class='table table-bordered table-sm table-hover' id='tblBulkPreview' style='font-size: 0.85rem;'>")
         sb.Append("<thead class='table-dark sticky-top'><tr>")
         sb.Append("<th style='width:30px;'>No.</th>")

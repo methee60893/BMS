@@ -1,0 +1,115 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>KBMS Issue #5 Responsive Fixture</title>
+    <link rel="stylesheet" href="../style/theme.css">
+    <style>
+        table { border-collapse: collapse; }
+        .fixture-wide-table { min-width: 1800px !important; }
+        .fixture-wide-table th,
+        .fixture-wide-table td { border: 1px solid #dee2e6; }
+        .fixture-navbar-left { display: flex; align-items: center; gap: 1rem; min-width: 0; }
+        .fixture-navbar-left .menu-toggle { flex: 0 0 auto; }
+    </style>
+</head>
+<body>
+    <div class="main-wrapper">
+        <nav class="top-navbar">
+            <div class="fixture-navbar-left">
+                <button class="menu-toggle" type="button">☰</button>
+                <h1 class="page-title">KBMS - OTB Switching Transaction With A Long Responsive Title</h1>
+            </div>
+            <div class="user-info"><div class="user-avatar">U</div></div>
+        </nav>
+
+        <main class="content-area">
+            <div class="page-header">Issue #5 responsive verification</div>
+            <div class="filter-box">
+                <div class="custom-tabs">
+                    <button class="tab-button active" type="button">Switching Transaction</button>
+                    <button class="tab-button" type="button">Bulk Upload With Long Name</button>
+                    <button class="tab-button" type="button">Upload Results</button>
+                </div>
+                <div class="form-row-display">
+                    <div class="form-group"><label>Company</label><input class="form-control" value="KPC"></div>
+                    <div class="form-group"><label>Very long filter</label><select class="form-select"><option>All categories and brands</option></select></div>
+                </div>
+                <div class="submit-section">
+                    <button class="btn btn-view btn-custom" type="button">View</button>
+                    <button class="btn btn-export btn-custom" type="button">Export Transaction</button>
+                </div>
+            </div>
+
+            <div class="detail-box">
+                <div class="detail-row">
+                    <div class="detail-label">Total Actual PO + Draft PO with a deliberately long label</div>
+                    <div class="detail-value">123,456,789,012.00 THB</div>
+                </div>
+            </div>
+
+            <div class="table-container">
+                <div id="fixtureTableRegion" class="table-responsive bms-data-table-scroll" tabindex="0" role="region" aria-label="OTB switching transactions">
+                    <table class="table table-bordered mb-0 fixture-wide-table">
+                        <thead>
+                            <tr>
+                                <th rowspan="2">Create date</th>
+                                <th rowspan="2">Type</th>
+                                <th colspan="11">Out</th>
+                                <th rowspan="2">Type</th>
+                                <th colspan="11">In</th>
+                                <th rowspan="2">Amount (THB)</th>
+                                <th rowspan="2">Create by</th>
+                            </tr>
+                            <tr id="fixtureSecondHeader"></tr>
+                        </thead>
+                        <tbody id="fixtureRows"></tbody>
+                    </table>
+                </div>
+            </div>
+        </main>
+    </div>
+    <pre id="issue5FixtureResult" hidden></pre>
+    <script>
+        const detailHeaders = ['Year', 'Month', 'Category', 'Category name', 'Company', 'Segment', 'Segment name', 'Brand', 'Brand name', 'Vendor', 'Vendor name'];
+        document.getElementById('fixtureSecondHeader').innerHTML = detailHeaders.concat(detailHeaders).map(value => `<th>${value}</th>`).join('');
+        document.getElementById('fixtureRows').innerHTML = Array.from({ length: 60 }, (_, index) => {
+            const cells = Array.from({ length: 27 }, (__, cellIndex) => `<td>R${index + 1}-C${cellIndex + 1}</td>`).join('');
+            return `<tr>${cells}</tr>`;
+        }).join('');
+
+        const wrapper = document.getElementById('fixtureTableRegion');
+        const table = wrapper.querySelector('table');
+        const thead = table.querySelector('thead');
+        wrapper.scrollTop = 500;
+
+        const wrapperRect = wrapper.getBoundingClientRect();
+        const headerRect = thead.getBoundingClientRect();
+        const escapedElements = [...document.body.querySelectorAll('*')].filter(element => {
+            const style = getComputedStyle(element);
+            if (style.display === 'none' || style.visibility === 'hidden') return false;
+            if (element.closest('.table-responsive') || element.closest('.custom-tabs')) return false;
+            const rect = element.getBoundingClientRect();
+            if (rect.width === 0 && rect.height === 0) return false;
+            return rect.left < -1 || rect.right > window.innerWidth + 1;
+        }).map(element => element.id || element.className || element.tagName);
+
+        const checks = {
+            viewport: `${window.innerWidth}x${window.innerHeight}`,
+            noDocumentOverflow: document.documentElement.scrollWidth - document.documentElement.clientWidth <= 1,
+            noEscapedElements: escapedElements.length === 0,
+            wrapperInsideViewport: wrapperRect.left >= -1 && wrapperRect.right <= window.innerWidth + 1,
+            horizontalScrollContained: table.scrollWidth > wrapper.clientWidth && ['auto', 'scroll'].includes(getComputedStyle(wrapper).overflowX),
+            verticalScrollAvailable: wrapper.scrollHeight > wrapper.clientHeight && wrapper.scrollTop > 0,
+            verticalScrollCanChainToPage: getComputedStyle(wrapper).overscrollBehaviorY === 'auto',
+            stickyHeaderConfigured: getComputedStyle(thead).position === 'sticky' && getComputedStyle(thead).top === '0px',
+            stickyHeaderVisibleAfterScroll: Math.abs(headerRect.top - wrapperRect.top) <= 2 && headerRect.bottom > wrapperRect.top
+        };
+        const passed = Object.entries(checks).filter(([key]) => key !== 'viewport').every(([, value]) => value === true);
+        document.documentElement.dataset.issue5Result = passed ? 'pass' : 'fail';
+        document.getElementById('issue5FixtureResult').textContent = JSON.stringify({ passed, checks, escapedElements });
+        if (!passed) console.error('Issue #5 responsive fixture failed', checks, escapedElements);
+    </script>
+</body>
+</html>

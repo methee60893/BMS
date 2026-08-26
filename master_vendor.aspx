@@ -162,6 +162,7 @@
                 </div>
                 <!-- Data Table -->
                 <div class="table-container">
+                    <div class="table-responsive bms-data-table-scroll" tabindex="0" role="region" aria-label="Vendor master results">
                     <table id="vendorTable" class="table table-hover mb-0">
                         <thead class="bg-light text-dark">
                             <tr>
@@ -186,6 +187,7 @@
                             </tr>
                         </tbody>
                     </table>
+                    </div>
                 </div>
                 <div class="modal fade" id="vendorModal" tabindex="-1" aria-labelledby="vendorModalLabel" data-bs-backdrop="static" data-bs-keyboard="false">
                     <div class="modal-dialog modal-lg">

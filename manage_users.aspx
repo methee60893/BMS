@@ -115,7 +115,7 @@
                         </div>
                     </div>
 
-                    <div class="table-responsive">
+                    <div class="table-responsive bms-data-table-scroll" tabindex="0" role="region" aria-label="User list">
                         <table class="table table-hover align-middle">
                             <thead class="table-light">
                                 <tr>

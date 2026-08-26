@@ -146,6 +146,7 @@
                 </div>
 
                 <div class="table-container">
+                    <div class="table-responsive bms-data-table-scroll" tabindex="0" role="region" aria-label="Brand master results">
                      <table id="brandTable" class="table table-hover mb-0">
                         <thead class="bg-light text-dark">
                             <tr>
@@ -157,10 +158,11 @@
                         </thead>
                         <tbody id="brandTableBody">
                             <tr>
-                                 <td colspan="3" class="text-center text-muted">Loading...</td>
+                                 <td colspan="4" class="text-center text-muted">Loading...</td>
                             </tr>
                         </tbody>
-                     </table>
+                    </table>
+                    </div>
                 </div>
 
                 <div class="modal fade" id="brandModal" tabindex="-1" aria-labelledby="brandModalLabel" data-bs-backdrop="static" data-bs-keyboard="false">

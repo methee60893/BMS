@@ -201,7 +201,7 @@
 
             <!-- Data Table -->
             <div class="table-container">
-                <div class="table-responsive">
+                <div class="table-responsive bms-data-table-scroll" tabindex="0" role="region" aria-label="Approved OTB results">
                     <table class="table table-hover mb-0">
                         <thead>
                             <tr>
@@ -412,7 +412,7 @@
                 $("#DDVersion").val(null).trigger('change');
 
                
-                tableViewBody.innerHTML = "<tr><td colspan='24' class='text-center text-muted'>Filters cleared. Click View to search.</td></tr>";
+                tableViewBody.innerHTML = "<tr><td colspan='22' class='text-center text-muted'>Filters cleared. Click View to search.</td></tr>";
             });
             btnView.addEventListener('click', search);
 

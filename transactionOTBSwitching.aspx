@@ -201,7 +201,7 @@
 
             <!-- Data Table -->
             <div class="table-container">
-                <div class="table-responsive">
+                <div class="table-responsive bms-data-table-scroll" tabindex="0" role="region" aria-label="OTB switching transactions">
                     <table class="table table-bordered mb-0">
                         <thead>
                             <tr>
@@ -241,7 +241,7 @@
                             </tr>
                         </thead>
                         <tbody id="tableViewBody">
-                            <tr><td colspan='30' class='text-center text-muted'>No switch OTB records found</td></tr>
+                            <tr><td colspan='27' class='text-center text-muted'>No switch OTB records found</td></tr>
                         </tbody>
                     </table>
                 </div>
@@ -416,7 +416,7 @@
                     $("#DDVendor").val(null).trigger('change');
 
   
-                    tableViewBody.innerHTML = "<tr><td colspan='30' class='text-center text-muted'>No switch OTB records found</td></tr>";
+                    tableViewBody.innerHTML = "<tr><td colspan='27' class='text-center text-muted'>No switch OTB records found</td></tr>";
                 });
             
             if (btnView) {

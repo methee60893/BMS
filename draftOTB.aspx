@@ -249,7 +249,7 @@
 
             <!-- Data Table -->
             <div class="table-container">
-                <div class="table-responsive">
+                <div class="table-responsive bms-data-table-scroll" tabindex="0" role="region" aria-label="Draft OTB results">
                     <table id="tableView" class="table table-hover mb-0">
                         <thead>
                             <tr>
@@ -355,7 +355,7 @@
                             <button type="button" id="btnReviewReconciliationResults" class="btn btn-sm btn-outline-warning">I have reviewed these results</button>
                             <button type="button" id="btnDownloadReconciliationResults" class="btn btn-sm btn-outline-danger d-none">Download all results (JSON)</button>
                         </div>
-                        <div id="draftOtbReconciliationResultTable" class="table-responsive" style="max-height:360px; overflow:auto;"></div>
+                        <div id="draftOtbReconciliationResultTable" class="table-responsive" style="max-height:360px; overflow:auto;" tabindex="0" role="region" aria-label="Draft OTB reconciliation results"></div>
                     </div>
                 </div>
                 <div class="modal-footer">
@@ -384,7 +384,7 @@
                     <div class="alert alert-warning">
                         Review the current approval batch grouped by Company / Year / Month / Category before sending it to SAP.
                     </div>
-                    <div id="approvalPreviewTableContainer" class="table-responsive" style="max-height:600px; overflow:auto;"></div>
+                    <div id="approvalPreviewTableContainer" class="table-responsive" style="max-height:600px; overflow:auto;" tabindex="0" role="region" aria-label="Draft OTB approval preview"></div>
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
@@ -408,7 +408,7 @@
                 </div>
                 <div class="modal-body">
                     <div id="approvalResultSummary" class="alert alert-info"></div>
-                    <div id="approvalResultTableContainer" class="table-responsive" style="max-height:600px; overflow:auto;">
+                    <div id="approvalResultTableContainer" class="table-responsive" style="max-height:600px; overflow:auto;" tabindex="0" role="region" aria-label="Draft OTB approval results">
                         <!-- Table will be injected here by JS -->
                     </div>
                 </div>

@@ -194,7 +194,7 @@
             <!-- Data Table -->
             <!-- Data Table -->
             <div class="table-container">
-                <div class="table-responsive">
+                <div class="table-responsive bms-data-table-scroll" tabindex="0" role="region" aria-label="Actual PO results">
                     <table class="table table-hover mb-0">
                         <thead>
                             <tr>
