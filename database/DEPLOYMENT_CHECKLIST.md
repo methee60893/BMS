@@ -7,6 +7,8 @@
 - สำรองฐานข้อมูลเดิมก่อน หากเป็นการลงทับ environment ที่มีข้อมูล
 - ตรวจสอบ connection string ใน [Web.config](/D:/CIE/BMS/Web.config) ให้ชี้ instance เป้าหมายถูกต้อง
 - เตรียมข้อมูลจริงสำหรับ master data โดยแก้ไฟล์ [04_seed_master_data_template.sql](/D:/CIE/BMS/database/04_seed_master_data_template.sql)
+- ยืนยันว่า config ของ environment มี request envelope 25 MB (`maxRequestLength="25600"` และ `maxAllowedContentLength="26214400"`) โดยไม่คัดลอก secret จาก environment อื่น
+- สร้าง `App_Data\DraftOtbJobs` และให้ Application Pool identity มีสิทธิ์ **Modify** เฉพาะโฟลเดอร์นี้
 
 ## 2. ลำดับการรันสคริปต์
 
@@ -17,7 +19,8 @@
 3. [02_create_views.sql](/D:/CIE/BMS/database/02_create_views.sql)
 4. [03_create_stored_procedures.sql](/D:/CIE/BMS/database/03_create_stored_procedures.sql)
 5. [04_seed_master_data_template.sql](/D:/CIE/BMS/database/04_seed_master_data_template.sql)
-6. [05_post_deploy_verify.sql](/D:/CIE/BMS/database/05_post_deploy_verify.sql)
+6. [07_create_draft_otb_background_jobs.sql](/D:/CIE/BMS/database/07_create_draft_otb_background_jobs.sql)
+7. [05_post_deploy_verify.sql](/D:/CIE/BMS/database/05_post_deploy_verify.sql)
 
 ## 3. ตรวจสอบหลัง deploy
 
@@ -31,7 +34,7 @@ FROM sys.objects
 WHERE name IN (
     'MS_Month','MS_Year','MS_Company','MS_Category','MS_Segment','MS_Brand','MS_Vendor','MS_CCY','MS_Version',
     'MS_User','MS_Role','MS_Menu','Map_User_Role','Map_Role_Permission',
-    'Template_Upload_Draft_OTB','OTB_Transaction','OTB_Switching_Transaction','Draft_PO_Transaction',
+    'Template_Upload_Draft_OTB','OTB_Transaction','OTB_Switching_Transaction','Draft_PO_Transaction','Draft_OTB_Background_Job','Draft_OTB_Approval_Claim',
     'Actual_PO_Staging','Actual_PO_Summary',
     'View_OTB_Draft','View_UserRole',
     'SP_Get_Actual_PO_List','SP_Search_Approved_OTB','SP_Search_SWitch_OTB',
@@ -73,6 +76,10 @@ EXEC dbo.SP_Get_Actual_PO_List;
 - ทดสอบ sync Actual PO staging/summary
 - ทดสอบ auto match และ manual match
 - ทดสอบหน้ารายงานที่ใช้ filter Company/Category/Segment/Brand/Vendor
+- ทดสอบ Draft OTB ที่ 300, 301, 10,000 และ 15,000 แถว รวมทั้งยืนยันว่า 15,001 แถวถูกปฏิเสธทั้งไฟล์
+- ทดสอบไฟล์ที่มีบางแถวผิด: ต้องไม่มีแถวใดถูกบันทึกและต้องดาวน์โหลดรายงานข้อผิดพลาดได้
+- ระหว่าง upload/approve ให้ Refresh และปิด/เปิดหน้าใหม่ แล้วตรวจว่า progress และ Job ID เดิมกลับมา
+- ทดสอบ retry หลังจำลอง network timeout: ต้องได้ Job ID เดิมจาก client request ID เดิมและต้องไม่มีงานซ้ำ
 
 ## 5. จุดที่ต้องระวัง
 
@@ -81,7 +88,16 @@ EXEC dbo.SP_Get_Actual_PO_List;
 - ถ้า SAP ส่ง segment มาในรูปแบบมี wrapper เช่น `(S01)` หรือ `OS010` ระบบมี logic แปลงบางส่วนในโค้ด แต่ master data ยังต้องเก็บ code มาตรฐานฝั่ง BMS
 - ถ้า production มีข้อมูล volume สูง ควรทบทวน index เพิ่มตาม query plan จริงอีกครั้ง
 
-## 6. ตัวอย่างคำสั่ง sqlcmd
+## 6. งานปฏิบัติการสำหรับ Background Job
+
+- หน้าจอปิดหรือ Refresh ได้โดยงานยังทำต่อใน server process และสถานะถูกเก็บในฐานข้อมูล
+- หลีกเลี่ยง deploy, IIS reset และ Application Pool recycle ขณะมีสถานะ `Queued`, `ReceivingUpload`, `Validating`, `QueuedForSave`, `Saving`, `PreparingSap`, `SendingToSap` หรือ `SavingApproval`; worker แบบ in-process ไม่รับประกันว่าจะทำต่อหลัง recycle
+- หาก recycle เกิดช่วงก่อนส่ง SAP ให้ตรวจสถานะและเริ่มใหม่ได้เฉพาะเมื่อยืนยันว่าไม่มี side effect; หากอยู่ช่วงส่ง/หลังส่ง SAP ต้องจัดเป็น `ReconciliationRequired` และห้าม retry อัตโนมัติ
+- เมื่อพบ `ReconciliationRequired` ให้บันทึก Job ID, ตรวจ payload/ผลตอบกลับ, ยืนยันสถานะเอกสารใน SAP และเทียบข้อมูล BMS จากนั้นจึงให้ผู้มีสิทธิ์รับทราบบนหน้าจอ
+- ตั้ง scheduled housekeeping แยกต่างหาก: ลบเฉพาะงาน terminal ที่พ้น retention และไฟล์ orphan ใน `App_Data\DraftOtbJobs`; ห้ามลบงาน active หรือ `ReconciliationRequired` ที่ยังไม่ปิดการตรวจสอบ
+- ตรวจ disk space และสิทธิ์ Modify ของ `App_Data\DraftOtbJobs` หลัง deploy ทุก environment
+
+## 7. ตัวอย่างคำสั่ง sqlcmd
 
 ```powershell
 sqlcmd -S YOUR_SERVER -E -i D:\CIE\BMS\database\00_create_database.sql
@@ -89,6 +105,7 @@ sqlcmd -S YOUR_SERVER -E -d BMS -i D:\CIE\BMS\database\01_create_tables.sql
 sqlcmd -S YOUR_SERVER -E -d BMS -i D:\CIE\BMS\database\02_create_views.sql
 sqlcmd -S YOUR_SERVER -E -d BMS -i D:\CIE\BMS\database\03_create_stored_procedures.sql
 sqlcmd -S YOUR_SERVER -E -d BMS -i D:\CIE\BMS\database\04_seed_master_data_template.sql
+sqlcmd -S YOUR_SERVER -E -d BMS -i D:\CIE\BMS\database\07_create_draft_otb_background_jobs.sql
 sqlcmd -S YOUR_SERVER -E -d BMS -i D:\CIE\BMS\database\05_post_deploy_verify.sql
 ```
 
@@ -98,7 +115,7 @@ sqlcmd -S YOUR_SERVER -E -d BMS -i D:\CIE\BMS\database\05_post_deploy_verify.sql
 sqlcmd -S YOUR_SERVER -U sa -P YOUR_PASSWORD -d BMS -i D:\CIE\BMS\database\04_seed_master_data_template.sql
 ```
 
-## 7. Python Compare
+## 8. Python Compare
 
 แบบ Windows auth:
 

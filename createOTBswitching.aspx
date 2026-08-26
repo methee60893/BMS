@@ -308,6 +308,10 @@
                     <div id="previewSwitchContainer">
                         <div class="row"><div class="col-12"><div class="switch-section"><div class="section-title"><i class="bi bi-box-arrow-right"></i>From</div><div class="row g-3 mb-3"><div class="col-md-3"><label class="form-label">Year</label><input id="tsYearFrom" type="text" class="form-control" readonly></div><div class="col-md-3"><label class="form-label">Month</label><input id="tsMonthFrom" type="text" class="form-control" readonly></div><div class="col-md-3"><label class="form-label">Company</label><input id="tsCompanyFrom" type="text" class="form-control" readonly></div><div class="col-md-3"></div></div><div class="row g-3 mb-3"><div class="col-md-6"><label class="form-label">Category</label><input id="tsCategoryFrom" type="text" class="form-control" readonly></div><div class="col-md-6"><label class="form-label">Segment</label><input id="tsSegmentFrom" type="text" class="form-control" readonly></div></div><div class="row g-3 mb-3"><div class="col-md-6"><label class="form-label">Brand</label><input id="tsBrandFrom" type="text" class="form-control" readonly></div><div class="col-md-6"><label class="form-label">Vendor</label><input id="tsVendorFrom" type="text" class="form-control" readonly></div></div></div><div class="switch-section"><div class="section-title"><i class="bi bi-box-arrow-in-right"></i>To</div><div class="row g-3 mb-3"><div class="col-md-3"><label class="form-label">Year</label><input id="tsYearTo" type="text" class="form-control" readonly></div><div class="col-md-3"><label class="form-label">Month</label><input id="tsMonthTo" type="text" class="form-control" readonly></div><div class="col-md-3"><label class="form-label">Company</label><input id="tsCompanyTo" type="text" class="form-control" readonly></div><div class="col-md-3"></div></div><div class="row g-3 mb-3"><div class="col-md-6"><label class="form-label">Category</label><input id="tsCategoryTo" type="text" class="form-control" readonly></div><div class="col-md-6"><label class="form-label">Segment</label><input id="tsSegmentTo" type="text" class="form-control" readonly></div></div><div class="row g-3 mb-3"><div class="col-md-6"><label class="form-label">Brand</label><input id="tsBrandTo" type="text" class="form-control" readonly></div><div class="col-md-6"><label class="form-label">Vendor</label><input id="tsVendorTo" type="text" class="form-control" readonly></div></div><div class="row g-3"><div class="col-md-3"><label class="form-label">Amount (THB)</label><input id="tsAmontSwitch" type="text" class="form-control" readonly></div></div></div></div></div>
                     </div>
+                    <div id="previewSwitchWarningPanel" class="alert alert-warning mt-3 mb-0" role="alert" style="display:none;">
+                        <div class="fw-semibold"><i class="bi bi-exclamation-triangle"></i> Warning</div>
+                        <ul id="previewSwitchWarningList" class="mb-0 mt-1"></ul>
+                    </div>
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
@@ -438,6 +442,9 @@
             // Currency Listeners
             if (txtAmontSwitch) {
                 txtAmontSwitch.addEventListener('keydown', restrictToNumeric);
+                txtAmontSwitch.addEventListener('input', function () {
+                    this.dataset.rawNumericValue = this.value.replace(/,/g, '');
+                });
                 txtAmontSwitch.addEventListener('focus', cleanCurrencyOnFocus);
                 txtAmontSwitch.addEventListener('blur', formatCurrencyOnBlur);
             }
@@ -592,6 +599,27 @@
             var tbody = $('#tblBulkResult tbody');
             tbody.empty();
 
+            function escapeResultValue(value) {
+                return $('<div>').text(value == null ? '' : String(value)).html();
+            }
+
+            function formatResultSide(side) {
+                if (!side) return '<div class="text-center text-muted">-</div>';
+
+                var formatCodeAndName = function (code, name) {
+                    var encodedCode = escapeResultValue(code);
+                    var encodedName = escapeResultValue(name);
+                    return encodedName ? encodedCode + ':' + encodedName : encodedCode;
+                };
+
+                return `<strong>${escapeResultValue(side.Year)}/${escapeResultValue(side.Month)}</strong><br/>` +
+                    `<small class="text-muted">Comp: ${formatCodeAndName(side.Company, side.CompanyName)}<br/>` +
+                    `Vend: ${formatCodeAndName(side.Vendor, side.VendorName)}<br/>` +
+                    `Brand: ${formatCodeAndName(side.Brand, side.BrandName)}<br/>` +
+                    `Seg: ${formatCodeAndName(side.Segment, side.SegmentName)} | ` +
+                    `Cat: ${formatCodeAndName(side.Category, side.CategoryName)}</small>`;
+            }
+
             results.forEach(function (item, index) {
                 var r = item.row; // ข้อมูลที่ Mapping ชื่อมาแล้วจาก Backend
                 var cls = item.status === 'Success' ? '' : 'table-danger';
@@ -600,29 +628,31 @@
                     '<span class="badge bg-danger"><i class="bi bi-x-circle"></i> Error</span>';
 
                 // --- ส่วนที่ 1: จัดการข้อมูลฝั่ง FROM (Source) ---
-                var fromTxt = `<strong>${r.From.Year}/${r.From.Month}</strong><br/>` +
-                    `<small class="text-muted">Comp: ${r.From.Company}:${r.From.CompanyName}<br/>` +
-                    `Vend: ${r.From.Vendor}:${r.From.VendorName}</small>`;
+                var fromTxt = formatResultSide(r.From);
 
                 // --- ส่วนที่ 2: จัดการข้อมูลฝั่ง TO (Destination) ---
                 // เช็คเงื่อนไข: ต้องเป็น Switch และต้องมี Object To (ถ้าเป็น Extra จะขึ้น -)
                 var toTxt = '<div class="text-center text-muted">-</div>';
 
                 if (r.Function.toLowerCase() === 'switch' && r.To) {
-                    toTxt = `<strong>${r.To.Year}/${r.To.Month}</strong><br/>` +
-                        `<small class="text-muted">Comp: ${r.To.Company}:${r.To.CompanyName}<br/>` +
-                        `Vend: ${r.To.Vendor}:${r.To.VendorName}</small>`;
+                    toTxt = formatResultSide(r.To);
                 }
+
+                var amount = Number(r.Amount);
+                var amountText = Number.isFinite(amount) ? amount.toLocaleString('en-US', {
+                    minimumFractionDigits: 2,
+                    maximumFractionDigits: 2
+                }) : '-';
 
                 // --- ส่วนที่ 3: สร้าง HTML Row ---
                 var html = `<tr class="${cls}">
                     <td class="text-center align-middle">${index + 2}</td>
-                    <td class="text-center align-middle fw-bold text-primary">${r.Type}</td>
+                    <td class="text-center align-middle fw-bold text-primary">${escapeResultValue(r.Type)}</td>
                     <td class="align-middle">${fromTxt}</td>
-                    <td class="text-end align-middle fw-bold">${parseFloat(r.Amount).toLocaleString('en-US', { minimumFractionDigits: 2 })}</td>
                     <td class="align-middle">${toTxt}</td>
+                    <td class="text-end align-middle fw-bold">${amountText}</td>
                     <td class="text-center align-middle">${statusBadge}</td>
-                    <td class="align-middle"><small class="text-wrap">${item.message}</small></td>
+                    <td class="align-middle"><small class="text-wrap">${escapeResultValue(item.message)}</small></td>
                 </tr>`;
 
                 tbody.append(html);
@@ -847,6 +877,42 @@
             document.getElementById("tsBrandTo").value = getSelectedText(brandDropdownt);
             document.getElementById("tsVendorTo").value = getSelectedText(vendorDropdownt);
             document.getElementById("tsAmontSwitch").value = txtAmontSwitch.value;
+
+            const normalizePeriodPart = (value) => {
+                const numericValue = Number(value);
+                return Number.isFinite(numericValue) ? numericValue : String(value || '').trim();
+            };
+            const hasPeriodWarning = normalizePeriodPart(yearDropdownf.value) !== normalizePeriodPart(yearDropdownt.value) ||
+                normalizePeriodPart(monthDropdownf.value) !== normalizePeriodPart(monthDropdownt.value);
+
+            const rawAmountText = txtAmontSwitch.dataset.rawNumericValue || txtAmontSwitch.value;
+            const rawAmount = Number(String(rawAmountText).replace(/,/g, ''));
+            const hasAmountWarning = Number.isFinite(rawAmount) && rawAmount !== Math.trunc(rawAmount);
+
+            const warnings = [];
+            if (hasPeriodWarning) warnings.push('เดือนไม่สอดคล้องกัน');
+            if (hasAmountWarning) warnings.push('ยอดมีทศนิยม กรุณาตรวจสอบ');
+
+            const setWarningHighlight = (elementId, shouldHighlight) => {
+                const element = document.getElementById(elementId);
+                if (!element) return;
+                element.style.backgroundColor = shouldHighlight ? '#fff3cd' : '';
+                element.style.borderColor = shouldHighlight ? '#ffc107' : '';
+            };
+            ['tsYearFrom', 'tsMonthFrom', 'tsYearTo', 'tsMonthTo'].forEach((elementId) => {
+                setWarningHighlight(elementId, hasPeriodWarning);
+            });
+            setWarningHighlight('tsAmontSwitch', hasAmountWarning);
+
+            const warningPanel = document.getElementById('previewSwitchWarningPanel');
+            const warningList = document.getElementById('previewSwitchWarningList');
+            warningList.innerHTML = '';
+            warnings.forEach((warning) => {
+                const listItem = document.createElement('li');
+                listItem.textContent = warning;
+                warningList.appendChild(listItem);
+            });
+            warningPanel.style.display = warnings.length > 0 ? '' : 'none';
         }
 
         function populateExtraPreviewData() {
@@ -879,7 +945,6 @@
         // ==========================================
         async function saveSwitchingData() {
             showLoading(true, "Saving...");
-            var currentUser = '<%= HttpUtility.JavaScriptStringEncode(Session("user").ToString()) %>';
             var formData = new FormData();
             formData.append('yearFrom', yearDropdownf.value); formData.append('monthFrom', monthDropdownf.value);
             formData.append('companyFrom', companyDropdownf.value); formData.append('categoryFrom', categoryDropdownf.value);
@@ -890,11 +955,14 @@
             formData.append('segmentTo', segmentDropdownt.value); formData.append('brandTo', brandDropdownt.value);
             formData.append('vendorTo', vendorDropdownt.value);
             formData.append('amount', document.getElementById('tsAmontSwitch').value);
-            formData.append('createdBy', currentUser || 'unknown');
             formData.append('remark', '');
 
             try {
-                var response = await fetch('Handler/SaveOTBHandler.ashx?action=saveSwitching', { method: 'POST', body: formData });
+                var response = await fetch('Handler/SaveOTBHandler.ashx?action=saveSwitching', {
+                    method: 'POST',
+                    headers: { 'X-Requested-With': 'XMLHttpRequest' },
+                    body: formData
+                });
                 var result = await response.json();
                 showLoading(false);
                 if (result.success) {
@@ -903,6 +971,7 @@
                     // Reset Logic... (same as existing)
                     yearDropdownf.value = ""; monthDropdownf.value = ""; companyDropdownf.value = "";
                     txtAmontSwitch.value = "0.00";
+                    delete txtAmontSwitch.dataset.rawNumericValue;
                     InitMSData();
                 } else {
                     bootstrap.Modal.getInstance(document.getElementById('previewSwitchModal')).hide();
@@ -923,11 +992,14 @@
             formData.append('segment', segmentDropdownE.value); formData.append('brand', brandDropdownE.value);
             formData.append('vendor', vendorDropdownE.value);
             formData.append('amount', document.getElementById('tsAmontEx').value);
-            formData.append('createdBy', 'System');
             formData.append('remark', '');
 
             try {
-                var response = await fetch('Handler/SaveOTBHandler.ashx?action=saveExtra', { method: 'POST', body: formData });
+                var response = await fetch('Handler/SaveOTBHandler.ashx?action=saveExtra', {
+                    method: 'POST',
+                    headers: { 'X-Requested-With': 'XMLHttpRequest' },
+                    body: formData
+                });
                 var result = await response.json();
                 showLoading(false);
                 if (result.success) {
@@ -1007,6 +1079,7 @@
         function cleanCurrencyOnFocus(event) {
             const input = event.target;
             let value = input.value.replace(/,/g, '');
+            input.dataset.rawNumericValue = value;
             if (parseFloat(value) === 0) { input.value = ''; } else { input.value = value; }
             setTimeout(() => input.select(), 0);
         }

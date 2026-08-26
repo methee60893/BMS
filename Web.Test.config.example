@@ -14,4 +14,16 @@
     <add key="SAPAPI_USERNAME" value="mock-user" />
     <add key="SAPAPI_PASSWORD" value="mock-password" />
   </appSettings>
+  <!-- 25 MB request envelope. The Draft OTB application limit remains 20 MB,
+       leaving room for multipart/form-data headers and other request fields. -->
+  <system.web>
+    <httpRuntime targetFramework="4.7.2" maxRequestLength="25600" executionTimeout="3600" />
+  </system.web>
+  <system.webServer>
+    <security>
+      <requestFiltering>
+        <requestLimits maxAllowedContentLength="26214400" />
+      </requestFiltering>
+    </security>
+  </system.webServer>
 </configuration>

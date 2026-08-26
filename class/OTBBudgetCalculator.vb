@@ -1,5 +1,6 @@
 ﻿Imports System.Data
 Imports System.Data.SqlClient
+Imports System.Globalization
 
 Public Class OTBBudgetCalculator
     Private Shared connectionString As String = ConfigurationManager.ConnectionStrings("BMSConnectionString")?.ConnectionString
@@ -8,12 +9,145 @@ Public Class OTBBudgetCalculator
     Private dtOtbTransaction As DataTable
     Private dtSwitchingTransaction As DataTable
 
+    ' Immutable aggregate indexes turn each budget lookup into O(1), rather than
+    ' rescanning all approved OTB and switching rows for every uploaded record.
+    Private otbAmountsByKey As Dictionary(Of String, BudgetAggregate)
+    Private switchingAmountsByKey As Dictionary(Of String, SwitchingAggregate)
+
+    Private NotInheritable Class BudgetAggregate
+        Public Original As Decimal
+        Public RevisedDiff As Decimal
+    End Class
+
+    Private NotInheritable Class SwitchingAggregate
+        Public Extra As Decimal
+        Public SwitchIn As Decimal
+        Public SwitchOut As Decimal
+        Public BalanceIn As Decimal
+        Public BalanceOut As Decimal
+        Public CarryIn As Decimal
+        Public CarryOut As Decimal
+    End Class
+
     ''' <summary>
     ''' Constructor: เมื่อคลาสนี้ถูก New() จะดึงข้อมูลทั้งหมดจาก DB มาเก็บไว้ก่อน
     ''' </summary>
     Public Sub New()
         LoadAllTransactionData()
+        BuildIndexes()
     End Sub
+
+    Private Sub BuildIndexes()
+        otbAmountsByKey = New Dictionary(Of String, BudgetAggregate)(StringComparer.OrdinalIgnoreCase)
+        switchingAmountsByKey = New Dictionary(Of String, SwitchingAggregate)(StringComparer.OrdinalIgnoreCase)
+
+        If dtOtbTransaction IsNot Nothing Then
+            For Each row As DataRow In dtOtbTransaction.Rows
+                Dim key As String = BuildKey(RowText(row, "Year"), RowText(row, "Month"),
+                                             RowText(row, "Category"), RowText(row, "Company"),
+                                             RowText(row, "Segment"), RowText(row, "Brand"),
+                                             RowText(row, "Vendor"))
+                Dim aggregate As BudgetAggregate = Nothing
+                If Not otbAmountsByKey.TryGetValue(key, aggregate) Then
+                    aggregate = New BudgetAggregate()
+                    otbAmountsByKey.Add(key, aggregate)
+                End If
+
+                Dim transactionType As String = NormalizeTextComponent(RowText(row, "Type"))
+                If transactionType.Equals("Original", StringComparison.OrdinalIgnoreCase) Then
+                    AddRowAmount(row, "Amount", aggregate.Original)
+                ElseIf transactionType.Equals("Revise", StringComparison.OrdinalIgnoreCase) Then
+                    AddRowAmount(row, "RevisedDiff", aggregate.RevisedDiff)
+                End If
+            Next
+        End If
+
+        If dtSwitchingTransaction IsNot Nothing Then
+            For Each row As DataRow In dtSwitchingTransaction.Rows
+                Dim amount As Decimal = 0
+                If row.Table.Columns.Contains("BudgetAmount") AndAlso row("BudgetAmount") IsNot DBNull.Value Then
+                    amount = Convert.ToDecimal(row("BudgetAmount"), CultureInfo.InvariantCulture)
+                End If
+
+                Dim source As SwitchingAggregate = GetOrCreateSwitchingAggregate(
+                    BuildKey(RowText(row, "Year"), RowText(row, "Month"),
+                             RowText(row, "Category"), RowText(row, "Company"),
+                             RowText(row, "Segment"), RowText(row, "Brand"),
+                             RowText(row, "Vendor")))
+                Select Case RowText(row, "From").Trim().ToUpperInvariant()
+                    Case "D" : source.SwitchOut += amount
+                    Case "G" : source.CarryOut += amount
+                    Case "I" : source.BalanceOut += amount
+                    Case "E" : source.Extra += amount
+                End Select
+
+                ' The old destination filter explicitly required To IS NOT NULL.
+                If row.Table.Columns.Contains("To") AndAlso row("To") IsNot DBNull.Value Then
+                    Dim destination As SwitchingAggregate = GetOrCreateSwitchingAggregate(
+                        BuildKey(RowText(row, "SwitchYear"), RowText(row, "SwitchMonth"),
+                                 RowText(row, "SwitchCategory"), RowText(row, "SwitchCompany"),
+                                 RowText(row, "SwitchSegment"), RowText(row, "SwitchBrand"),
+                                 RowText(row, "SwitchVendor")))
+                    Select Case RowText(row, "To").Trim().ToUpperInvariant()
+                        Case "C" : destination.SwitchIn += amount
+                        Case "F" : destination.CarryIn += amount
+                        Case "H" : destination.BalanceIn += amount
+                    End Select
+                End If
+            Next
+        End If
+    End Sub
+
+    Private Function GetOrCreateSwitchingAggregate(key As String) As SwitchingAggregate
+        Dim aggregate As SwitchingAggregate = Nothing
+        If Not switchingAmountsByKey.TryGetValue(key, aggregate) Then
+            aggregate = New SwitchingAggregate()
+            switchingAmountsByKey.Add(key, aggregate)
+        End If
+        Return aggregate
+    End Function
+
+    Private Shared Sub AddRowAmount(row As DataRow, columnName As String, ByRef total As Decimal)
+        If row.Table.Columns.Contains(columnName) AndAlso row(columnName) IsNot DBNull.Value Then
+            total += Convert.ToDecimal(row(columnName), CultureInfo.InvariantCulture)
+        End If
+    End Sub
+
+    Private Shared Function RowText(row As DataRow, columnName As String) As String
+        If row Is Nothing OrElse Not row.Table.Columns.Contains(columnName) OrElse row(columnName) Is DBNull.Value Then
+            Return ""
+        End If
+        Return Convert.ToString(row(columnName), CultureInfo.InvariantCulture)
+    End Function
+
+    Private Shared Function NormalizeNumericComponent(value As String) As String
+        Dim parsed As Integer
+        Dim raw As String = If(value, "")
+        If Integer.TryParse(raw.Trim(), NumberStyles.Integer, CultureInfo.InvariantCulture, parsed) Then
+            Return parsed.ToString(CultureInfo.InvariantCulture)
+        End If
+        Return raw
+    End Function
+
+    Private Shared Function NormalizeTextComponent(value As String) As String
+        Return If(value, "").TrimEnd(" "c)
+    End Function
+
+    Private Shared Function BuildCompositeKey(ParamArray values() As String) As String
+        Dim key As New StringBuilder()
+        For Each value As String In values
+            Dim component As String = NormalizeTextComponent(value)
+            key.Append(component.Length.ToString(CultureInfo.InvariantCulture)).Append(":"c).Append(component).Append("|"c)
+        Next
+        Return key.ToString()
+    End Function
+
+    Private Shared Function BuildKey(year As String, month As String, category As String,
+                                     company As String, segment As String, brand As String,
+                                     vendor As String) As String
+        Return BuildCompositeKey(NormalizeNumericComponent(year), NormalizeNumericComponent(month),
+                                 category, company, segment, brand, vendor)
+    End Function
 
     ''' <summary>
     ''' (ใหม่) เปิด Connection ครั้งเดียว แล้วดึงข้อมูลทั้งหมดที่ Approved แล้วมาเก็บไว้
@@ -95,11 +229,11 @@ Public Class OTBBudgetCalculator
                                        category As String, company As String, segment As String,
                                        brand As String, vendor As String) As Decimal
         Try
-            Dim filter As String = BuildKeyFilter(year, month, category, company, segment, brand, vendor)
-            filter &= " AND [Type] = 'Original'"
-
-            Dim originalAmount As Object = dtOtbTransaction.Compute("SUM(Amount)", filter)
-            Return If(originalAmount IsNot DBNull.Value, Convert.ToDecimal(originalAmount), 0)
+            Dim aggregate As BudgetAggregate = Nothing
+            If otbAmountsByKey.TryGetValue(BuildKey(year, month, category, company, segment, brand, vendor), aggregate) Then
+                Return aggregate.Original
+            End If
+            Return 0
 
         Catch ex As Exception
             System.Diagnostics.Debug.WriteLine("Error in GetOriginalAmount (In-Memory): " & ex.Message)
@@ -114,16 +248,11 @@ Public Class OTBBudgetCalculator
                                      category As String, company As String, segment As String,
                                      brand As String, vendor As String) As Decimal
         Try
-            Dim originalAmount As Decimal = GetOriginalAmount(year, month, category, company, segment, brand, vendor)
-
-            Dim filter As String = BuildKeyFilter(year, month, category, company, segment, brand, vendor)
-            filter &= " AND [Type] = 'Revise'"
-
-
-            ' ใช้ Logic เดียวกับ Report คือ SUM(RevisedDiff) ทื่อๆ เลย ป้องกันการคำนวณพลาดจากการวน Loop
-            Dim totalRevDiff As Object = dtOtbTransaction.Compute("SUM(RevisedDiff)", filter)
-
-            Return If(totalRevDiff IsNot DBNull.Value, Convert.ToDecimal(totalRevDiff), 0)
+            Dim aggregate As BudgetAggregate = Nothing
+            If otbAmountsByKey.TryGetValue(BuildKey(year, month, category, company, segment, brand, vendor), aggregate) Then
+                Return aggregate.RevisedDiff
+            End If
+            Return 0
 
         Catch ex As Exception
             'System.Diagnostics.Debug.WriteLine("Error in GetRevisionDiff (In-Memory): " & ex.Message)
@@ -143,40 +272,16 @@ Public Class OTBBudgetCalculator
         }
 
         Try
-            ' ========================================
-            ' คำนวณ OUT (จาก Source) - ลบออก
-            ' ========================================
-            Dim filterOut As String = BuildKeyFilter(year, month, category, company, segment, brand, vendor)
-            Dim outRows() As DataRow = dtSwitchingTransaction.Select(filterOut)
-
-            For Each row As DataRow In outRows
-                Dim fromType As String = If(row("From") IsNot DBNull.Value, row("From").ToString().Trim().ToUpper(), "")
-                Dim amount As Decimal = If(row("BudgetAmount") IsNot DBNull.Value, Convert.ToDecimal(row("BudgetAmount")), 0)
-
-                Select Case fromType
-                    Case "D" : result("SwitchOut") += amount
-                    Case "G" : result("CarryOut") += amount
-                    Case "I" : result("BalanceOut") += amount
-                    Case "E" : result("Extra") += amount
-                End Select
-            Next
-
-            ' ========================================
-            ' คำนวณ IN (ไป Destination) - บวกเข้า
-            ' ========================================
-            Dim filterIn As String = BuildSwitchKeyFilter(year, month, category, company, segment, brand, vendor)
-            Dim inRows() As DataRow = dtSwitchingTransaction.Select(filterIn)
-
-            For Each row As DataRow In inRows
-                Dim toType As String = If(row("To") IsNot DBNull.Value, row("To").ToString().Trim().ToUpper(), "")
-                Dim amount As Decimal = If(row("BudgetAmount") IsNot DBNull.Value, Convert.ToDecimal(row("BudgetAmount")), 0)
-
-                Select Case toType
-                    Case "C" : result("SwitchIn") += amount
-                    Case "F" : result("CarryIn") += amount
-                    Case "H" : result("BalanceIn") += amount
-                End Select
-            Next
+            Dim aggregate As SwitchingAggregate = Nothing
+            If switchingAmountsByKey.TryGetValue(BuildKey(year, month, category, company, segment, brand, vendor), aggregate) Then
+                result("Extra") = aggregate.Extra
+                result("SwitchIn") = aggregate.SwitchIn
+                result("SwitchOut") = aggregate.SwitchOut
+                result("BalanceIn") = aggregate.BalanceIn
+                result("BalanceOut") = aggregate.BalanceOut
+                result("CarryIn") = aggregate.CarryIn
+                result("CarryOut") = aggregate.CarryOut
+            End If
 
         Catch ex As Exception
             System.Diagnostics.Debug.WriteLine("Error in CalculateSwitchingAmounts (In-Memory): " & ex.Message)
@@ -184,52 +289,6 @@ Public Class OTBBudgetCalculator
 
         Return result
     End Function
-
-    ' =================================================================
-    ' ===== START: MODIFICATION (แก้ไขจุดที่ Error) ===================
-    ' =================================================================
-
-    ''' <summary>
-    ''' (ใหม่) Helper Function สำหรับ Escape ' (single quote) สำหรับ .Select Filter
-    ''' </summary>
-    Private Function EscapeFilter(s As String) As String
-        If String.IsNullOrEmpty(s) Then
-            Return ""
-        End If
-        Return s.Replace("'", "''")
-    End Function
-
-    ''' <summary>
-    ''' (ใหม่) Helper Function สำหรับสร้าง .Select Filter
-    ''' </summary>
-    Private Function BuildKeyFilter(year As String, month As String, category As String, company As String, segment As String, brand As String, vendor As String) As String
-        Return $"[Year] = '{EscapeFilter(year)}' AND " &
-               $"[Month] = '{EscapeFilter(month)}' AND " &
-               $"[Category] = '{EscapeFilter(category)}' AND " &
-               $"[Company] = '{EscapeFilter(company)}' AND " &
-               $"[Segment] = '{EscapeFilter(segment)}' AND " &
-               $"[Brand] = '{EscapeFilter(brand)}' AND " &
-               $"[Vendor] = '{EscapeFilter(vendor)}'"
-    End Function
-
-    ''' <summary>
-    ''' (ใหม่) Helper Function สำหรับสร้าง .Select Filter (ฝั่ง To/Switch)
-    ''' </summary>
-    Private Function BuildSwitchKeyFilter(year As String, month As String, category As String, company As String, segment As String, brand As String, vendor As String) As String
-        Return $"[SwitchYear] = '{EscapeFilter(year)}' AND " &
-               $"[SwitchMonth] = '{EscapeFilter(month)}' AND " &
-               $"[SwitchCompany] = '{EscapeFilter(company)}' AND " &
-               $"[SwitchCategory] = '{EscapeFilter(category)}' AND " &
-               $"[SwitchSegment] = '{EscapeFilter(segment)}' AND " &
-               $"[SwitchBrand] = '{EscapeFilter(brand)}' AND " &
-               $"[SwitchVendor] = '{EscapeFilter(vendor)}' AND " &
-               $"[To] IS NOT NULL"
-    End Function
-
-    ' =================================================================
-    ' ===== END: MODIFICATION =========================================
-    ' =================================================================
-
 
     ''' <summary>
     ''' (แก้ไข) ดึงรายละเอียดการคำนวณ (สำหรับแสดง Breakdown) - ลบ Shared

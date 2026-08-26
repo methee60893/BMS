@@ -1,5 +1,6 @@
 ﻿Imports System.Data
 Imports System.Data.SqlClient
+Imports System.Globalization
 
 Public Class OTBValidate
 
@@ -16,12 +17,179 @@ Public Class OTBValidate
 
     Private dtApprovedOTB As DataTable
 
+    ' Immutable lookup indexes keep per-row validation O(1) for large uploads.
+    Private categoryCodes As HashSet(Of String)
+    Private segmentCodes As HashSet(Of String)
+    Private brandCodes As HashSet(Of String)
+    Private vendorCodes As HashSet(Of String)
+    Private companyCodes As HashSet(Of String)
+    Private draftStatusByKey As Dictionary(Of String, DraftDuplicateState)
+    Private approvedDimensionKeys As HashSet(Of String)
+    Private latestApprovedVersionByYear As Dictionary(Of String, ApprovedVersionState)
+    Private draftHasStatusColumn As Boolean
+
+    Private NotInheritable Class DraftDuplicateState
+        Public HasApproved As Boolean
+        Public HasDraft As Boolean
+    End Class
+
+    Private NotInheritable Class ApprovedVersionState
+        Public Number As Integer
+        Public Value As String
+    End Class
+
     ' Constructor - โหลดข้อมูล Master ทั้งหมดครั้งเดียว
     Public Sub New()
         LoadAllMasterData()
         LoadDraftOTBData()
         LoadApprovedOTBData()
+        BuildIndexes()
     End Sub
+
+    Private Sub BuildIndexes()
+        categoryCodes = BuildCodeSet(dtCategories, "Cate")
+        segmentCodes = BuildCodeSet(dtSegments, "SegmentCode")
+        brandCodes = BuildCodeSet(dtBrands, "Brand Code")
+        vendorCodes = BuildCodeSet(dtVendors, "VendorCode")
+        companyCodes = BuildCodeSet(dtCompanies, "CompanyCode")
+
+        draftStatusByKey = New Dictionary(Of String, DraftDuplicateState)(StringComparer.OrdinalIgnoreCase)
+        draftHasStatusColumn = dtDraftOTB IsNot Nothing AndAlso dtDraftOTB.Columns.Contains("OTBStatus")
+
+        If dtDraftOTB IsNot Nothing Then
+            For Each row As DataRow In dtDraftOTB.Rows
+                If Not HasCompleteStoredKey(row, "Type", "Year", "Month", "Category", "Company", "Segment", "Brand", "Vendor") Then
+                    Continue For
+                End If
+                Dim key As String = BuildDraftKey(RowText(row, "Type"),
+                                                  RowText(row, "Year"),
+                                                  RowText(row, "Month"),
+                                                  RowText(row, "Category"),
+                                                  RowText(row, "Company"),
+                                                  RowText(row, "Segment"),
+                                                  RowText(row, "Brand"),
+                                                  RowText(row, "Vendor"))
+                Dim state As DraftDuplicateState = Nothing
+                If Not draftStatusByKey.TryGetValue(key, state) Then
+                    state = New DraftDuplicateState()
+                    draftStatusByKey.Add(key, state)
+                End If
+
+                If draftHasStatusColumn Then
+                    Dim status As String = RowText(row, "OTBStatus").Trim()
+                    If status.Equals("Approved", StringComparison.OrdinalIgnoreCase) Then
+                        state.HasApproved = True
+                    End If
+                    If String.IsNullOrEmpty(status) OrElse status.Equals("Draft", StringComparison.OrdinalIgnoreCase) Then
+                        state.HasDraft = True
+                    End If
+                End If
+            Next
+        End If
+
+        approvedDimensionKeys = New HashSet(Of String)(StringComparer.OrdinalIgnoreCase)
+        latestApprovedVersionByYear = New Dictionary(Of String, ApprovedVersionState)(StringComparer.OrdinalIgnoreCase)
+
+        If dtApprovedOTB IsNot Nothing Then
+            For Each row As DataRow In dtApprovedOTB.Rows
+                If HasCompleteStoredKey(row, "Year", "Month", "Category", "Company", "Segment", "Brand", "Vendor") Then
+                    approvedDimensionKeys.Add(BuildDimensionKey(RowText(row, "Year"),
+                                                                 RowText(row, "Month"),
+                                                                 RowText(row, "Category"),
+                                                                 RowText(row, "Company"),
+                                                                 RowText(row, "Segment"),
+                                                                 RowText(row, "Brand"),
+                                                                 RowText(row, "Vendor")))
+                End If
+
+                If dtApprovedOTB.Columns.Contains("Version") AndAlso
+                   HasCompleteStoredKey(row, "Year") Then
+                    Dim versionValue As String = RowText(row, "Version")
+                    Dim versionNumber As Integer = ParseVersionNumber(versionValue)
+                    Dim yearKey As String = NormalizeNumericComponent(RowText(row, "Year"))
+                    Dim current As ApprovedVersionState = Nothing
+                    If versionNumber >= 0 AndAlso
+                       (Not latestApprovedVersionByYear.TryGetValue(yearKey, current) OrElse versionNumber > current.Number) Then
+                        latestApprovedVersionByYear(yearKey) = New ApprovedVersionState With {
+                            .Number = versionNumber,
+                            .Value = versionValue
+                        }
+                    End If
+                End If
+            Next
+        End If
+    End Sub
+
+    Private Shared Function BuildCodeSet(table As DataTable, columnName As String) As HashSet(Of String)
+        Dim result As New HashSet(Of String)(StringComparer.OrdinalIgnoreCase)
+        If table Is Nothing OrElse Not table.Columns.Contains(columnName) Then Return result
+
+        For Each row As DataRow In table.Rows
+            If row(columnName) IsNot DBNull.Value Then result.Add(NormalizeTextComponent(row(columnName).ToString()))
+        Next
+        Return result
+    End Function
+
+    Private Shared Function RowText(row As DataRow, columnName As String) As String
+        If row Is Nothing OrElse Not row.Table.Columns.Contains(columnName) OrElse row(columnName) Is DBNull.Value Then
+            Return ""
+        End If
+        Return Convert.ToString(row(columnName), CultureInfo.InvariantCulture)
+    End Function
+
+    Private Shared Function HasCompleteStoredKey(row As DataRow, ParamArray columnNames() As String) As Boolean
+        If row Is Nothing Then Return False
+        For Each columnName As String In columnNames
+            If Not row.Table.Columns.Contains(columnName) OrElse row(columnName) Is DBNull.Value Then Return False
+        Next
+        Return True
+    End Function
+
+    Private Shared Function NormalizeNumericComponent(value As String) As String
+        Dim parsed As Integer
+        Dim raw As String = If(value, "")
+        If Integer.TryParse(raw.Trim(), NumberStyles.Integer, CultureInfo.InvariantCulture, parsed) Then
+            Return parsed.ToString(CultureInfo.InvariantCulture)
+        End If
+        Return raw
+    End Function
+
+    Private Shared Function NormalizeTextComponent(value As String) As String
+        Return If(value, "").TrimEnd(" "c)
+    End Function
+
+    Private Shared Function BuildCompositeKey(ParamArray values() As String) As String
+        Dim key As New StringBuilder()
+        For Each value As String In values
+            Dim component As String = NormalizeTextComponent(value)
+            key.Append(component.Length.ToString(CultureInfo.InvariantCulture)).Append(":"c).Append(component).Append("|"c)
+        Next
+        Return key.ToString()
+    End Function
+
+    Private Shared Function BuildDimensionKey(year As String, month As String, category As String,
+                                                company As String, segment As String, brand As String,
+                                                vendor As String) As String
+        Return BuildCompositeKey(NormalizeNumericComponent(year), NormalizeNumericComponent(month),
+                                 category, company, segment, brand, vendor)
+    End Function
+
+    Private Shared Function BuildDraftKey(type As String, year As String, month As String,
+                                           category As String, company As String, segment As String,
+                                           brand As String, vendor As String) As String
+        Return BuildCompositeKey(type, NormalizeNumericComponent(year), NormalizeNumericComponent(month),
+                                 category, company, segment, brand, vendor)
+    End Function
+
+    Private Shared Function ParseVersionNumber(versionValue As String) As Integer
+        If String.IsNullOrEmpty(versionValue) Then Return -1
+        If versionValue.Equals("A1", StringComparison.OrdinalIgnoreCase) Then Return 0
+        If versionValue.StartsWith("R", StringComparison.OrdinalIgnoreCase) Then
+            Dim number As Integer
+            If Integer.TryParse(versionValue.Substring(1), number) Then Return number
+        End If
+        Return -1
+    End Function
 
     ' โหลดข้อมูล Master ทั้งหมดครั้งเดียว
     Private Sub LoadAllMasterData()
@@ -136,36 +304,31 @@ Public Class OTBValidate
 
     Public Function ValidateCategory(ByVal category As String) As String
         If String.IsNullOrWhiteSpace(category) Then Return "Category is required "
-        Dim rows() As DataRow = dtCategories.Select($"[Cate] = '{category.Replace("'", "''")}'")
-        If rows.Length = 0 Then Return $"Not found Category: ""{category}"" "
+        If Not categoryCodes.Contains(NormalizeTextComponent(category)) Then Return $"Not found Category: ""{category}"" "
         Return ""
     End Function
 
     Public Function ValidateCompany(ByVal company As String) As String
         If String.IsNullOrWhiteSpace(company) Then Return "Company is required "
-        Dim rows() As DataRow = dtCompanies.Select($"[CompanyCode] = '{company.Replace("'", "''")}'")
-        If rows.Length = 0 Then Return $"Not found Company: ""{company}"" "
+        If Not companyCodes.Contains(NormalizeTextComponent(company)) Then Return $"Not found Company: ""{company}"" "
         Return ""
     End Function
 
     Public Function ValidateSegment(ByVal segment As String) As String
         If String.IsNullOrWhiteSpace(segment) Then Return "Segment is required "
-        Dim rows() As DataRow = dtSegments.Select($"[SegmentCode] = '{segment.Replace("'", "''")}'")
-        If rows.Length = 0 Then Return $"Not found Segment: ""{segment}"" "
+        If Not segmentCodes.Contains(NormalizeTextComponent(segment)) Then Return $"Not found Segment: ""{segment}"" "
         Return ""
     End Function
 
     Public Function ValidateBrand(ByVal brand As String) As String
         If String.IsNullOrWhiteSpace(brand) Then Return "Brand is required "
-        Dim rows() As DataRow = dtBrands.Select($"[Brand Code] = '{brand.Replace("'", "''")}'")
-        If rows.Length = 0 Then Return $"Not found Brand: ""{brand}"" "
+        If Not brandCodes.Contains(NormalizeTextComponent(brand)) Then Return $"Not found Brand: ""{brand}"" "
         Return ""
     End Function
 
     Public Function ValidateVendor(ByVal vendor As String) As String
         If String.IsNullOrWhiteSpace(vendor) Then Return "Vendor is required "
-        Dim rows() As DataRow = dtVendors.Select($"[VendorCode] = '{vendor.Replace("'", "''")}'")
-        If rows.Length = 0 Then Return $"Not found Vendor: ""{vendor}"" "
+        If Not vendorCodes.Contains(NormalizeTextComponent(vendor)) Then Return $"Not found Vendor: ""{vendor}"" "
         Return ""
     End Function
 
@@ -200,54 +363,18 @@ Public Class OTBValidate
                                                category As String, company As String, segment As String,
                                                  brand As String, vendor As String) As String
         Try
-            If dtDraftOTB Is Nothing OrElse dtDraftOTB.Rows.Count = 0 Then
+            If draftStatusByKey Is Nothing OrElse draftStatusByKey.Count = 0 Then
                 Return ""
             End If
 
-            Dim filter As String = $"[Type] = '{type.Replace("'", "''")}' AND " &
-                                  $"[Year] = '{year.Replace("'", "''")}' AND " &
-                                  $"[Month] = '{month.Replace("'", "''")}' AND " &
-                                  $"[Category] = '{category.Replace("'", "''")}' AND " &
-                                  $"[Company] = '{company.Replace("'", "''")}' AND " &
-                                  $"[Segment] = '{segment.Replace("'", "''")}' AND " &
-                                  $"[Brand] = '{brand.Replace("'", "''")}' AND " &
-                                  $"[Vendor] = '{vendor.Replace("'", "''")}'"
-
-            Dim rows() As DataRow = dtDraftOTB.Select(filter)
-
-            If rows.Length > 0 Then
-                If dtDraftOTB.Columns.Contains("OTBStatus") Then
-
-                    Dim foundDraft As Boolean = False
-
-                    For Each row As DataRow In rows
-                        Dim status As String = If(row("OTBStatus") IsNot DBNull.Value, row("OTBStatus").ToString().Trim(), "")
-
-                        ' 1. ถ้าเจอสถานะ Approved และเป็น Original ให้ Block
-                        If status.Equals("Approved", StringComparison.OrdinalIgnoreCase) AndAlso type.Equals("Original", StringComparison.OrdinalIgnoreCase) Then
-                            Return "DUPLICATED_APPROVED"
-                        End If
-
-                        ' 2. ถ้าเจอสถานะ Draft (หรือว่าง) ให้ Mark ว่ามี Draft ที่ Update ได้
-                        If String.IsNullOrEmpty(status) OrElse status.Equals("Draft", StringComparison.OrdinalIgnoreCase) Then
-                            foundDraft = True
-                        End If
-                    Next
-
-                    ' 3. สรุปผล:
-                    If foundDraft Then
-                        ' ถ้ามี Draft อยู่ -> ให้ Update ตัว Draft นั้น
-                        Return "CAN_UPDATE"
-                    Else
-                        ' ถ้ามีข้อมูลซ้ำ แต่ไม่มีตัวไหนเป็น Draft เลย (เช่นเป็น Approved หรือ Waiting)
-                        ' ให้ return ค่าว่าง เพื่อให้ UploadHandler มองว่าเป็น New Record (Insert)
-                        Return ""
-                    End If
-
-                Else
-                    ' ถ้าไม่มี column OTBStatus ให้สมมติว่าเป็น Draft ไว้ก่อน (ตาม Logic เดิม)
-                    Return "CAN_UPDATE"
+            Dim key As String = BuildDraftKey(type, year, month, category, company, segment, brand, vendor)
+            Dim state As DraftDuplicateState = Nothing
+            If draftStatusByKey.TryGetValue(key, state) Then
+                If Not draftHasStatusColumn Then Return "CAN_UPDATE"
+                If state.HasApproved AndAlso type.Equals("Original", StringComparison.OrdinalIgnoreCase) Then
+                    Return "DUPLICATED_APPROVED"
                 End If
+                If state.HasDraft Then Return "CAN_UPDATE"
             End If
 
         Catch ex As Exception
@@ -273,17 +400,8 @@ Public Class OTBValidate
                 Return "" ' Type = Original = OK
             End If
 
-            Dim filter As String = $"[Year] = '{year.Replace("'", "''")}' AND " &
-                                  $"[Month] = '{month.Replace("'", "''")}' AND " &
-                                  $"[Category] = '{category.Replace("'", "''")}' AND " &
-                                  $"[Company] = '{company.Replace("'", "''")}' AND " &
-                                  $"[Segment] = '{segment.Replace("'", "''")}' AND " &
-                                  $"[Brand] = '{brand.Replace("'", "''")}' AND " &
-                                  $"[Vendor] = '{vendor.Replace("'", "''")}'"
-
-            Dim rows() As DataRow = dtApprovedOTB.Select(filter)
-
-            If rows.Length > 0 Then
+            Dim key As String = BuildDimensionKey(year, month, category, company, segment, brand, vendor)
+            If approvedDimensionKeys.Contains(key) Then
                 ' พบข้อมูล Approved แล้ว
                 If type.Equals("Original", StringComparison.OrdinalIgnoreCase) Then
                     ' Upload Original ซ้ำ = ผิด (ต้อง Revise)
@@ -339,34 +457,11 @@ Public Class OTBValidate
 
         Dim latestVersionNum As Integer = -1 ' A1 = 0, R1 = 1, R2 = 2
 
-        ' Helper function to parse version string
-        Dim getVersionNum = Function(v As String)
-                                If String.IsNullOrEmpty(v) Then Return -1
-                                If v.Equals("A1", StringComparison.OrdinalIgnoreCase) Then Return 0
-                                If v.StartsWith("R", StringComparison.OrdinalIgnoreCase) Then
-                                    Dim numPart As Integer
-                                    If Integer.TryParse(v.Substring(1), numPart) Then
-                                        Return numPart ' R1=1, R2=2
-                                    End If
-                                End If
-                                Return -1 ' Unknown format
-                            End Function
-
-        ' Version is an annual upload cycle, so check Approved table by Year only.
-        If dtApprovedOTB IsNot Nothing AndAlso dtApprovedOTB.Columns.Contains("Version") Then
-            Try
-                Dim filter As String = BuildYearFilter(year)
-
-                For Each row As DataRow In dtApprovedOTB.Select(filter)
-                    Dim currentVersionStr As String = row("Version").ToString()
-                    Dim currentVersionNum As Integer = getVersionNum(currentVersionStr)
-                    If currentVersionNum > latestVersionNum Then
-                        latestVersionNum = currentVersionNum
-                    End If
-                Next
-            Catch ex As Exception
-                ' Handle potential filter errors
-            End Try
+        ' Version is an annual upload cycle, so the index is keyed by normalized Year only.
+        Dim versionState As ApprovedVersionState = Nothing
+        If latestApprovedVersionByYear IsNot Nothing AndAlso
+           latestApprovedVersionByYear.TryGetValue(NormalizeNumericComponent(year), versionState) Then
+            latestVersionNum = versionState.Number
         End If
 
         ' Calculate next version
@@ -389,15 +484,6 @@ Public Class OTBValidate
         Else
             Return $"R{nextVersionNum}"
         End If
-    End Function
-
-    Private Function BuildYearFilter(year As String) As String
-        Dim parsedYear As Integer
-        If Integer.TryParse(If(year, "").Trim(), parsedYear) Then
-            Return $"[Year] = {parsedYear}"
-        End If
-
-        Return $"[Year] = '{If(year, "").Replace("'", "''")}'"
     End Function
 
     ''' <summary>
@@ -441,17 +527,7 @@ Public Class OTBValidate
                 errors.Append(r15Ex.Message & "|")
             End Try
 
-            ' Rule 2: Check Approved (Warning)
-            If dtApprovedOTB IsNot Nothing Then
-                Try
-                    Dim approvedFilter As String = $"[Year] = '{year.Replace("'", "''")}' AND [Month] = '{month.Replace("'", "''")}' AND [Category] = '{category.Replace("'", "''")}' AND [Company] = '{company.Replace("'", "''")}' AND [Segment] = '{segment.Replace("'", "''")}' AND [Brand] = '{brand.Replace("'", "''")}' AND [Vendor] = '{vendor.Replace("'", "''")}'"
-                    Dim approvedRows() As DataRow = dtApprovedOTB.Select(approvedFilter)
-                    If approvedRows.Length > 0 Then
-                        'errors.Append("Duplicate_Approved_Warn (Will Revise)|")
-                    End If
-                Catch ex As Exception
-                End Try
-            End If
+            ' Rule 2 remains intentionally non-blocking (no validation message).
 
             ' Rule 3: Check Draft (Update/Error)
             Dim duplicateResult As String = ValidateDuplicateInDraftOTB(type, year, month, category, company, segment, brand, vendor)
@@ -482,43 +558,12 @@ Public Class OTBValidate
                                             company As String, segment As String, brand As String,
                                             vendor As String) As String
 
-        Dim latestVersion As String = Nothing
-        Dim latestVersionNum As Integer = -1 ' A1 = 0, R1 = 1, R2 = 2
-
-        Dim filter As String = BuildYearFilter(year)
-
-        ' Helper function to parse version string
-        Dim getVersionNum = Function(v As String)
-                                If String.IsNullOrEmpty(v) Then Return -1
-                                If v.Equals("A1", StringComparison.OrdinalIgnoreCase) Then Return 0
-                                If v.StartsWith("R", StringComparison.OrdinalIgnoreCase) Then
-                                    Dim numPart As Integer
-                                    If Integer.TryParse(v.Substring(1), numPart) Then
-                                        Return numPart ' R1=1, R2=2
-                                    End If
-                                End If
-                                Return -1 ' Unknown format
-                            End Function
-
-        ' (ส่วนที่ 1: Check Draft table (Template_Upload_Draft_OTB) - ถูกลบออก)
-
-        ' (ส่วนที่ 2: Check Approved table (OTB_Transaction) - คงไว้)
-        If dtApprovedOTB IsNot Nothing AndAlso dtApprovedOTB.Columns.Contains("Version") Then
-            Try
-                For Each row As DataRow In dtApprovedOTB.Select(filter)
-                    Dim currentVersionStr As String = row("Version").ToString()
-                    Dim currentVersionNum As Integer = getVersionNum(currentVersionStr)
-                    If currentVersionNum > latestVersionNum Then
-                        latestVersionNum = currentVersionNum
-                        latestVersion = currentVersionStr
-                    End If
-                Next
-            Catch ex As Exception
-                ' Handle potential filter errors
-            End Try
+        Dim versionState As ApprovedVersionState = Nothing
+        If latestApprovedVersionByYear IsNot Nothing AndAlso
+           latestApprovedVersionByYear.TryGetValue(NormalizeNumericComponent(year), versionState) Then
+            Return versionState.Value
         End If
-
-        Return latestVersion
+        Return Nothing
     End Function
 
 End Class

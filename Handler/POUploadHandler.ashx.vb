@@ -174,11 +174,13 @@ Public Class POUploadHandler
 
     Private Function GeneratePreviewTableHtml(items As List(Of POValidate.DraftPOItem), result As POValidate.ValidationResult) As String
         Dim sb As New StringBuilder()
+        Dim masterData As New MasterDataUtil()
         sb.Append("<table class='table table-bordered table-hover' id='tblPreview'>")
         sb.Append("<thead class='table-light'><tr>")
         sb.Append("<th><input type='checkbox' id='selectAll' onclick='toggleAll(this)' checked ></th>")
         sb.Append("<th>#</th><th>Status</th><th>Message</th>")
-        sb.Append("<th>PO No.</th><th>Year</th><th>Month</th><th>Vendor</th>")
+        sb.Append("<th>PO No.</th><th>Year</th><th>Month</th>")
+        sb.Append("<th>Category (Code / Name)</th><th>Brand (Code / Name)</th><th>Vendor</th>")
         sb.Append("<th>Amount (THB)</th>")
         sb.Append("</tr></thead><tbody>")
 
@@ -191,6 +193,8 @@ Public Class POUploadHandler
             Dim exRateText As String = item.ExchangeRate.ToString(Globalization.CultureInfo.InvariantCulture)
             Dim amountCCYText As String = item.Amount_CCY.ToString(Globalization.CultureInfo.InvariantCulture)
             Dim amountTHBText As String = item.Amount_THB.ToString(Globalization.CultureInfo.InvariantCulture)
+            Dim categoryName As String = masterData.GetCategoryName(item.Category_Code)
+            Dim brandName As String = masterData.GetBrandName(item.Brand_Code)
 
             Dim dataAttrs As String = $"data-pono=""{EncodeAttribute(item.PO_No)}"" data-year=""{EncodeAttribute(item.PO_Year)}"" data-month=""{EncodeAttribute(item.PO_Month)}"" " &
                                       $"data-company=""{EncodeAttribute(item.Company_Code)}"" data-category=""{EncodeAttribute(item.Category_Code)}"" " &
@@ -207,6 +211,8 @@ Public Class POUploadHandler
             sb.Append($"<td>{EncodeHtml(item.PO_No)}</td>")
             sb.Append($"<td>{EncodeHtml(item.PO_Year)}</td>")
             sb.Append($"<td>{EncodeHtml(item.PO_Month)}</td>")
+            sb.Append($"<td>{FormatCodeAndName(item.Category_Code, categoryName)}</td>")
+            sb.Append($"<td>{FormatCodeAndName(item.Brand_Code, brandName)}</td>")
             sb.Append($"<td>{EncodeHtml(item.Vendor_Code)}</td>")
             sb.Append($"<td class='text-end'>{item.Amount_THB:N2}</td>")
             sb.Append("</tr>")
@@ -223,6 +229,13 @@ Public Class POUploadHandler
 
     Private Function EncodeAttribute(value As Object) As String
         Return HttpUtility.HtmlAttributeEncode(If(value, "").ToString())
+    End Function
+
+    Private Function FormatCodeAndName(code As String, name As String) As String
+        Dim encodedCode As String = EncodeHtml(code)
+        Dim encodedName As String = EncodeHtml(name)
+        If String.IsNullOrEmpty(encodedName) Then Return encodedCode
+        Return $"<strong>{encodedCode}</strong><br/><small class='text-muted'>{encodedName}</small>"
     End Function
 
     Private Sub SendJsonResponse(context As HttpContext, success As Boolean, message As String)

@@ -5,11 +5,13 @@ Imports System.Data.SqlClient
 Imports System.Text
 Imports Newtonsoft.Json
 Imports System.Threading.Tasks
+Imports System.Web.SessionState
 
 Public Class SaveOTBHandler
-    Implements IHttpHandler
+    Implements IHttpHandler, IReadOnlySessionState
 
     Private Shared connectionString As String = ConfigurationManager.ConnectionStrings("BMSConnectionString")?.ConnectionString
+    Private Const MaxMovementAmount As Decimal = 9999999999999999.99D
 
     Sub ProcessRequest(ByVal context As HttpContext) Implements IHttpHandler.ProcessRequest
 
@@ -18,10 +20,15 @@ Public Class SaveOTBHandler
         context.Response.ContentEncoding = Encoding.UTF8
 
         Try
-            If context.Request("action") = "saveSwitching" Then
-                SaveOTBSwitching(context)
-            ElseIf context.Request("action") = "saveExtra" Then
-                SaveOTBExtra(context)
+            EnsureAjaxMutationRequest(context)
+            Dim currentUser As String = EnsureSwitchEditPermission(context)
+            Dim action As String = If(context.Request("action"), "").Trim()
+            If action.Equals("saveSwitching", StringComparison.OrdinalIgnoreCase) Then
+                SaveOTBSwitching(context, currentUser)
+            ElseIf action.Equals("saveExtra", StringComparison.OrdinalIgnoreCase) Then
+                SaveOTBExtra(context, currentUser)
+            Else
+                Throw New InvalidOperationException("Unsupported OTB movement action.")
             End If
         Catch ex As Exception
             ' ส่ง Error กลับเป็น JSON มาตรฐาน
@@ -37,7 +44,7 @@ Public Class SaveOTBHandler
     ''' <summary>
     ''' บันทึก OTB Switching (D, G, I)
     ''' </summary>
-    Private Sub SaveOTBSwitching(context As HttpContext)
+    Private Sub SaveOTBSwitching(context As HttpContext, currentUser As String)
         Try
             ' 1. รับข้อมูลจาก Form
             Dim yearFrom As Integer = Convert.ToInt32(context.Request.Form("yearFrom"))
@@ -50,16 +57,17 @@ Public Class SaveOTBHandler
 
             Dim yearTo As Integer = Convert.ToInt32(context.Request.Form("yearTo"))
             Dim monthTo As Integer = Convert.ToInt32(context.Request.Form("monthTo"))
-            Dim companyTo As Integer = context.Request.Form("companyTo")
-            Dim categoryTo As Integer = context.Request.Form("categoryTo")
-            Dim segmentTo As Integer = context.Request.Form("segmentTo")
+            Dim companyTo As String = context.Request.Form("companyTo")
+            Dim categoryTo As String = context.Request.Form("categoryTo")
+            Dim segmentTo As String = context.Request.Form("segmentTo")
             Dim brandTo As String = context.Request.Form("brandTo")
             Dim vendorTo As String = context.Request.Form("vendorTo")
 
             Dim amount As Decimal = share_class.ParseAndRoundAmount(context.Request.Form("amount"))
-            Dim createdBy As String = If(String.IsNullOrEmpty(context.Request.Form("createdBy")), "System", context.Request.Form("createdBy"))
-            Dim actionBy As String = If(String.IsNullOrEmpty(context.Request.Form("createdBy")), "System", context.Request.Form("createdBy"))
+            Dim createdBy As String = currentUser
+            Dim actionBy As String = currentUser
             Dim remark As String = If(String.IsNullOrEmpty(context.Request.Form("remark")), "", context.Request.Form("remark"))
+            ValidateMovementPersistenceFields(amount, remark)
 
             'ตรวจสอบเงื่อนไขเพื่อกำหนด SwitchCode (D, G, I)
             Dim fromCode As String = "D" ' Default: Switch (D)
@@ -81,9 +89,21 @@ Public Class SaveOTBHandler
             ' serializes concurrent switch requests for the same OTB source.
             Using budgetLockConn As New SqlConnection(connectionString)
                 budgetLockConn.Open()
-                Dim sourceKey = OTBSwitchBudgetGuard.BuildSourceKey(
+                Dim sourceDimension = OTBSwitchBudgetGuard.CreateDimension(
                     yearFrom.ToString(), monthFrom.ToString(), companyFrom, categoryFrom, segmentFrom, brandFrom, vendorFrom)
-                OTBSwitchBudgetGuard.AcquireSourceLocks(budgetLockConn, New String() {sourceKey})
+                Dim destinationDimension = OTBSwitchBudgetGuard.CreateDimension(
+                    yearTo.ToString(), monthTo.ToString(), companyTo, categoryTo,
+                    segmentTo, brandTo, vendorTo)
+                Dim affectedDimensions = New OTBSwitchBudgetGuard.BudgetDimension() {sourceDimension, destinationDimension}
+                Using budgetLockHandle As IDisposable = OTBSwitchBudgetGuard.AcquireBudgetLocks(
+                    budgetLockConn, OTBSwitchBudgetGuard.BuildGroupLockResources(affectedDimensions))
+                    OTBSwitchBudgetGuard.EnsureValidMasterDimensions(budgetLockConn, affectedDimensions)
+                    OTBSwitchBudgetGuard.EnsureNoActiveApprovalClaims(budgetLockConn, affectedDimensions)
+                    If String.Equals(OTBSwitchBudgetGuard.BuildDetailLockResource(sourceDimension),
+                                     OTBSwitchBudgetGuard.BuildDetailLockResource(destinationDimension),
+                                     StringComparison.Ordinal) Then
+                        Throw New InvalidOperationException("Source and destination budget dimensions must be different.")
+                    End If
 
                 Dim budgetCheck = OTBSwitchBudgetGuard.Check(
                     yearFrom.ToString(), monthFrom.ToString(), categoryFrom, companyFrom, segmentFrom, brandFrom, vendorFrom)
@@ -218,6 +238,7 @@ Public Class SaveOTBHandler
                 End Using
             End Using
             End Using
+            End Using
 
         Catch ex As Exception
             ' ส่ง Error กลับเป็น JSON
@@ -233,21 +254,33 @@ Public Class SaveOTBHandler
     ''' <summary>
     ''' บันทึก Extra Budget (E)
     ''' </summary>
-    Private Sub SaveOTBExtra(context As HttpContext)
+    Private Sub SaveOTBExtra(context As HttpContext, currentUser As String)
         Try
             ' 1. รับข้อมูลจาก Form
             Dim year As Integer = Convert.ToInt32(context.Request.Form("year"))
             Dim month As Integer = Convert.ToInt32(context.Request.Form("month"))
-            Dim company As Integer = context.Request.Form("company")
-            Dim category As Integer = context.Request.Form("category")
-            Dim segment As Integer = context.Request.Form("segment")
+            Dim company As String = context.Request.Form("company")
+            Dim category As String = context.Request.Form("category")
+            Dim segment As String = context.Request.Form("segment")
             Dim brand As String = context.Request.Form("brand")
             Dim vendor As String = context.Request.Form("vendor")
 
             Dim amount As Decimal = share_class.ParseAndRoundAmount(context.Request.Form("amount"))
-            Dim createdBy As String = If(String.IsNullOrEmpty(context.Request.Form("createdBy")), "System", context.Request.Form("createdBy"))
-            Dim actionBy As String = If(String.IsNullOrEmpty(context.Request.Form("createdBy")), "System", context.Request.Form("createdBy"))
+            Dim createdBy As String = currentUser
+            Dim actionBy As String = currentUser
             Dim remark As String = If(String.IsNullOrEmpty(context.Request.Form("remark")), "", context.Request.Form("remark"))
+            ValidateMovementPersistenceFields(amount, remark)
+
+            Using budgetLockConn As New SqlConnection(connectionString)
+                budgetLockConn.Open()
+                Dim affectedDimension = OTBSwitchBudgetGuard.CreateDimension(
+                    year.ToString(), month.ToString(), company.ToString(), category.ToString(),
+                    segment.ToString(), brand, vendor)
+                Dim affectedDimensions = New OTBSwitchBudgetGuard.BudgetDimension() {affectedDimension}
+                Using budgetLockHandle As IDisposable = OTBSwitchBudgetGuard.AcquireBudgetLocks(
+                    budgetLockConn, OTBSwitchBudgetGuard.BuildGroupLockResources(affectedDimensions))
+                    OTBSwitchBudgetGuard.EnsureValidMasterDimensions(budgetLockConn, affectedDimensions)
+                    OTBSwitchBudgetGuard.EnsureNoActiveApprovalClaims(budgetLockConn, affectedDimensions)
 
             Dim sapRequest As New OtbSwitchRequest()
             'sapRequest.TestMode = "X" ' (ถ้าต้องการ Test)
@@ -357,6 +390,8 @@ Public Class SaveOTBHandler
                     End Try
                 End Using
             End Using
+            End Using
+            End Using
 
         Catch ex As Exception
             ' ส่ง Error กลับเป็น JSON
@@ -367,6 +402,35 @@ Public Class SaveOTBHandler
             }
             context.Response.Write(JsonConvert.SerializeObject(errorResponse))
         End Try
+    End Sub
+
+    Private Shared Sub EnsureAjaxMutationRequest(context As HttpContext)
+        If context Is Nothing OrElse Not String.Equals(context.Request.HttpMethod, "POST", StringComparison.OrdinalIgnoreCase) Then
+            Throw New UnauthorizedAccessException("This action must be submitted with a same-origin POST request.")
+        End If
+        If Not String.Equals(context.Request.Headers("X-Requested-With"), "XMLHttpRequest", StringComparison.OrdinalIgnoreCase) Then
+            Throw New UnauthorizedAccessException("The request could not be verified. Refresh the page and try again.")
+        End If
+    End Sub
+
+    Private Shared Function EnsureSwitchEditPermission(context As HttpContext) As String
+        Dim currentUser As String = If(context Is Nothing OrElse context.Session Is Nothing,
+                                       "", Convert.ToString(context.Session("user"))).Trim()
+        If String.IsNullOrWhiteSpace(currentUser) OrElse currentUser.Length > 100 Then
+            Throw New UnauthorizedAccessException("Your login session has expired. Please sign in again.")
+        End If
+        Dim roleName As Object = context.Session("UserRole")
+        Dim rights As PermissionHelper.UserRights = PermissionHelper.GetPermission(currentUser, "createOTBswitching.aspx", roleName)
+        If Not rights.CanView OrElse Not rights.CanEdit Then
+            Throw New UnauthorizedAccessException("You do not have permission to create OTB movements.")
+        End If
+        Return currentUser
+    End Function
+
+    Private Shared Sub ValidateMovementPersistenceFields(amount As Decimal, remark As String)
+        If amount <= 0D Then Throw New InvalidOperationException("Movement amount must be greater than 0.")
+        If amount > MaxMovementAmount Then Throw New InvalidOperationException("Movement amount exceeds the database limit.")
+        If If(remark, "").Length > 500 Then Throw New InvalidOperationException("Remark must not exceed 500 characters.")
     End Sub
 
     ReadOnly Property IsReusable() As Boolean Implements IHttpHandler.IsReusable

@@ -216,6 +216,7 @@
       <SubType>ASPXCodebehind</SubType>
     </Compile>
     <Compile Include="class\ApprovedOTBManager.vb" />
+    <Compile Include="class\DraftOtbBackgroundJob.vb" />
     <Compile Include="class\GroupedActualPO.vb" />
     <Compile Include="class\GroupedDraftPO.vb" />
     <Compile Include="class\MasterDatautil.vb" />
