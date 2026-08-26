@@ -14,6 +14,12 @@
 
 รันตามนี้ใน SSMS หรือ sqlcmd:
 
+> สำหรับอัปเกรด PRD เดิมเพื่อ Sprint 1 ให้สำรองฐาน, รอให้งาน Draft OTB จบ, หยุด App Pool แล้วรัน [08_deploy_sprint1_prd.sql](/D:/CIE/BMS/database/08_deploy_sprint1_prd.sql) ผ่าน TCP ที่ `10.3.152.155` ก่อน deploy application ไม่ต้องรันชุดสร้างฐานใหม่ข้อ 1-5 ซ้ำบน PRD
+
+- ต้องเห็นผลลัพธ์ `DeploymentStatus = PASS` ก่อนนำ application ขึ้น หากสคริปต์หยุดเพราะ Draft key ผิด/ซ้ำ หรือมี job/claim ค้าง ให้แก้สาเหตุแล้วรันไฟล์เดิมใหม่ ห้ามข้าม guard
+- สคริปต์ไม่แก้ค่าข้อมูลธุรกิจเดิม แต่การสร้าง index จะอ่านและ lock ตาราง Draft รวมถึงใช้พื้นที่ transaction log จึงควรรันใน maintenance window
+- ยืนยันว่า Application DB account มีสิทธิ์อ่าน/เพิ่ม/แก้ไข `dbo.Draft_OTB_Background_Job` และอ่าน/เพิ่ม/ลบ `dbo.Draft_OTB_Approval_Claim` ตามแนวทางสิทธิ์ของ PRD
+
 1. [00_create_database.sql](/D:/CIE/BMS/database/00_create_database.sql)
 2. [01_create_tables.sql](/D:/CIE/BMS/database/01_create_tables.sql)
 3. [02_create_views.sql](/D:/CIE/BMS/database/02_create_views.sql)
