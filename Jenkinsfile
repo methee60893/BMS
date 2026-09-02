@@ -105,7 +105,7 @@ pipeline {
         }
 
         // ===================================================
-        // 3. DEPLOY TO IIS (ข้ามการเขียนทับ Web.config)
+        // 3. DEPLOY TO IIS (ก๊อปปี้ทุกไฟล์ ยกเว้น Web.config ไม่ให้ทับของเดิม)
         // ===================================================
         stage('Deploy to IIS') {
             when { expression { params.ROLLBACK_VERSION == 'None' } }
@@ -114,35 +114,36 @@ pipeline {
                     node(env.TARGET_NODE) { 
                         try {
                             powershell '''
-                            $tempConfig = "$env:TEMP\\Web_backup.config"
-                            if (Test-Path "$env:IIS_SITE_PATH\\Web.config") {
-                                Copy-Item -Path "$env:IIS_SITE_PATH\\Web.config" -Destination $tempConfig -Force
-                                Write-Host "✅ Existing Web.config safely backed up to temp."
-                            }
-                            
                             Write-Host "Stopping IIS Application Pool..."
                             Import-Module WebAdministration
                             Stop-WebAppPool -Name $env:APP_POOL_NAME -ErrorAction SilentlyContinue
                             Start-Sleep -Seconds 3
                             
-                            Remove-Item -Path "$env:IIS_SITE_PATH\\*" -Recurse -Force
+                            # ลบไฟล์เก่าทั้งหมด ยกเว้น Web.config ตัวจริงบนเซิร์ฟเวอร์
+                            Get-ChildItem -Path $env:IIS_SITE_PATH -Exclude "Web.config" | Remove-Item -Recurse -Force
                             '''
                             
                             unstash 'compiled-app'
                             
                             powershell '''
-                            Write-Host "Copying new compiled files to IIS..."
-                            Copy-Item -Path ".\\obj\\Release\\Package\\PackageTmp\\*" -Destination "$env:IIS_SITE_PATH" -Recurse -Force -ErrorAction SilentlyContinue
+                            Write-Host "Copying new compiled files to IIS (Excluding Web.config)..."
                             
-                            $tempConfig = "$env:TEMP\\Web_backup.config"
-                            if (Test-Path $tempConfig) {
-                                Copy-Item -Path $tempConfig -Destination "$env:IIS_SITE_PATH\\Web.config" -Force
-                                Remove-Item $tempConfig -Force
-                                Write-Host "✅ Retained original Web.config with production connection string."
+                            # ก๊อปปี้ไฟล์ใหม่ทั้งหมด ยกเว้น Web.config ไม่ให้นำมาทับของเดิม
+                            Get-ChildItem -Path ".\\obj\\Release\\Package\\PackageTmp" -Recurse | Where-Object { $_.Name -ne "Web.config" } | ForEach-Object {
+                                $relativePath = $_.FullName.Substring((Resolve-Path ".\\obj\\Release\\Package\\PackageTmp").Path.Length)
+                                $destPath = Join-Path $env:IIS_SITE_PATH $relativePath
+                                
+                                if ($_.PSIsContainer) {
+                                    if (!(Test-Path $destPath)) { New-Item -ItemType Directory -Force -Path $destPath | Out-Null }
+                                } else {
+                                    $parentDir = Split-Path $destPath -Parent
+                                    if (!(Test-Path $parentDir)) { New-Item -ItemType Directory -Force -Path $parentDir | Out-Null }
+                                    Copy-Item -Path $_.FullName -Destination $destPath -Force
+                                }
                             }
                             
                             Start-WebAppPool -Name $env:APP_POOL_NAME
-                            Write-Host "✅ New files deployed and Application Pool started."
+                            Write-Host "✅ New files deployed (Original Web.config preserved) and Application Pool started."
                             '''
                         } finally {
                             cleanWs()
