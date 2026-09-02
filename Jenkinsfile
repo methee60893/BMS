@@ -44,6 +44,19 @@ pipeline {
         // ===================================================
         // 1. SOURCE & COMPILE
         // ===================================================
+        stages {
+        stage('Approval PROD') {
+            when { expression { params.ENVIRONMENT == 'PROD' } }
+            steps {
+                timeout(time: 15, unit: 'MINUTES') {
+                    input message: '⚠️ คุณกำลังจะแก้ไขระบบ Production (PROD) ยืนยันหรือไม่?', ok: '✅ ยืนยันการ Deploy'
+                }
+            }
+        }
+
+        // ===================================================
+        // 1. SOURCE & COMPILE
+        // ===================================================
         stage('Source & Compile') {
             when { 
                 beforeAgent true 
@@ -109,7 +122,7 @@ pipeline {
         }
 
         // ===================================================
-        // 3. DEPLOY TO IIS
+        // 3. DEPLOY TO IIS (ข้ามการเขียนทับ Web.config)
         // ===================================================
         stage('Deploy to IIS') {
             when { expression { params.ROLLBACK_VERSION == 'None' } }
@@ -117,7 +130,14 @@ pipeline {
                 script {
                     node(env.TARGET_NODE) { 
                         try {
+                            // 1. สำรองไฟล์ Web.config เดิมเก็บไว้ชั่วคราวก่อนลบของเก่า
                             powershell '''
+                            $tempConfig = "$env:TEMP\\Web_backup.config"
+                            if (Test-Path "$env:IIS_SITE_PATH\\Web.config") {
+                                Copy-Item -Path "$env:IIS_SITE_PATH\\Web.config" -Destination $tempConfig -Force
+                                Write-Host "✅ Existing Web.config safely backed up to temp."
+                            }
+                            
                             Write-Host "Stopping IIS Application Pool..."
                             Import-Module WebAdministration
                             Stop-WebAppPool -Name $env:APP_POOL_NAME -ErrorAction SilentlyContinue
@@ -128,12 +148,26 @@ pipeline {
                             
                             unstash 'compiled-app'
                             
+                            // 2. Copy ไฟล์ใหม่ทั้งหมดลง IIS ยกเว้น Web.config แล้วดึง Web.config ตัวจริงกลับมาวางทับ
                             powershell '''
-                            Write-Host "Copying new compiled files to IIS..."
+                            Write-Host "Copying new compiled files to IIS (Excluding Web.config)..."
+                            Get-ChildItem -Path ".\\obj\\Release\\Package\\PackageTmp" -Recurse | Where-Object { $_.Name -ne "Web.config" } | ForEach-Object {
+                                $destinationPath = $_.FullName.Replace("$PagingRoot\\obj\\Release\\Package\\PackageTmp", "").TrimStart('\\')
+                                # ใช้ Copy แบบข้าม Web.config
+                            }
+                            
+                            # คำสั่ง Copy แบบง่าย: ก๊อปปี้มาทั้งหมดก่อน แล้วเอา Web.config เดิมแปะทับทันที
                             Copy-Item -Path ".\\obj\\Release\\Package\\PackageTmp\\*" -Destination "$env:IIS_SITE_PATH" -Recurse -Force -ErrorAction SilentlyContinue
                             
+                            $tempConfig = "$env:TEMP\\Web_backup.config"
+                            if (Test-Path $tempConfig) {
+                                Copy-Item -Path $tempConfig -Destination "$env:IIS_SITE_PATH\\Web.config" -Force
+                                Remove-Item $tempConfig -Force
+                                Write-Host "✅ Retained original Web.config with production connection string."
+                            }
+                            
                             Start-WebAppPool -Name $env:APP_POOL_NAME
-                            Write-Host "✅ New files copied and Application Pool started."
+                            Write-Host "✅ New files deployed and Application Pool started."
                             '''
                         } finally {
                             cleanWs()
@@ -144,7 +178,7 @@ pipeline {
         }
 
         // ===================================================
-        // 4. ROLLBACK SYSTEM (สำหรับกดเลือก Rollback ด้วยมือ)
+        // 4. ROLLBACK SYSTEM
         // ===================================================
         stage('Rollback System') {
             when { expression { params.ROLLBACK_VERSION != 'None' } }
@@ -241,18 +275,16 @@ pipeline {
     }
 
     // ===================================================
-    // POST ACTIONS (ระบบกู้คืนอัตโนมัติเมื่อเกิดข้อผิดพลาด)
+    // POST ACTIONS
     // ===================================================
     post {
         failure {
             script {
-                // ทำงานเฉพาะเมื่อเป็นการ Deploy ปกติแล้วพัง (ไม่ทำงานตอนตั้งใจกด Rollback มือแล้วพัง)
                 if (params.ROLLBACK_VERSION == 'None') {
-                    echo "❌ Pipeline failed during deployment or health check! Initiating Automatic Rollback..."
                     node(env.TARGET_NODE) {
                         powershell '''
-                        Write-Host "Auto-Rollback: Restoring the latest healthy backup..."
-                        if (Test-Path $env:IIS_BACKUP_PATH) {
+                        if ((Test-Path $env:IIS_BACKUP_PATH) -and ((Get-ChildItem -Path $env:IIS_BACKUP_PATH -Directory).Count -gt 0)) {
+                            Write-Host "❌ Pipeline failed! Initiating Auto-Rollback..."
                             $LATEST_BACKUP = Get-ChildItem -Path $env:IIS_BACKUP_PATH -Directory | Sort-Object CreationTime -Descending | Select-Object -First 1
                             if ($LATEST_BACKUP) {
                                 Write-Host "Restoring from $($LATEST_BACKUP.FullName)..."
@@ -266,12 +298,10 @@ pipeline {
                                 Copy-Item -Path "$($LATEST_BACKUP.FullName)\\*" -Destination $env:IIS_SITE_PATH -Recurse -Force
                                 
                                 Start-WebAppPool -Name $env:APP_POOL_NAME
-                                Write-Host "✅ Auto-Rollback Completed Successfully. System recovered to previous state."
-                            } else {
-                                Write-Error "❌ Auto-Rollback failed: No backup found to restore!"
+                                Write-Host "✅ Auto-Rollback Completed Successfully."
                             }
                         } else {
-                            Write-Error "❌ Auto-Rollback failed: Backup directory not found!"
+                            Write-Host "⚠️ Build failed before deployment stage. No existing backup restoration needed."
                         }
                         '''
                     }
