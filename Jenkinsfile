@@ -22,13 +22,13 @@ pipeline {
     }
 
     environment {
-        IIS_SITE_PATH = "E:\\www\\OTBPlan_Test"
-        IIS_BACKUP_PATH = "E:\\www\\OTBPlan_backup"
-        APP_POOL_NAME = "OTBPlanAppPool" 
+        IIS_SITE_PATH = "E:\\www\\ฺBMS_Test"
+        IIS_BACKUP_PATH = "E:\\www\\BMS_backup"
+        APP_POOL_NAME = "BMS_Test" 
         TARGET_NODE = "${params.ENVIRONMENT == 'PROD' ? 'otb-prod' : 'otb-uat'}"
         
 
-        APP_URL = "${params.ENVIRONMENT == 'PROD' ? 'https://otb-kpg.kingpower.com' : 'http://otb-qas.kingpower.com'}"
+        APP_URL = "${params.ENVIRONMENT == 'PROD' ? 'https://bms.kingpower.com/BMS_Test' : 'https://dev-cie.kingpower.com/BMS/'}"
     }
 
     stages {
@@ -59,9 +59,9 @@ pipeline {
                 stage('Build') {
                     steps {
                         echo "Restoring NuGet packages..."
-                        bat 'nuget restore ./OTBplanning.vbproj -SolutionDirectory . -MSBuildPath "C:\\Program Files\\Microsoft Visual Studio\\2022\\Community\\MSBuild\\Current\\Bin"'
+                        bat 'nuget restore ./BMS.vbproj -SolutionDirectory . -MSBuildPath "C:\\Program Files\\Microsoft Visual Studio\\2022\\Community\\MSBuild\\Current\\Bin"'
                         
-                        bat '"C:\\Program Files\\Microsoft Visual Studio\\2022\\Community\\MSBuild\\Current\\Bin\\MSBuild.exe" ./OTBplanning.vbproj /p:Configuration=Release /p:DeployOnBuild=true /p:WebPublishMethod=FileSystem'
+                        bat '"C:\\Program Files\\Microsoft Visual Studio\\2022\\Community\\MSBuild\\Current\\Bin\\MSBuild.exe" ./BMS.vbproj /p:Configuration=Release /p:DeployOnBuild=true /p:WebPublishMethod=FileSystem'
                         
                         stash includes: 'obj/Release/Package/PackageTmp/**', name: 'compiled-app'
                     }
