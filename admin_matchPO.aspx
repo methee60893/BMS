@@ -5,7 +5,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>KBMS - Match Actual PO</title>
+    <title>KBMS - Admin Match PO</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="style/theme.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
@@ -65,7 +65,7 @@
         </button>
     </div>
     <ul class="sidebar-menu">
-        <li class="menu-item">
+        <li class="menu-item" id="grpmenuOTBPlan" runat="server">
             <a href="#" class="menu-link" onclick="toggleSubmenu(event, 'otbPlan')">
                 <i class="bi bi-clipboard-data"></i>
                 <span>OTB Plan / Revise</span>
@@ -76,7 +76,7 @@
                 <li id="menuApprovedOTBPlan" runat="server" ><a href="approvedOTB.aspx" class="menu-link">Approved OTB Plan</a></li>
             </ul>
         </li>
-        <li class="menu-item">
+        <li class="menu-item" id="grpmenuOTBSwitching" runat="server">
             <a href="#" class="menu-link" onclick="toggleSubmenu(event, 'otbSwitching')">
                 <i class="bi bi-arrow-left-right"></i>
                 <span>OTB Switching</span>
@@ -96,11 +96,11 @@
             <ul class="submenu" id="po">
                 <li id="menuCreateDraftPO" runat="server"><a href="createDraftPO.aspx" class="menu-link">Create Draft PO</a></li>
                 <li id="menuDraftPO" runat="server" ><a href="draftPO.aspx" class="menu-link">Draft PO</a></li>
-                <li id="menuMatchActualPO" runat="server" ><a href="matchActualPO.aspx" class="menu-link active">Match Actual PO</a></li>
+                <li id="menuMatchActualPO" runat="server" ><a href="matchActualPO.aspx" class="menu-link">Match Actual PO</a></li>
                 <li id="menuActualPO" runat="server" ><a href="actualPO.aspx" class="menu-link">Actual PO</a></li>
             </ul>
         </li>
-        <li class="menu-item">
+        <li class="menu-item" id="menuOTBRemaining" runat="server">
             <a href="otbRemaining.aspx" class="menu-link">
                 <i class="bi bi-bar-chart-line"></i>
                 <span>OTB Remaining</span>
@@ -118,6 +118,17 @@
                  <li id="menuCategory" runat="server" ><a href="master_category.aspx" class="menu-link">Master Category</a></li>
             </ul>
         </li>
+        <li class="menu-item" id="grpmenuAdmin" runat="server">
+            <a href="#" class="menu-link" onclick="toggleSubmenu(event, 'adminTools')">
+                <i class="bi bi-shield-lock"></i>
+                <span>Admin</span>
+                <i class="bi bi-chevron-down"></i>
+            </a>
+            <ul class="submenu" id="adminTools">
+                <li id="menuAdminMatchPO" runat="server"><a href="admin_matchPO.aspx" class="menu-link active">Admin Match PO</a></li>
+                <li id="menuManageUsers" runat="server"><a href="manage_users.aspx" class="menu-link">Manage Users</a></li>
+            </ul>
+        </li>
         <li class="menu-item"><a href="default.aspx" class="menu-link"><i class="bi bi-box-arrow-left"></i> Logout</a></li>
     </ul>
 </div>
@@ -130,7 +141,7 @@
                 <button class="menu-toggle" onclick="toggleSidebar()">
                     <i class="bi bi-list"></i>
                 </button>
-                <h1 class="page-title" id="pageTitle">KBMS - Match Actual PO</h1>
+                <h1 class="page-title" id="pageTitle">KBMS - Admin Match PO</h1>
             </div>
             <div class="user-info">
                 <span class="d-none d-md-inline">Welcome, <%= HttpUtility.JavaScriptStringEncode(Session("fullname").ToString()) %></span>
@@ -176,7 +187,7 @@
                 <div class="review-section">
                     Review
                 </div>
-                <div class="table-responsive">
+                <div class="table-responsive bms-data-table-scroll" tabindex="0" role="region" aria-label="Admin matching results">
                     <table class="table table-hover mb-0">
                         <thead>
                             <tr>
@@ -352,7 +363,7 @@
                 // [BMS Gem Logic Fix]: กำหนดสีตามสถานะ และ ตรวจสอบว่า Lock หรือไม่
                 let rowClass = '';
                 const isMatched = matchStatus.toLowerCase() === 'matched';
-                const isMatching = matchStatus.toLowerCase() === 'matching';
+                const isMatching = matchStatus.toLowerCase() === 'matching' || matchStatus.toLowerCase() === 'forcematching';
 
                 if (isMatched) {
                     rowClass = 'table-success';
@@ -390,6 +401,13 @@
                                        data-draft-pos="${draft ? (draft.DraftPONo || draft.draftPONo) : ''}"
                                        data-actual-po="${actualPONo}"
                                        data-status="${matchStatus}"
+                                       data-year="${getVal(key, 'Year')}"
+                                       data-month="${getVal(key, 'Month')}"
+                                       data-company="${getVal(key, 'CompanyCode')}"
+                                       data-category="${getVal(key, 'Category')}"
+                                       data-segment="${getVal(key, 'Segment')}"
+                                       data-brand="${getVal(key, 'Brand')}"
+                                       data-vendor="${getVal(key, 'Vendor')}"
                                 >
                                 <button type="button" class="btn btn-sm btn-outline-secondary" 
                                         onclick="openManualMatchModal('${actualPOID}', '${actualPONo}', ${index})"
@@ -450,39 +468,9 @@
             }
         };
 
-        // (MODIFIED: Refactored sync logic into its own function)
+        // Refresh current DB data after submit without syncing SAP.
         function syncAndLoadData() {
-            showLoading(true, 'Syncing with SAP...');
-            btnSubmit.disabled = true; // Disable submit during sync
-            btnSyncSAP.disabled = true;
-
-            $.ajax({
-                url: 'Handler/POMatchingHandler.ashx?action=get_only',
-                type: 'POST',
-                processData: false,
-                contentType: false,
-                dataType: 'json',
-                success: function (response) {
-                    showLoading(false);
-                    btnSyncSAP.disabled = false;
-                    if (response.success) {
-                        console.log(response.data);
-                        buildTable(response.data); // This will re-enable submit if data exists
-                        // (MODIFIED: Show sync stats)
-                        alert(response.syncStats || "Sync completed.");
-                    } else {
-                        alert('Error: ' + response.message);
-                        tableBody.innerHTML = `<tr><td colspan="18" class="text-center p-4 text-danger">${response.message}</td></tr>`;
-                    }
-                },
-                error: function (xhr, status, error) {
-                    showLoading(false);
-                    btnSyncSAP.disabled = false;
-                    console.error(error);
-                    alert('Fatal error connecting to handler: ' + xhr.responseText);
-                    tableBody.innerHTML = `<tr><td colspan="18" class="text-center p-4 text-danger">Fatal error: ${xhr.responseText}</td></tr>`;
-                }
-            });
+            loadMatchData('get_only');
         }
 
         // (MODIFIED: New function to handle submit)
@@ -493,7 +481,14 @@
             document.querySelectorAll('.match-checkbox:checked').forEach(cb => {
                 selectedMatches.push({
                     DraftPOs: cb.dataset.draftPos, // "PO-001"
-                    ActualPO: cb.dataset.actualPo  // "SAP-12345"
+                    ActualPO: cb.dataset.actualPo,  // "SAP-12345"
+                    Year: cb.dataset.year,
+                    Month: cb.dataset.month,
+                    Company: cb.dataset.company,
+                    Category: cb.dataset.category,
+                    Segment: cb.dataset.segment,
+                    Brand: cb.dataset.brand,
+                    Vendor: cb.dataset.vendor
                 });
             });
 
@@ -582,7 +577,7 @@
                         buildTable(response.data);
                     } else {
                         alert('Error: ' + response.message);
-                        tableBody.innerHTML = `<tr><td colspan="15" class="text-center p-4 text-danger">${response.message}</td></tr>`;
+                        tableBody.innerHTML = `<tr><td colspan="18" class="text-center p-4 text-danger">${response.message}</td></tr>`;
                     }
                 },
                 error: function (xhr, status, error) {

@@ -16,6 +16,14 @@ Public Module SapApiHelper
 
         client = New HttpClient()
         client.BaseAddress = New Uri(baseUrl)
+        ' One approval request can contain up to 15,000 rows. Override with the
+        ' SAPAPI_TIMEOUT_SECONDS appSetting; the safe default is 30 minutes.
+        Dim timeoutSeconds As Integer = 1800
+        Dim configuredTimeout As Integer
+        If Integer.TryParse(ConfigurationManager.AppSettings("SAPAPI_TIMEOUT_SECONDS"), configuredTimeout) Then
+            timeoutSeconds = Math.Max(30, Math.Min(3600, configuredTimeout))
+        End If
+        client.Timeout = TimeSpan.FromSeconds(timeoutSeconds)
 
         Dim authString As String = $"{username}:{password}"
         Dim authBytes As Byte() = Encoding.UTF8.GetBytes(authString)
@@ -83,6 +91,14 @@ Public Module SapApiHelper
 
     Public Async Function SwitchOtbPlanAsync(switchRequest As OtbSwitchRequest) As Task(Of SapApiResponse(Of SapSwitchResultItem))
         Dim endpoint As String = "/ZPaymentPlan/OTBPlanSwitch"
+        If switchRequest IsNot Nothing AndAlso switchRequest.Data IsNot Nothing Then
+            For Each item In switchRequest.Data
+                If item IsNot Nothing AndAlso Not String.IsNullOrWhiteSpace(item.Budget) Then
+                    item.Budget = share_class.FormatAmountForSap(share_class.ParseAndRoundAmount(item.Budget))
+                End If
+            Next
+        End If
+
         Dim jsonBody As String = JsonConvert.SerializeObject(switchRequest)
 
         Dim jsonResponse As String = Await PostAsync(endpoint, jsonBody)

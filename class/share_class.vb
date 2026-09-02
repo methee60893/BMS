@@ -1,5 +1,6 @@
 ﻿Imports System.Data.SqlClient
 Imports System.DirectoryServices
+Imports System.Globalization
 'Imports System.DirectoryServices.AccountManagement
 Imports System.Net
 Imports System.Security.Authentication
@@ -10,7 +11,7 @@ Public Class share_class
 
     Public Shared Function GetClientIP() As String
         Dim userHostAddress As String = HttpContext.Current.Request.UserHostAddress
-        Dim userIPAddress As IPAddress
+        Dim userIPAddress As IPAddress = Nothing
         If IPAddress.TryParse(userHostAddress, userIPAddress) Then
             If userIPAddress.AddressFamily = System.Net.Sockets.AddressFamily.InterNetwork Then
                 Return userIPAddress.ToString() ' IPv4 address
@@ -183,6 +184,28 @@ Public Class share_class
         Else
             Return Nothing
         End If
+    End Function
+
+    Public Shared Function RoundAmountForSapRule(amount As Decimal) As Decimal
+        Return Decimal.Round(amount, 2, MidpointRounding.AwayFromZero)
+    End Function
+
+    Public Shared Function ParseAndRoundAmount(amountText As String) As Decimal
+        If String.IsNullOrWhiteSpace(amountText) Then
+            Throw New FormatException("Amount is required")
+        End If
+
+        Dim amount As Decimal
+        If Decimal.TryParse(amountText.Trim(), NumberStyles.Any, CultureInfo.InvariantCulture, amount) OrElse
+           Decimal.TryParse(amountText.Trim(), NumberStyles.Any, CultureInfo.CurrentCulture, amount) Then
+            Return RoundAmountForSapRule(amount)
+        End If
+
+        Throw New FormatException("Amount must be a valid number")
+    End Function
+
+    Public Shared Function FormatAmountForSap(amount As Decimal) As String
+        Return RoundAmountForSapRule(amount).ToString("F2", CultureInfo.InvariantCulture)
     End Function
 
     Public Class retAD

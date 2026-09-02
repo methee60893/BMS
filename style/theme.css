@@ -47,7 +47,6 @@
 body {
     font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
     background-color: var(--bms-body-bg);
-    overflow-x: hidden;
 }
 
 /* --- 3. Sidebar (เมนูข้าง) --- */
@@ -1096,5 +1095,230 @@ body::-webkit-scrollbar-thumb {
 
     .filter-box, .detail-box {
         padding: 15px;
+    }
+}
+
+/* ========================================================= */
+/* === Sprint 1 - Issue #5: responsive and frozen tables === */
+/* ========================================================= */
+
+html,
+body,
+.main-wrapper,
+.content-area {
+    max-width: 100%;
+    min-width: 0;
+}
+
+.top-navbar > *,
+.content-area > *,
+.row > *,
+.form-row-display .form-group,
+.input-group,
+.modal-content,
+.modal-body {
+    min-width: 0;
+}
+
+img,
+svg,
+video,
+canvas {
+    max-width: 100%;
+}
+
+.filter-box,
+.master-box,
+.switch-container,
+.detail-box,
+.form-container,
+.table-container {
+    max-width: 100%;
+    min-width: 0;
+}
+
+/* Keep wide data inside its card instead of widening or clipping the page. */
+.table-responsive {
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    overflow: auto;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior-x: contain;
+    overscroll-behavior-y: auto;
+    scrollbar-gutter: stable;
+}
+
+.table-responsive:focus-visible {
+    outline: 3px solid rgba(11, 86, 164, 0.35);
+    outline-offset: -3px;
+}
+
+.table-responsive > table.table {
+    width: 100%;
+    min-width: 100%;
+    margin-bottom: 0;
+}
+
+/* Main result grids scroll vertically so their headings remain visible. */
+.bms-data-table-scroll {
+    max-height: min(68vh, 46rem);
+}
+
+/* Sticky on the whole group preserves multi-row/colspan table headings. */
+.table-responsive > table.table > thead {
+    position: sticky;
+    top: 0;
+    z-index: 5;
+}
+
+.table-responsive > table.table > thead th {
+    background-clip: padding-box;
+    box-shadow: inset 0 -1px 0 rgba(0, 0, 0, 0.16);
+}
+
+.custom-tabs {
+    max-width: 100%;
+    overflow-x: auto;
+    overscroll-behavior-inline: contain;
+}
+
+.tab-button {
+    min-width: max-content;
+}
+
+.submit-section,
+.export-section,
+.file-input-group,
+.modal-footer {
+    flex-wrap: wrap;
+}
+
+.submit-section > .input-group {
+    flex: 1 1 15rem;
+}
+
+.select2-container,
+.form-control,
+.form-select {
+    max-width: 100%;
+}
+
+.detail-row {
+    gap: 1rem;
+    min-width: 0;
+}
+
+.detail-label,
+.detail-value {
+    min-width: 0;
+    overflow-wrap: anywhere;
+}
+
+.loading-content {
+    max-width: calc(100vw - 2rem);
+}
+
+@media (max-width: 768px) {
+    .top-navbar {
+        gap: 0.75rem;
+        padding: 10px 15px;
+    }
+
+    .top-navbar > .d-flex {
+        min-width: 0;
+    }
+
+    .page-title {
+        min-width: 0;
+        overflow: hidden;
+        font-size: 1.1rem;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    .menu-toggle,
+    .user-info {
+        flex: 0 0 auto;
+    }
+
+    .filter-box,
+    .master-box,
+    .switch-container,
+    .detail-box,
+    .form-container {
+        padding-right: 15px;
+        padding-left: 15px;
+    }
+
+    .filter-header,
+    .create-section {
+        margin-right: -15px;
+        margin-left: -15px;
+    }
+
+    .custom-tabs {
+        justify-content: flex-start;
+    }
+
+    .tab-button {
+        flex: 0 0 auto;
+    }
+
+    .bms-data-table-scroll {
+        max-height: 60vh;
+    }
+
+    .detail-row {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 0.25rem;
+    }
+
+    .detail-value {
+        width: 100%;
+        text-align: left;
+    }
+
+    .submit-section,
+    .export-section {
+        align-items: stretch;
+        gap: 0.5rem;
+    }
+
+    .submit-section > .btn,
+    .export-section > .btn {
+        flex: 1 1 10rem;
+    }
+
+    .modal-dialog {
+        width: auto;
+        max-width: calc(100% - 1rem);
+        margin-right: auto;
+        margin-left: auto;
+    }
+
+    .modal-footer > .btn {
+        flex: 1 1 8rem;
+        margin: 0;
+    }
+}
+
+@media (max-width: 575.98px) {
+    .content-area {
+        padding: 10px;
+    }
+
+    .page-header {
+        padding: 12px 15px;
+    }
+
+    .menu-toggle {
+        padding: 6px 10px;
+    }
+
+    .user-avatar {
+        width: 36px;
+        height: 36px;
     }
 }

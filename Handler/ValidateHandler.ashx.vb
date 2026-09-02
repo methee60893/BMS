@@ -324,6 +324,10 @@ SendResponse:
         Dim isValid As Boolean = True
         Dim budgetCalculator As New OTBBudgetCalculator()
         Dim povalidate As New POValidate()
+        Dim approvedBudget As Decimal = 0
+        Dim draftPO As Decimal = 0
+        Dim actualPO As Decimal = 0
+        Dim availableBudget As Decimal = 0
 
         ' From Section
         Dim yearFrom As String = If(String.IsNullOrWhiteSpace(context.Request.Form("yearFrom")), "", context.Request.Form("yearFrom").Trim())
@@ -365,18 +369,21 @@ SendResponse:
 
         ' Amount Validation
         Dim amountValue As Decimal = 0
+        Dim isAmountParsed As Boolean = False
         If String.IsNullOrEmpty(amount) Then
             errors.Add("amount", "Amount is required")
             isValid = False
         Else
-            If Not Decimal.TryParse(amount, amountValue) Then
-                errors.Add("amount", "Amount must be a valid number")
+            Try
+                amountValue = share_class.ParseAndRoundAmount(amount)
+                isAmountParsed = True
+            Catch ex As FormatException
+                errors.Add("amount", ex.Message)
                 isValid = False
-            ElseIf amountValue <= 0 Then
+            End Try
+
+            If isAmountParsed AndAlso amountValue <= 0 Then
                 errors.Add("amount", "Amount must be greater than 0")
-                isValid = False
-            ElseIf Decimal.Round(amountValue, 2) <> amountValue Then
-                errors.Add("amount", "Amount must have maximum 2 decimal places")
                 isValid = False
             End If
         End If
@@ -394,20 +401,17 @@ SendResponse:
             ' Check Budget Availability (From Source)
             If isValid AndAlso amountValue > 0 Then
                 Try
-                    Dim currentApprovedBudget As Decimal = budgetCalculator.CalculateCurrentApprovedBudget(
-                        yearFrom, monthFrom, categoryFrom, companyFrom, segmentFrom, brandFrom, vendorFrom)
-                    Dim usedInDB As Decimal = povalidate.GetUsedBudgetFromDBForOTB(
-                        yearFrom, monthFrom, categoryFrom, companyFrom, segmentFrom, brandFrom, vendorFrom)
-
-                    Dim available As Decimal = currentApprovedBudget - usedInDB
-
-                    If available <= 0 Then
-                        errors.Add("amount", $"No approved budget available. Current budget: 0.00 THB")
-                        isValid = False
-                    ElseIf available < amountValue Then
-                        errors.Add("amount", $"Insufficient budget. Available: {available:N2} THB, Requested: {amountValue:N2} THB")
-                        isValid = False
-                    End If
+                    Dim budgetCheck = OTBSwitchBudgetGuard.Check(
+                        yearFrom, monthFrom, categoryFrom, companyFrom, segmentFrom, brandFrom, vendorFrom,
+                        budgetCalculator, povalidate)
+                    approvedBudget = budgetCheck.ApprovedBudget
+                    draftPO = budgetCheck.DraftPO
+                    actualPO = budgetCheck.ActualPO
+                    availableBudget = budgetCheck.AvailableBudget
+                    OTBSwitchBudgetGuard.EnsureSufficient(budgetCheck, amountValue)
+                Catch ex As InvalidOperationException
+                    errors.Add("amount", ex.Message)
+                    isValid = False
                 Catch ex As Exception
                     errors.Add("amount", "Failed to check budget: " & ex.Message)
                     isValid = False
@@ -421,8 +425,10 @@ SendResponse:
             .success = isValid,
             .message = If(isValid, "Validation passed", "Validation failed"),
             .errors = errors,
-            .availableBudget = If(isValid AndAlso Not String.IsNullOrEmpty(yearFrom),
-                budgetCalculator.CalculateCurrentApprovedBudget(yearFrom, monthFrom, categoryFrom, companyFrom, segmentFrom, brandFrom, vendorFrom), 0)
+            .approvedBudget = approvedBudget,
+            .draftPO = draftPO,
+            .actualPO = actualPO,
+            .availableBudget = availableBudget
         }
         context.Response.Write(JsonConvert.SerializeObject(response))
     End Sub
@@ -457,18 +463,21 @@ SendResponse:
 
         ' Amount Validation
         Dim amountValue As Decimal = 0
+        Dim isAmountParsed As Boolean = False
         If String.IsNullOrEmpty(amount) Then
             errors.Add("amount", "Amount is required")
             isValid = False
         Else
-            If Not Decimal.TryParse(amount, amountValue) Then
-                errors.Add("amount", "Amount must be a valid number")
+            Try
+                amountValue = share_class.ParseAndRoundAmount(amount)
+                isAmountParsed = True
+            Catch ex As FormatException
+                errors.Add("amount", ex.Message)
                 isValid = False
-            ElseIf amountValue <= 0 Then
+            End Try
+
+            If isAmountParsed AndAlso amountValue <= 0 Then
                 errors.Add("amount", "Amount must be greater than 0")
-                isValid = False
-            ElseIf Decimal.Round(amountValue, 2) <> amountValue Then
-                errors.Add("amount", "Amount must have maximum 2 decimal places")
                 isValid = False
             End If
         End If

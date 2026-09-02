@@ -25,7 +25,7 @@
         </button>
     </div>
     <ul class="sidebar-menu">
-        <li class="menu-item">
+        <li class="menu-item" id="grpmenuOTBPlan" runat="server">
             <a href="#" class="menu-link" onclick="toggleSubmenu(event, 'otbPlan')">
                 <i class="bi bi-clipboard-data"></i>
                 <span>OTB Plan / Revise</span>
@@ -36,7 +36,7 @@
                 <li id="menuApprovedOTBPlan" runat="server" ><a href="approvedOTB.aspx" class="menu-link">Approved OTB Plan</a></li>
             </ul>
         </li>
-        <li class="menu-item">
+        <li class="menu-item" id="grpmenuOTBSwitching" runat="server">
             <a href="#" class="menu-link" onclick="toggleSubmenu(event, 'otbSwitching')">
                 <i class="bi bi-arrow-left-right"></i>
                 <span>OTB Switching</span>
@@ -60,7 +60,7 @@
                 <li id="menuActualPO" runat="server" ><a href="actualPO.aspx" class="menu-link">Actual PO</a></li>
             </ul>
         </li>
-        <li class="menu-item">
+        <li class="menu-item" id="menuOTBRemaining" runat="server">
             <a href="otbRemaining.aspx" class="menu-link">
                 <i class="bi bi-bar-chart-line"></i>
                 <span>OTB Remaining</span>
@@ -76,6 +76,17 @@
                  <li id="menuVendor" runat="server" ><a href="master_vendor.aspx" class="menu-link">Master Vendor</a></li>
              <li id="menuBrand" runat="server" ><a href="master_brand.aspx" class="menu-link">Master Brand</a></li>
              <li id="menuCategory" runat="server" ><a href="master_category.aspx" class="menu-link">Master Category</a></li>
+            </ul>
+        </li>
+        <li class="menu-item" id="grpmenuAdmin" runat="server">
+            <a href="#" class="menu-link" onclick="toggleSubmenu(event, 'adminTools')">
+                <i class="bi bi-shield-lock"></i>
+                <span>Admin</span>
+                <i class="bi bi-chevron-down"></i>
+            </a>
+            <ul class="submenu" id="adminTools">
+                <li id="menuAdminMatchPO" runat="server"><a href="admin_matchPO.aspx" class="menu-link">Admin Match PO</a></li>
+                <li id="menuManageUsers" runat="server"><a href="manage_users.aspx" class="menu-link">Manage Users</a></li>
             </ul>
         </li>
         <li class="menu-item"><a href="default.aspx" class="menu-link"><i class="bi bi-box-arrow-left"></i> Logout</a></li>
@@ -263,7 +274,7 @@
                     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
                 <div class="modal-body">
-                    <div id="previewTableContainer"></div>
+                    <div id="previewTableContainer" class="table-responsive" style="max-height: 65vh;" tabindex="0" role="region" aria-label="Draft PO upload preview"></div>
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
@@ -458,7 +469,7 @@
             <div class="modal-body">
                 <div id="uploadResultSummary" class="alert alert-info mb-3"></div>
                 
-                <div class="table-responsive" style="max-height: 500px; overflow-y: auto;">
+                <div class="table-responsive" style="max-height: 500px; overflow-y: auto;" tabindex="0" role="region" aria-label="Draft PO upload results">
                     <table class="table table-bordered table-hover" id="tblUploadResults">
                         <thead class="table-light sticky-top" style="top: 0; z-index: 1;">
                             <tr>
@@ -1268,6 +1279,12 @@
                 success: function (response) {
                     showLoading(false);
                     btnSubmitData.disabled = false;
+
+                    if (!Array.isArray(response)) {
+                        const message = response && response.message ? response.message : 'Unable to save selected rows.';
+                        showErrorSaveModal(message, 'Save Error');
+                        return;
+                    }
 
                     uploadPreviewModal.hide();
 

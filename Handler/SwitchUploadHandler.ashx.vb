@@ -10,13 +10,16 @@ Imports System.Collections.Generic
 Imports System.Threading.Tasks
 Imports System.Globalization
 Imports System.Linq
+Imports System.Web.SessionState
 
 Public Class SwitchUploadHandler
-    Implements IHttpHandler, IRequiresSessionState
+    Implements IHttpHandler, IReadOnlySessionState
 
     Private Shared connectionString As String = ConfigurationManager.ConnectionStrings("BMSConnectionString")?.ConnectionString
+    Private Const MaxMovementAmount As Decimal = 9999999999999999.99D
 
     ' ตัวแปรสำหรับเก็บ Master Data
+    Private dtYear As DataTable
     Private dtMonth As DataTable
     Private dtCompany As DataTable
     Private dtCategory As DataTable
@@ -26,16 +29,24 @@ Public Class SwitchUploadHandler
 
     Public Sub ProcessRequest(ByVal context As HttpContext) Implements IHttpHandler.ProcessRequest
         context.Response.Clear()
+        context.Response.ContentType = "application/json"
         context.Response.ContentEncoding = Encoding.UTF8
 
-        Dim action As String = context.Request("action")
-        Dim uploadBy As String = If(context.Session("user") IsNot Nothing, context.Session("user").ToString(), "System")
-
-        If action = "preview" Then
-            HandlePreview(context)
-        ElseIf action = "save" Then
-            HandleSave(context, uploadBy)
-        End If
+        Try
+            EnsureAjaxMutationRequest(context)
+            Dim uploadBy As String = EnsureSwitchEditPermission(context)
+            Dim action As String = If(context.Request("action"), "").Trim()
+            If action.Equals("preview", StringComparison.OrdinalIgnoreCase) Then
+                HandlePreview(context)
+            ElseIf action.Equals("save", StringComparison.OrdinalIgnoreCase) Then
+                HandleSave(context, uploadBy)
+            Else
+                Throw New InvalidOperationException("Unsupported bulk OTB movement action.")
+            End If
+        Catch ex As Exception
+            context.Response.StatusCode = 200
+            context.Response.Write(New JavaScriptSerializer().Serialize(New With {.success = False, .message = ex.Message}))
+        End Try
     End Sub
 
     ' ==========================================
@@ -50,15 +61,29 @@ Public Class SwitchUploadHandler
         End If
 
         Dim postedFile As HttpPostedFile = context.Request.Files(0)
-        Dim tempPath As String = Path.GetTempFileName()
-        postedFile.SaveAs(tempPath)
+        Dim extension As String = Path.GetExtension(postedFile.FileName).ToLowerInvariant()
+        If extension <> ".xlsx" AndAlso extension <> ".xls" Then
+            context.Response.Write(New JavaScriptSerializer().Serialize(New With {.success = False, .message = "Only .xlsx and .xls files are supported."}))
+            Return
+        End If
+        If postedFile.ContentLength <= 0 OrElse postedFile.ContentLength > 20 * 1024 * 1024 Then
+            context.Response.Write(New JavaScriptSerializer().Serialize(New With {.success = False, .message = "The file must be between 1 byte and 20 MB."}))
+            Return
+        End If
+        Dim tempPath As String = Nothing
 
         Try
+            tempPath = Path.GetTempFileName()
+            postedFile.SaveAs(tempPath)
+
             ' 1. โหลด Master Data เตรียมไว้
             LoadAllMasterData()
 
             ' 2. อ่าน Excel
             Dim dt As DataTable = ReadExcel(tempPath)
+            If dt.Rows.Count <= 0 OrElse dt.Rows.Count > 15000 Then
+                Throw New InvalidOperationException($"Bulk OTB files must contain between 1 and 15,000 data rows. Found: {dt.Rows.Count:N0}.")
+            End If
 
             ' 3. สร้างตาราง Preview พร้อมชื่อ Description
             Dim result = GeneratePreviewData(dt)
@@ -67,13 +92,22 @@ Public Class SwitchUploadHandler
         Catch ex As Exception
             context.Response.Write(New JavaScriptSerializer().Serialize(New With {.success = False, .message = "Error: " & ex.Message}))
         Finally
-            If File.Exists(tempPath) Then File.Delete(tempPath)
+            Try
+                If Not String.IsNullOrWhiteSpace(tempPath) AndAlso File.Exists(tempPath) Then File.Delete(tempPath)
+            Catch
+                ' Preview result must not be replaced by a best-effort temp-file cleanup error.
+            End Try
         End Try
     End Sub
 
     Private Sub LoadAllMasterData()
         Using conn As New SqlConnection(connectionString)
             conn.Open()
+
+            dtYear = New DataTable()
+            Using cmd As New SqlCommand("SELECT [Year_Kept] FROM [MS_Year]", conn)
+                dtYear.Load(cmd.ExecuteReader())
+            End Using
 
             ' Load Month
             dtMonth = New DataTable()
@@ -146,8 +180,9 @@ Public Class SwitchUploadHandler
 
         Dim uniqueRows As New HashSet(Of String)()
         Dim allValid As Boolean = True
+        Dim hasAnyWarnings As Boolean = False
 
-        sb.Append("<div class='table-responsive' style='max-height: 500px;'>")
+        sb.Append("<div class='table-responsive' style='max-height: 500px;' tabindex='0' role='region' aria-label='Bulk OTB switching preview'>")
         sb.Append("<table class='table table-bordered table-sm table-hover' id='tblBulkPreview' style='font-size: 0.85rem;'>")
         sb.Append("<thead class='table-dark sticky-top'><tr>")
         sb.Append("<th style='width:30px;'>No.</th>")
@@ -163,6 +198,7 @@ Public Class SwitchUploadHandler
         For i As Integer = 0 To dt.Rows.Count - 1
             Dim row As DataRow = dt.Rows(i)
             Dim errors As New List(Of String)()
+            Dim warnings As New List(Of String)()
 
             ' --- 1. Read Data ---
             Dim _function As String = GetVal(row, "Function")
@@ -190,10 +226,39 @@ Public Class SwitchUploadHandler
 
             ' --- 2. Validation ---
             Dim amount As Decimal = 0
+            Dim isAmountValid As Boolean = False
+            Dim hasFractionalAmount As Boolean = False
+            Dim hasPeriodWarning As Boolean = False
             If String.IsNullOrEmpty(_function) Then errors.Add("Missing Type")
-            If Not Decimal.TryParse(amtStr, amount) OrElse amount <= 0 Then errors.Add("Invalid Amount")
+            If Not String.IsNullOrEmpty(_function) AndAlso
+               Not _function.Equals("Switch", StringComparison.OrdinalIgnoreCase) AndAlso
+               Not _function.Equals("Extra", StringComparison.OrdinalIgnoreCase) Then
+                errors.Add("Invalid Type (use Switch or Extra)")
+            End If
+            Dim rawAmount As Decimal = 0
+            If Decimal.TryParse(amtStr, NumberStyles.Any, CultureInfo.InvariantCulture, rawAmount) OrElse
+               Decimal.TryParse(amtStr, NumberStyles.Any, CultureInfo.CurrentCulture, rawAmount) Then
+                amount = share_class.RoundAmountForSapRule(rawAmount)
+                hasFractionalAmount = (_function.Equals("Switch", StringComparison.OrdinalIgnoreCase) AndAlso
+                                       rawAmount <> Decimal.Truncate(rawAmount))
+                If amount <= 0 Then
+                    errors.Add("Invalid Amount")
+                ElseIf amount > MaxMovementAmount Then
+                    errors.Add("Amount exceeds the database limit")
+                Else
+                    isAmountValid = True
+                End If
+            Else
+                errors.Add("Invalid Amount")
+            End If
+
+            If hasFractionalAmount Then
+                warnings.Add("ยอดมีทศนิยม กรุณาตรวจสอบ")
+            End If
+            If remark.Length > 500 Then errors.Add("Remark exceeds 500 characters")
             If String.IsNullOrEmpty(fYear) OrElse String.IsNullOrEmpty(fMonth) OrElse String.IsNullOrEmpty(fComp) OrElse String.IsNullOrEmpty(fCate) OrElse String.IsNullOrEmpty(fSeg) OrElse String.IsNullOrEmpty(fBrand) OrElse String.IsNullOrEmpty(fVend) Then errors.Add("Missing Source")
 
+            If Not String.IsNullOrEmpty(fYear) AndAlso Not IsValidMaster(dtYear, "Year_Kept", fYear) Then errors.Add($"Invalid From Year ({fYear})")
             If Not String.IsNullOrEmpty(fMonth) AndAlso Not IsValidMaster(dtMonth, "month_code", fMonth) Then errors.Add($"Invalid From Month ({fMonth})")
             If Not String.IsNullOrEmpty(fComp) AndAlso Not IsValidMaster(dtCompany, "CompanyCode", fComp) Then errors.Add($"Invalid From Company ({fComp})")
             If Not String.IsNullOrEmpty(fCate) AndAlso Not IsValidMaster(dtCategory, "Cate", fCate) Then errors.Add($"Invalid From Category ({fCate})")
@@ -207,12 +272,32 @@ Public Class SwitchUploadHandler
                     errors.Add("Source=Dest")
                 End If
 
-                If Not String.IsNullOrEmpty(tMonth) AndAlso Not IsValidMaster(dtMonth, "month_code", tMonth) Then errors.Add($"Invalid From Month ({tMonth})")
+                If Not String.IsNullOrEmpty(tYear) AndAlso Not IsValidMaster(dtYear, "Year_Kept", tYear) Then errors.Add($"Invalid To Year ({tYear})")
+                If Not String.IsNullOrEmpty(tMonth) AndAlso Not IsValidMaster(dtMonth, "month_code", tMonth) Then errors.Add($"Invalid To Month ({tMonth})")
                 If Not String.IsNullOrEmpty(tComp) AndAlso Not IsValidMaster(dtCompany, "CompanyCode", tComp) Then errors.Add($"Invalid To Company ({tComp})")
                 If Not String.IsNullOrEmpty(tCate) AndAlso Not IsValidMaster(dtCategory, "Cate", tCate) Then errors.Add($"Invalid To Category ({tCate})")
                 If Not String.IsNullOrEmpty(tSeg) AndAlso Not IsValidMaster(dtSegment, "SegmentCode", tSeg) Then errors.Add($"Invalid To Segment ({tSeg})")
                 If Not String.IsNullOrEmpty(tBrand) AndAlso Not IsValidMaster(dtBrand, "Brand Code", tBrand) Then errors.Add($"Invalid To Brand ({tBrand})")
                 If Not String.IsNullOrEmpty(tVend) AndAlso Not IsValidMaster(dtVendor, "VendorCode", tVend) Then errors.Add($"Invalid To Vendor ({tVend})")
+
+                If Not String.IsNullOrEmpty(fYear) AndAlso Not String.IsNullOrEmpty(fMonth) AndAlso
+                   Not String.IsNullOrEmpty(tYear) AndAlso Not String.IsNullOrEmpty(tMonth) Then
+                    Dim fYearNumber As Integer
+                    Dim fMonthNumber As Integer
+                    Dim tYearNumber As Integer
+                    Dim tMonthNumber As Integer
+                    If Integer.TryParse(fYear, fYearNumber) AndAlso Integer.TryParse(fMonth, fMonthNumber) AndAlso
+                       Integer.TryParse(tYear, tYearNumber) AndAlso Integer.TryParse(tMonth, tMonthNumber) Then
+                        hasPeriodWarning = (fYearNumber <> tYearNumber OrElse fMonthNumber <> tMonthNumber)
+                    Else
+                        hasPeriodWarning = (Not fYear.Equals(tYear, StringComparison.OrdinalIgnoreCase) OrElse
+                                            Not fMonth.Equals(tMonth, StringComparison.OrdinalIgnoreCase))
+                    End If
+                End If
+
+                If hasPeriodWarning Then
+                    warnings.Add("เดือนไม่สอดคล้องกัน")
+                End If
             End If
 
             Dim rowKey As String = ""
@@ -230,7 +315,7 @@ Public Class SwitchUploadHandler
             End If
 
             ' --- 3. Budget Check ---
-            If errors.Count = 0 AndAlso amount > 0 AndAlso _function.Equals("Switch", StringComparison.OrdinalIgnoreCase) Then
+            If errors.Count = 0 AndAlso isAmountValid AndAlso _function.Equals("Switch", StringComparison.OrdinalIgnoreCase) Then
                 Try
                     Dim key As String = $"{fYear}|{fMonth}|{fCate}|{fComp}|{fSeg}|{fBrand}|{fVend}"
 
@@ -257,6 +342,7 @@ Public Class SwitchUploadHandler
 
             Dim isError As Boolean = (errors.Count > 0)
             If isError Then allValid = False
+            If warnings.Count > 0 Then hasAnyWarnings = True
 
 
 
@@ -271,10 +357,18 @@ Public Class SwitchUploadHandler
             Dim typeName As String = ""
             If _function.Equals("Switch", StringComparison.OrdinalIgnoreCase) Then
                 typeName = "Switch"
-                Dim dFrom As New Date(Convert.ToInt32(fYear), Convert.ToInt32(fMonth), 1)
-                Dim dTo As New Date(Convert.ToInt32(tYear), Convert.ToInt32(tMonth), 1)
-                If dFrom > dTo Then typeName = "Carry"
-                If dFrom < dTo Then typeName = "Balance"
+                Dim fYearNumber As Integer
+                Dim fMonthNumber As Integer
+                Dim tYearNumber As Integer
+                Dim tMonthNumber As Integer
+                If Integer.TryParse(fYear, fYearNumber) AndAlso Integer.TryParse(fMonth, fMonthNumber) AndAlso
+                   Integer.TryParse(tYear, tYearNumber) AndAlso Integer.TryParse(tMonth, tMonthNumber) AndAlso
+                   fMonthNumber >= 1 AndAlso fMonthNumber <= 12 AndAlso tMonthNumber >= 1 AndAlso tMonthNumber <= 12 Then
+                    Dim dFrom As New Date(fYearNumber, fMonthNumber, 1)
+                    Dim dTo As New Date(tYearNumber, tMonthNumber, 1)
+                    If dFrom > dTo Then typeName = "Carry"
+                    If dFrom < dTo Then typeName = "Balance"
+                End If
             ElseIf _function.Equals("Extra", StringComparison.OrdinalIgnoreCase) Then
                 typeName = "Extra"
             End If
@@ -288,11 +382,12 @@ Public Class SwitchUploadHandler
             Dim fVendName As String = GetName(dtVendor, "VendorCode", "Vendor", fVend)
 
             ' HTML Block for From
-            Dim fHtml As String = $"<strong>{fYear}/{fMonth}</strong><br/>" &
-                                  $"<small>Comp: {fComp}:{fCompName}<br/>" &
-                                  $"Vend: {fVend}:{fVendName}<br/>" &
-                                  $"Brand: {fBrand}:{fBrandName}<br/>" &
-                                  $"Seg: {fSeg}:{fSegName} | Cat: {fCate}:{fCateName}</small>"
+            Dim fHtml As String = $"<strong>{HttpUtility.HtmlEncode(fYear)}/{HttpUtility.HtmlEncode(fMonth)}</strong><br/>" &
+                                  $"<small>Comp: {HttpUtility.HtmlEncode(fComp)}:{HttpUtility.HtmlEncode(fCompName)}<br/>" &
+                                  $"Vend: {HttpUtility.HtmlEncode(fVend)}:{HttpUtility.HtmlEncode(fVendName)}<br/>" &
+                                  $"Brand: {HttpUtility.HtmlEncode(fBrand)}:{HttpUtility.HtmlEncode(fBrandName)}<br/>" &
+                                  $"Seg: {HttpUtility.HtmlEncode(fSeg)}:{HttpUtility.HtmlEncode(fSegName)} | " &
+                                  $"Cat: {HttpUtility.HtmlEncode(fCate)}:{HttpUtility.HtmlEncode(fCateName)}</small>"
 
             Dim tHtml As String = "-"
             If _function.Equals("Switch", StringComparison.OrdinalIgnoreCase) Then
@@ -302,43 +397,66 @@ Public Class SwitchUploadHandler
                 Dim tBrandName As String = GetName(dtBrand, "Brand Code", "Brand Name", tBrand)
                 Dim tVendName As String = GetName(dtVendor, "VendorCode", "Vendor", tVend)
 
-                tHtml = $"<strong>{tYear}/{tMonth}</strong><br/>" &
-                        $"<small>Comp: {tComp}:{tCompName}<br/>" &
-                        $"Vend: {tVend}:{tVendName}<br/>" &
-                        $"Brand: {tBrand}:{tBrandName}<br/>" &
-                        $"Seg: {tSeg}:{tSegName} | Cat: {tCate}:{tCateName}</small>"
+                tHtml = $"<strong>{HttpUtility.HtmlEncode(tYear)}/{HttpUtility.HtmlEncode(tMonth)}</strong><br/>" &
+                        $"<small>Comp: {HttpUtility.HtmlEncode(tComp)}:{HttpUtility.HtmlEncode(tCompName)}<br/>" &
+                        $"Vend: {HttpUtility.HtmlEncode(tVend)}:{HttpUtility.HtmlEncode(tVendName)}<br/>" &
+                        $"Brand: {HttpUtility.HtmlEncode(tBrand)}:{HttpUtility.HtmlEncode(tBrandName)}<br/>" &
+                        $"Seg: {HttpUtility.HtmlEncode(tSeg)}:{HttpUtility.HtmlEncode(tSegName)} | " &
+                        $"Cat: {HttpUtility.HtmlEncode(tCate)}:{HttpUtility.HtmlEncode(tCateName)}</small>"
             End If
 
             ' --- 6. Render Row ---
-            Dim trClass As String = If(isError, "table-danger", "")
+            Dim hasWarning As Boolean = (warnings.Count > 0)
+            Dim trClass As String = If(isError, "table-danger", If(hasWarning, "table-warning", ""))
+            Dim periodWarningCellClass As String = If(hasPeriodWarning, "table-warning", "")
+            Dim amountWarningCellClass As String = If(hasFractionalAmount, "table-warning", "")
             sb.AppendFormat("<tr class='{0}'>", trClass)
             sb.AppendFormat("<td class='text-center'>{0}<input type='hidden' class='row-data' value='{1}'></td>", i + 2, rowJson)
 
-            sb.AppendFormat("<td class='text-center fw-bold'>{0}</td>", _function)
-            sb.AppendFormat("<td class='text-center fw-bold'>{0}</td>", typeName)
+            sb.AppendFormat("<td class='text-center fw-bold'>{0}</td>", HttpUtility.HtmlEncode(_function))
+            sb.AppendFormat("<td class='text-center fw-bold'>{0}</td>", HttpUtility.HtmlEncode(typeName))
 
             ' From Column
-            sb.AppendFormat("<td>{0}</td>", fHtml)
+            sb.AppendFormat("<td class='{0}'>{1}</td>", periodWarningCellClass, fHtml)
 
             ' Amount Column
-            sb.AppendFormat("<td class='text-end fw-bold'>{0:N2}</td>", amount)
+            sb.AppendFormat("<td class='text-end fw-bold {0}'>{1:N2}</td>", amountWarningCellClass, amount)
 
             ' To Column
-            sb.AppendFormat("<td>{0}</td>", tHtml)
+            sb.AppendFormat("<td class='{0}'>{1}</td>", periodWarningCellClass, tHtml)
 
             ' Remark Column
             sb.AppendFormat("<td><small>{0}</small></td>", HttpUtility.HtmlEncode(remark))
 
             ' Status & Error
-            Dim status As String = If(isError, "<span class='badge bg-danger'>Fail</span>", "<span class='badge bg-success'>Pass</span>")
-            Dim errText As String = If(errors.Count > 0, String.Join("<br/>", errors), "")
-            sb.AppendFormat("<td class='text-center'>{0}</td><td class='text-danger small'>{1}</td>", status, errText)
+            Dim status As String
+            If isError Then
+                status = "<span class='badge bg-danger'>Fail</span>"
+            ElseIf hasWarning Then
+                status = "<span class='badge bg-warning text-dark'>Warning</span>"
+            Else
+                status = "<span class='badge bg-success'>Pass</span>"
+            End If
+            Dim encodedErrors As New List(Of String)()
+            For Each errorMessage In errors
+                encodedErrors.Add(HttpUtility.HtmlEncode(errorMessage))
+            Next
+            Dim encodedWarnings As New List(Of String)()
+            For Each warningMessage In warnings
+                encodedWarnings.Add(HttpUtility.HtmlEncode(warningMessage))
+            Next
+            Dim issueParts As New List(Of String)()
+            If encodedErrors.Count > 0 Then issueParts.Add("<span class='text-danger'>" & String.Join("<br/>", encodedErrors) & "</span>")
+            If encodedWarnings.Count > 0 Then issueParts.Add("<span class='text-warning fw-semibold'>" & String.Join("<br/>", encodedWarnings) & "</span>")
+            sb.AppendFormat("<td class='text-center'>{0}</td><td class='small'>{1}</td>", status, String.Join("<br/>", issueParts))
             sb.Append("</tr>")
         Next
         sb.Append("</tbody></table></div>")
 
         If Not allValid Then
             sb.Append("<div class='alert alert-warning mt-2'><i class='bi bi-exclamation-triangle'></i> ข้อมูลบางรายการไม่ถูกต้อง กรุณาแก้ไขไฟล์แล้ว Upload ใหม่ (ต้องผ่านทุกรายการถึงจะบันทึกได้)</div>")
+        ElseIf hasAnyWarnings Then
+            sb.Append("<div class='alert alert-warning mt-2'><i class='bi bi-exclamation-triangle'></i> ข้อมูลผ่านการตรวจสอบและพร้อมบันทึก กรุณาตรวจสอบรายการสีเหลืองก่อนส่ง SAP</div>")
         Else
             sb.Append("<div class='alert alert-success mt-2'><i class='bi bi-check-circle'></i> ข้อมูลถูกต้องครบถ้วน พร้อมบันทึกไปยัง SAP</div>")
         End If
@@ -366,6 +484,81 @@ Public Class SwitchUploadHandler
 
             Dim json As String = context.Request.Form("data")
             Dim rows As List(Of Dictionary(Of String, Object)) = New JavaScriptSerializer().Deserialize(Of List(Of Dictionary(Of String, Object)))(json)
+            If rows Is Nothing OrElse rows.Count = 0 OrElse rows.Count > 15000 Then
+                Throw New InvalidOperationException("Bulk OTB save requires between 1 and 15,000 rows.")
+            End If
+
+            ' Revalidate the submitted JSON against live PO usage. Preview data is not trusted here.
+            ' Source locks serialize concurrent single/bulk saves for the same OTB dimension.
+            Using budgetLockConn As New SqlConnection(connectionString)
+                budgetLockConn.Open()
+                Dim affectedDimensions As New List(Of OTBSwitchBudgetGuard.BudgetDimension)()
+                Dim submittedKeys As New HashSet(Of String)(StringComparer.OrdinalIgnoreCase)
+                For Each submittedRow In rows
+                    If submittedRow Is Nothing Then Throw New InvalidOperationException("Every submitted row must be an object.")
+                    Dim functionValue As Object = Nothing
+                    If Not submittedRow.TryGetValue("Function", functionValue) Then Throw New InvalidOperationException("Every row must include Function.")
+                    Dim functionName As String = Convert.ToString(functionValue).Trim()
+                    If Not functionName.Equals("Switch", StringComparison.OrdinalIgnoreCase) AndAlso
+                       Not functionName.Equals("Extra", StringComparison.OrdinalIgnoreCase) Then
+                        Throw New InvalidOperationException("Function must be Switch or Extra. SAP was not called.")
+                    End If
+                    Dim amountValue As Object = Nothing
+                    If Not submittedRow.TryGetValue("Amount", amountValue) Then Throw New InvalidOperationException("Every row must include Amount.")
+                    Dim submittedAmount As Decimal = share_class.ParseAndRoundAmount(Convert.ToString(amountValue, CultureInfo.InvariantCulture))
+                    Dim submittedRemark As String = ""
+                    If submittedRow.ContainsKey("Remark") Then submittedRemark = Convert.ToString(submittedRow("Remark"))
+                    ValidateMovementPersistenceFields(submittedAmount, submittedRemark)
+
+                    Dim sourceValue As Object = Nothing
+                    If Not submittedRow.TryGetValue("From", sourceValue) Then Throw New InvalidOperationException("Every Switch/Extra row must include a source budget dimension.")
+                    Dim source = TryCast(sourceValue, Dictionary(Of String, Object))
+                    Dim sourceDimension As OTBSwitchBudgetGuard.BudgetDimension = ParseSubmittedDimension(source, "source")
+                    affectedDimensions.Add(sourceDimension)
+
+                    Dim submittedKey As String = functionName.ToUpperInvariant() & "|" & OTBSwitchBudgetGuard.BuildDetailLockResource(sourceDimension)
+                    If functionName.Equals("Switch", StringComparison.OrdinalIgnoreCase) Then
+                        Dim destinationValue As Object = Nothing
+                        If Not submittedRow.TryGetValue("To", destinationValue) Then Throw New InvalidOperationException("Every Switch row must include a destination budget dimension.")
+                        Dim destination = TryCast(destinationValue, Dictionary(Of String, Object))
+                        If destination Is Nothing Then Throw New InvalidOperationException("Every Switch row must include a destination budget dimension.")
+                        Dim destinationDimension As OTBSwitchBudgetGuard.BudgetDimension = ParseSubmittedDimension(destination, "destination")
+                        If String.Equals(OTBSwitchBudgetGuard.BuildDetailLockResource(sourceDimension),
+                                         OTBSwitchBudgetGuard.BuildDetailLockResource(destinationDimension),
+                                         StringComparison.Ordinal) Then
+                            Throw New InvalidOperationException("Source and destination budget dimensions must be different.")
+                        End If
+                        affectedDimensions.Add(destinationDimension)
+                        submittedKey &= "|" & OTBSwitchBudgetGuard.BuildDetailLockResource(destinationDimension) & "|" & submittedAmount.ToString(CultureInfo.InvariantCulture)
+                    End If
+                    If Not submittedKeys.Add(submittedKey) Then
+                        Throw New InvalidOperationException("Duplicate movement rows were submitted. SAP was not called.")
+                    End If
+                Next
+                Using budgetLockHandle As IDisposable = OTBSwitchBudgetGuard.AcquireBudgetLocks(
+                    budgetLockConn, OTBSwitchBudgetGuard.BuildGroupLockResources(affectedDimensions))
+                    OTBSwitchBudgetGuard.EnsureValidMasterDimensions(budgetLockConn, affectedDimensions)
+                    OTBSwitchBudgetGuard.EnsureNoActiveApprovalClaims(budgetLockConn, affectedDimensions)
+
+                Dim liveCalculator As New OTBBudgetCalculator()
+                Dim livePOValidator As New POValidate()
+                Dim batchUsage As New Dictionary(Of String, Decimal)(StringComparer.OrdinalIgnoreCase)
+                For Each submittedRow In rows
+                    If submittedRow("Function").ToString().Equals("Switch", StringComparison.OrdinalIgnoreCase) Then
+                        Dim source = TryCast(submittedRow("From"), Dictionary(Of String, Object))
+                        Dim submittedAmount = share_class.ParseAndRoundAmount(Convert.ToString(submittedRow("Amount"), CultureInfo.InvariantCulture))
+                        Dim sourceKey = OTBSwitchBudgetGuard.BuildSourceKey(
+                            source("Year").ToString(), source("Month").ToString(), source("Company").ToString(),
+                            source("Category").ToString(), source("Segment").ToString(), source("Brand").ToString(), source("Vendor").ToString())
+                        Dim alreadyRequested = If(batchUsage.ContainsKey(sourceKey), batchUsage(sourceKey), 0D)
+                        Dim budgetCheck = OTBSwitchBudgetGuard.Check(
+                            source("Year").ToString(), source("Month").ToString(), source("Category").ToString(), source("Company").ToString(),
+                            source("Segment").ToString(), source("Brand").ToString(), source("Vendor").ToString(), liveCalculator, livePOValidator)
+                        budgetCheck.AvailableBudget -= alreadyRequested
+                        OTBSwitchBudgetGuard.EnsureSufficient(budgetCheck, submittedAmount)
+                        batchUsage(sourceKey) = alreadyRequested + submittedAmount
+                    End If
+                Next
 
             Dim sapRequest As New OtbSwitchRequest()
             sapRequest.TestMode = ""
@@ -374,7 +567,7 @@ Public Class SwitchUploadHandler
 
             For Each row In rows
                 Dim _func As String = row("Function").ToString()
-                Dim amt As Decimal = Convert.ToDecimal(row("Amount"))
+                Dim amt As Decimal = share_class.ParseAndRoundAmount(Convert.ToString(row("Amount"), CultureInfo.InvariantCulture))
                 Dim f = TryCast(row("From"), Dictionary(Of String, Object))
                 Dim t = TryCast(row("To"), Dictionary(Of String, Object))
 
@@ -400,7 +593,7 @@ Public Class SwitchUploadHandler
                 Dim item As New OtbSwitchItem With {
                     .DocYearFrom = f("Year").ToString(), .PeriodFrom = f("Month").ToString(), .FmAreaFrom = f("Company").ToString(),
                     .CatFrom = f("Category").ToString(), .SegmentFrom = f("Segment").ToString(), .BrandFrom = f("Brand").ToString(), .VendorFrom = f("Vendor").ToString(),
-                    .Budget = amt.ToString("F2"), .TypeFrom = fromCode
+                    .Budget = share_class.FormatAmountForSap(amt), .TypeFrom = fromCode
                 }
 
                 ' --- Mapping ข้อมูลชื่อฝั่ง From (ต้องมีทุกประเภทรายการ) ---
@@ -432,7 +625,7 @@ Public Class SwitchUploadHandler
                 ' เก็บข้อมูลเพื่อบันทึกลง DB และส่งกลับ UI
                 Dim dbRow As New Dictionary(Of String, Object) From {
                     {"f", f}, {"t", t}, {"amt", amt}, {"typeFrom", fromCode},
-                    {"remark", row("Remark")}, {"actionType", _func}, {"typeName", typeNameDisplay}
+                    {"remark", If(row.ContainsKey("Remark"), Convert.ToString(row("Remark")), "")}, {"actionType", _func}, {"typeName", typeNameDisplay}
                 }
                 pendingDbInserts.Add(dbRow)
             Next
@@ -440,39 +633,53 @@ Public Class SwitchUploadHandler
             ' 1. ส่ง SAP API
             Dim sapRes = Task.Run(Async Function() Await SapApiHelper.SwitchOtbPlanAsync(sapRequest)).Result
             If sapRes Is Nothing Then Throw New Exception("No response from SAP API.")
+            If sapRes.Status Is Nothing Then Throw New Exception("SAP response did not include status.")
+            If sapRes.Results Is Nothing Then Throw New Exception("SAP response did not include results.")
 
             ' 2. จัดการ Mapping ผลลัพธ์ส่งกลับไปหน้าจอ
             Dim processResults As New List(Of Object)
             Dim hasError As Boolean = False
+            Dim sapSummaryMessage As String = ""
 
-            If sapRes.Results IsNot Nothing Then
-                For i As Integer = 0 To pendingDbInserts.Count - 1
-                    Dim status As String = "Success"
-                    Dim msg As String = "Success"
-
-                    If i < sapRes.Results.Count Then
-                        Dim resItem = sapRes.Results(i)
-                        If resItem.MessageType = "E" Then
-                            status = "Error"
-                            hasError = True
-                        End If
-                        msg = resItem.Message
-                    End If
-
-                    ' สร้างโครงสร้าง JSON ที่สมบูรณ์ส่งกลับไปให้ JavaScript
-                    processResults.Add(New With {
-                        .status = status,
-                        .message = msg,
-                        .row = New With {
-                            .Type = pendingDbInserts(i)("typeName"),
-                            .Function = pendingDbInserts(i)("actionType"),
-                            .Amount = pendingDbInserts(i)("amt"),
-                            .From = pendingDbInserts(i)("f"),
-                            .To = pendingDbInserts(i)("t") ' ถ้าเป็น Extra ค่านี้จะเป็น null โดยอัตโนมัติ
-                        }
-                    })
-                Next
+            If sapRes.Status.Total <> pendingDbInserts.Count OrElse
+               sapRes.Status.Success <> pendingDbInserts.Count OrElse
+               sapRes.Status.ErrorCount > 0 OrElse
+               sapRes.Results.Count <> pendingDbInserts.Count Then
+                hasError = True
+                sapSummaryMessage = $"SAP processing failed or was incomplete. Total: {sapRes.Status.Total}, Success: {sapRes.Status.Success}, Error: {sapRes.Status.ErrorCount}. No records were saved to the database."
             End If
+
+            For i As Integer = 0 To pendingDbInserts.Count - 1
+                Dim status As String = "Success"
+                Dim msg As String = "Success"
+
+                If i < sapRes.Results.Count Then
+                    Dim resItem = sapRes.Results(i)
+                    Dim messageType As String = If(resItem.MessageType, "").Trim()
+                    If Not messageType.Equals("S", StringComparison.OrdinalIgnoreCase) Then
+                        status = "Error"
+                        hasError = True
+                    End If
+                    msg = If(String.IsNullOrWhiteSpace(resItem.Message), $"SAP MessageType: {messageType}", resItem.Message)
+                Else
+                    status = "Error"
+                    msg = "SAP did not return a result for this row."
+                    hasError = True
+                End If
+
+                ' สร้างโครงสร้าง JSON ที่สมบูรณ์ส่งกลับไปให้ JavaScript
+                processResults.Add(New With {
+                    .status = status,
+                    .message = msg,
+                    .row = New With {
+                        .Type = pendingDbInserts(i)("typeName"),
+                        .Function = pendingDbInserts(i)("actionType"),
+                        .Amount = pendingDbInserts(i)("amt"),
+                        .From = pendingDbInserts(i)("f"),
+                        .To = pendingDbInserts(i)("t") ' ถ้าเป็น Extra ค่านี้จะเป็น null โดยอัตโนมัติ
+                    }
+                })
+            Next
 
             ' 3. บันทึกฐานข้อมูล (กรณีไม่มี Error จาก SAP เลย)
             If Not hasError Then
@@ -497,9 +704,11 @@ Public Class SwitchUploadHandler
             ' 4. ส่ง JSON Response
             context.Response.Write(New JavaScriptSerializer().Serialize(New With {
                 .success = Not hasError,
-                .message = If(hasError, "Batch processed with some errors at SAP.", "Upload & Save Completed Successfully."),
+                .message = If(hasError, If(String.IsNullOrEmpty(sapSummaryMessage), "Batch processed with some errors at SAP. No records were saved to the database.", sapSummaryMessage), "Upload & Save Completed Successfully."),
                 .results = processResults
             }))
+            End Using
+            End Using
 
         Catch ex As Exception
             context.Response.Write(New JavaScriptSerializer().Serialize(New With {.success = False, .message = ex.Message}))
@@ -559,6 +768,57 @@ Public Class SwitchUploadHandler
         Dim rows = dt.Select($"[{codeCol}] = '{codeVal.Replace("'", "''")}'")
         Return rows.Length > 0
     End Function
+
+    Private Shared Function ParseSubmittedDimension(values As Dictionary(Of String, Object), label As String) As OTBSwitchBudgetGuard.BudgetDimension
+        If values Is Nothing Then Throw New InvalidOperationException("Every row must include a " & label & " budget dimension.")
+        Return OTBSwitchBudgetGuard.CreateDimension(
+            GetRequiredSubmittedText(values, "Year", label),
+            GetRequiredSubmittedText(values, "Month", label),
+            GetRequiredSubmittedText(values, "Company", label),
+            GetRequiredSubmittedText(values, "Category", label),
+            GetRequiredSubmittedText(values, "Segment", label),
+            GetRequiredSubmittedText(values, "Brand", label),
+            GetRequiredSubmittedText(values, "Vendor", label))
+    End Function
+
+    Private Shared Function GetRequiredSubmittedText(values As Dictionary(Of String, Object), key As String, label As String) As String
+        Dim raw As Object = Nothing
+        If values Is Nothing OrElse Not values.TryGetValue(key, raw) Then
+            Throw New InvalidOperationException(label & " " & key & " is required.")
+        End If
+        Dim text As String = Convert.ToString(raw, CultureInfo.InvariantCulture).Trim()
+        If String.IsNullOrWhiteSpace(text) Then Throw New InvalidOperationException(label & " " & key & " is required.")
+        Return text
+    End Function
+
+    Private Shared Sub EnsureAjaxMutationRequest(context As HttpContext)
+        If context Is Nothing OrElse Not String.Equals(context.Request.HttpMethod, "POST", StringComparison.OrdinalIgnoreCase) Then
+            Throw New UnauthorizedAccessException("This action must be submitted with a same-origin POST request.")
+        End If
+        If Not String.Equals(context.Request.Headers("X-Requested-With"), "XMLHttpRequest", StringComparison.OrdinalIgnoreCase) Then
+            Throw New UnauthorizedAccessException("The request could not be verified. Refresh the page and try again.")
+        End If
+    End Sub
+
+    Private Shared Function EnsureSwitchEditPermission(context As HttpContext) As String
+        Dim currentUser As String = If(context Is Nothing OrElse context.Session Is Nothing,
+                                       "", Convert.ToString(context.Session("user"))).Trim()
+        If String.IsNullOrWhiteSpace(currentUser) OrElse currentUser.Length > 100 Then
+            Throw New UnauthorizedAccessException("Your login session has expired. Please sign in again.")
+        End If
+        Dim roleName As Object = context.Session("UserRole")
+        Dim rights As PermissionHelper.UserRights = PermissionHelper.GetPermission(currentUser, "createOTBswitching.aspx", roleName)
+        If Not rights.CanView OrElse Not rights.CanEdit Then
+            Throw New UnauthorizedAccessException("You do not have permission to create OTB movements.")
+        End If
+        Return currentUser
+    End Function
+
+    Private Shared Sub ValidateMovementPersistenceFields(amount As Decimal, remark As String)
+        If amount <= 0D Then Throw New InvalidOperationException("Every amount must be greater than 0.")
+        If amount > MaxMovementAmount Then Throw New InvalidOperationException("A movement amount exceeds the database limit.")
+        If If(remark, "").Length > 500 Then Throw New InvalidOperationException("Remark must not exceed 500 characters.")
+    End Sub
 
     ReadOnly Property IsReusable() As Boolean Implements IHttpHandler.IsReusable
         Get

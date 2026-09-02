@@ -8,16 +8,27 @@ Imports System.Text
 Imports System.Web
 Imports System.Web.Script.Serialization
 Imports System.Web.Services.Description
+Imports System.Collections.Generic
 Imports ExcelDataReader
 Imports Newtonsoft.Json
 Imports OfficeOpenXml
 Imports OfficeOpenXml.Style
 Imports System.Threading.Tasks
+Imports System.Web.Hosting
+Imports System.Web.SessionState
+Imports System.Linq
+Imports System.Security.Cryptography
+Imports System.Text.RegularExpressions
 
 Public Class DataOTBHandler
-    Implements IHttpHandler
+    Implements IHttpHandler, IReadOnlySessionState
 
     Private Shared connectionString As String = ConfigurationManager.ConnectionStrings("BMSConnectionString")?.ConnectionString
+    Private Const MaxRunNoQueryBatchSize As Integer = 900
+    ' SAP can wait for 60 minutes and the following database stage allows up
+    ' to roughly 60 minutes of bounded commands. Keep stale recovery beyond
+    ' either live stage so a status poll cannot terminate an active worker.
+    Private Const PostSapStaleMinutes As Integer = 120
     ' *** NEW: Private Class for strong typing in Summary Report ***
     Private Class SummaryRawItem
         Public Property Company As String
@@ -30,8 +41,107 @@ Public Class DataOTBHandler
         Public Property Segment As String
         Public Property SegmentName As String
         Public Property TotalBudget As Decimal
-        Public Property TotalActualDraft As Decimal
+        Public Property TotalActualPO As Decimal
+        Public Property TotalDraftPO As Decimal
+
+        Public ReadOnly Property TotalActualDraft As Decimal
+            Get
+                Return TotalActualPO + TotalDraftPO
+            End Get
+        End Property
     End Class
+
+    Private Class ReportBudgetRow
+        Public Property Year As String
+        Public Property Month As String
+        Public Property Category As String
+        Public Property Company As String
+        Public Property Segment As String
+        Public Property Brand As String
+        Public Property Vendor As String
+        Public Property Original As Decimal
+        Public Property RevDiff As Decimal
+        Public Property Extra As Decimal
+        Public Property SwitchIn As Decimal
+        Public Property BalanceIn As Decimal
+        Public Property CarryIn As Decimal
+        Public Property SwitchOut As Decimal
+        Public Property BalanceOut As Decimal
+        Public Property CarryOut As Decimal
+
+        Public ReadOnly Property SignedSwitchOut As Decimal
+            Get
+                Return -Math.Abs(SwitchOut)
+            End Get
+        End Property
+
+        Public ReadOnly Property SignedBalanceOut As Decimal
+            Get
+                Return -Math.Abs(BalanceOut)
+            End Get
+        End Property
+
+        Public ReadOnly Property SignedCarryOut As Decimal
+            Get
+                Return -Math.Abs(CarryOut)
+            End Get
+        End Property
+
+        Public ReadOnly Property Total As Decimal
+            Get
+                Return Original + RevDiff + Extra + SwitchIn + BalanceIn + CarryIn +
+                    SignedSwitchOut + SignedBalanceOut + SignedCarryOut
+            End Get
+        End Property
+    End Class
+
+    Private Class ReportUsageRow
+        Public Property Year As String
+        Public Property Month As String
+        Public Property Category As String
+        Public Property Company As String
+        Public Property Segment As String
+        Public Property Brand As String
+        Public Property Vendor As String
+        Public Property DraftPO As Decimal
+        Public Property ActualPO As Decimal
+
+        Public ReadOnly Property TotalUsage As Decimal
+            Get
+                Return DraftPO + ActualPO
+            End Get
+        End Property
+    End Class
+
+    Private Class ApprovalPreparedRow
+        Public Property RunNo As Integer
+        Public Property Data As DataRow
+        Public Property SapItem As OtbPlanUploadItem
+        Public Property SapKey As String
+        Public Property BusinessKey As String
+        Public Property CurrentApproved As Decimal
+    End Class
+
+    Private Class ApprovalMappedResult
+        Public Property RunNo As Integer
+        Public Property SapResult As SapUploadResultItem
+    End Class
+
+    Private Class ApprovalGroupAccumulator
+        Public Property Company As String
+        Public Property Year As String
+        Public Property Month As String
+        Public Property Category As String
+        Public Property Revised As Decimal
+        Public Property SelectedCurrent As Decimal
+    End Class
+
+    Private Class ApprovalPreviewSnapshot
+        Public Property Groups As List(Of DraftOtbApprovalPreviewRow)
+        Public Property PreviewHash As String
+        Public Property CurrentApprovedByBusinessKey As Dictionary(Of String, Decimal)
+    End Class
+
     Sub ProcessRequest(ByVal context As HttpContext) Implements IHttpHandler.ProcessRequest
 
         Try
@@ -51,6 +161,16 @@ Public Class DataOTBHandler
                 HandleExportOTBMovement(context)
             ElseIf action = "exportsummarycategory" Then
                 HandleExportSummaryCategory(context)
+            ElseIf action = "approvalpreview" Then
+                GetApprovalPreview(context)
+            ElseIf action = "approvaljobstatus" Then
+                GetApprovalJobStatus(context)
+            ElseIf action = "latestapprovaljob" Then
+                GetLatestApprovalJob(context)
+            ElseIf action = "acknowledgeapprovaljob" Then
+                AcknowledgeApprovalJob(context)
+            ElseIf action = "approvedraftotb" Then
+                StartApprovalJob(context)
             Else
                 ' *** MOVED: The rest of the logic into an Else block ***
                 context.Response.Clear()
@@ -71,9 +191,7 @@ Public Class DataOTBHandler
                 If context.Request("action") = "obtlistbyfilter" Then
                     dt = GetOTBDraftDataWithFilter(OTBtype, OTByear, OTBmonth, OTBCompany, OTBCategory, OTBSegment, OTBBrand, OTBVendor)
                     context.Response.Write(GenerateHtmlDraftTable(dt))
-                ElseIf context.Request("action") = "approveDraftOTB" Then
-                    ApproveDraftOTB(context)
-                ElseIf context.Request("action") = "deleteDraftOTB" Then
+                ElseIf action = "deletedraftotb" Then
                     DeleteDraftOTB(context)
                 ElseIf context.Request("action") = "obtApprovelistbyfilter" Then
                     dt = GetOTBApproveDataWithFilter(OTBtype, OTByear, OTBmonth, OTBCompany, OTBCategory, OTBSegment, OTBBrand, OTBVendor, OTBVersion)
@@ -188,7 +306,12 @@ Public Class DataOTBHandler
 
         ' 1. Get Raw Data
         Dim dtRaw As DataTable = GetOTBDraftDataWithFilter(OTBtype, OTByear, OTBmonth, OTBCompany, OTBCategory, OTBSegment, OTBBrand, OTBVendor)
-        Dim budgetCalculator As New OTBBudgetCalculator()
+        Dim hasStoredProcDiff As Boolean = dtRaw.Columns.Contains("CurrentApproved") AndAlso dtRaw.Columns.Contains("Diff")
+        Dim budgetCalculator As OTBBudgetCalculator = Nothing
+        If Not hasStoredProcDiff Then
+            budgetCalculator = New OTBBudgetCalculator()
+        End If
+        Dim budgetCache As New Dictionary(Of String, Decimal)(StringComparer.OrdinalIgnoreCase)
         ' 2. Create Export-formatted DataTable (to match the HTML table)
         Dim dtExport As New DataTable("DraftOTB")
         dtExport.Columns.Add("Create Date", GetType(String))
@@ -221,11 +344,21 @@ Public Class DataOTBHandler
             Dim OTBBrand_Calc As String = If(row("OTBBrand") IsNot DBNull.Value, row("OTBBrand").ToString(), "")
             Dim OTBVendor_Calc As String = If(row("OTBVendor") IsNot DBNull.Value, row("OTBVendor").ToString(), "")
 
-            Dim amountValue As Decimal = 0
-            Decimal.TryParse(If(row("Amount") IsNot DBNull.Value, row("Amount").ToString(), ""), amountValue)
+            Dim amountValue As Decimal = GetDecimalValue(row, If(dtRaw.Columns.Contains("ToBeAmountTHB"), "ToBeAmountTHB", "Amount"))
 
-            Dim currentBudget As Decimal = budgetCalculator.CalculateCurrentApprovedBudget(OTBYear_Calc, OTBMonth_Calc, OTBCategory_Calc, OTBCompany_Calc, OTBSegment_Calc, OTBBrand_Calc, OTBVendor_Calc)
-            Dim diffAmount As Decimal = amountValue - currentBudget
+            Dim budgetKey As String = BuildOTBBudgetKey(OTBYear_Calc, OTBMonth_Calc, OTBCategory_Calc, OTBCompany_Calc, OTBSegment_Calc, OTBBrand_Calc, OTBVendor_Calc)
+            Dim currentBudget As Decimal
+            Dim diffAmount As Decimal
+            If hasStoredProcDiff Then
+                currentBudget = GetDecimalValue(row, "CurrentApproved")
+                diffAmount = GetDecimalValue(row, "Diff")
+            Else
+                If Not budgetCache.TryGetValue(budgetKey, currentBudget) Then
+                    currentBudget = budgetCalculator.CalculateCurrentApprovedBudget(OTBYear_Calc, OTBMonth_Calc, OTBCategory_Calc, OTBCompany_Calc, OTBSegment_Calc, OTBBrand_Calc, OTBVendor_Calc)
+                    budgetCache(budgetKey) = currentBudget
+                End If
+                diffAmount = amountValue - currentBudget
+            End If
             Dim OTBStatus As String = If(row("OTBStatus") IsNot DBNull.Value, row("OTBStatus").ToString(), "Draft")
 
             dtExport.Rows.Add(
@@ -241,7 +374,7 @@ Public Class DataOTBHandler
                 OTBBrand_Calc,
                 If(row("BrandName") IsNot DBNull.Value, row("BrandName").ToString(), ""),
                 OTBVendor_Calc,
-                If(row("Vendor") IsNot DBNull.Value, row("Vendor").ToString(), ""),
+                GetStringValue(row, If(dtRaw.Columns.Contains("Vendor"), "Vendor", "VendorName")),
                 currentBudget,
                 amountValue,
                 diffAmount,
@@ -310,6 +443,7 @@ Public Class DataOTBHandler
             context.Response.Clear()
             context.Response.ContentType = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
             context.Response.AddHeader("content-disposition", $"attachment; filename={filename}")
+            MarkDownloadReady(context)
             context.Response.BinaryWrite(package.GetAsByteArray())
             context.Response.Flush()
             context.ApplicationInstance.CompleteRequest()
@@ -416,6 +550,7 @@ Public Class DataOTBHandler
             context.Response.Clear()
             context.Response.ContentType = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
             context.Response.AddHeader("content-disposition", $"attachment; filename=OTB_Plan_Summary_{year}_{DateTime.Now.ToString("yyyyMMdd")}.xlsx")
+            MarkDownloadReady(context)
             context.Response.BinaryWrite(package.GetAsByteArray())
             context.Response.Flush()
             context.ApplicationInstance.CompleteRequest()
@@ -428,7 +563,12 @@ Public Class DataOTBHandler
 
     Private Function GenerateHtmlDraftTable(dt As DataTable) As String
         Dim sb As New StringBuilder()
-        Dim budgetCalculator As New OTBBudgetCalculator()
+        Dim hasStoredProcDiff As Boolean = dt.Columns.Contains("CurrentApproved") AndAlso dt.Columns.Contains("Diff")
+        Dim budgetCalculator As OTBBudgetCalculator = Nothing
+        If Not hasStoredProcDiff Then
+            budgetCalculator = New OTBBudgetCalculator()
+        End If
+        Dim budgetCache As New Dictionary(Of String, Decimal)(StringComparer.OrdinalIgnoreCase)
         If dt.Rows.Count = 0 Then
             sb.Append("<tr><td colspan='21' class='text-center text-muted'>No Draft OTB records found</td></tr>")
         Else
@@ -449,18 +589,27 @@ Public Class DataOTBHandler
                 Dim OTBBrand As String = If(dt.Rows(i)("OTBBrand") IsNot DBNull.Value, dt.Rows(i)("OTBBrand").ToString(), "")
                 Dim BrandName As String = If(dt.Rows(i)("BrandName") IsNot DBNull.Value, dt.Rows(i)("BrandName").ToString(), "")
                 Dim OTBVendor As String = If(dt.Rows(i)("OTBVendor") IsNot DBNull.Value, dt.Rows(i)("OTBVendor").ToString(), "")
-                Dim Vendor As String = If(dt.Rows(i)("Vendor") IsNot DBNull.Value, dt.Rows(i)("Vendor").ToString(), "")
+                Dim Vendor As String = GetStringValue(dt.Rows(i), If(dt.Columns.Contains("Vendor"), "Vendor", "VendorName"))
                 Dim Amount As String = "0.00"
                 Dim CurrentBudgetAmount As String = "0.00"
                 Dim Diff As String = "0.00"
-                Dim amountValue As Decimal
-                If Decimal.TryParse(If(dt.Rows(i)("Amount") IsNot DBNull.Value, dt.Rows(i)("Amount").ToString(), ""), amountValue) Then
-                    Amount = amountValue.ToString("N2")
+                Dim amountValue As Decimal = GetDecimalValue(dt.Rows(i), If(dt.Columns.Contains("ToBeAmountTHB"), "ToBeAmountTHB", "Amount"))
+                Amount = amountValue.ToString("N2")
+                Dim budgetKey As String = BuildOTBBudgetKey(OTBYear, OTBMonth, OTBCategory, OTBCompany, OTBSegment, OTBBrand, OTBVendor)
+                Dim currentBudget As Decimal = 0
+                Dim diffamout As Decimal
+                If hasStoredProcDiff Then
+                    currentBudget = GetDecimalValue(dt.Rows(i), "CurrentApproved")
+                    diffamout = GetDecimalValue(dt.Rows(i), "Diff")
+                Else
+                    If Not budgetCache.TryGetValue(budgetKey, currentBudget) Then
+                        currentBudget = budgetCalculator.CalculateCurrentApprovedBudget(OTBYear, OTBMonth, OTBCategory, OTBCompany, OTBSegment, OTBBrand, OTBVendor)
+                        budgetCache(budgetKey) = currentBudget
+                    End If
+                    diffamout = amountValue - currentBudget
                 End If
-                Dim currentBudget As Decimal = budgetCalculator.CalculateCurrentApprovedBudget(OTBYear, OTBMonth, OTBCategory, OTBCompany, OTBSegment, OTBBrand, OTBVendor)
                 CurrentBudgetAmount = currentBudget.ToString("N2")
 
-                Dim diffamout As Decimal = amountValue - currentBudget
                 Diff = diffamout.ToString("N2")
 
                 Dim Batch As String = If(dt.Rows(i)("Batch") IsNot DBNull.Value, dt.Rows(i)("Batch").ToString(), "")
@@ -513,11 +662,35 @@ Public Class DataOTBHandler
                             If(OTBStatus.Equals("Draft"), "<span class=""badge-draft"">Draft</span>", "<span class=""badge-approved"">Approved</span>"),
                             HttpUtility.HtmlEncode(Version),
                             HttpUtility.HtmlEncode(Remark),
-                            HttpUtility.HtmlEncode(CreateBy))
+                             HttpUtility.HtmlEncode(CreateBy))
             Next
+
         End If
         Return sb.ToString()
     End Function
+
+    Private Function BuildOTBBudgetKey(year As String, month As String, category As String, company As String, segment As String, brand As String, vendor As String) As String
+        Return String.Join("|", New String() {year, month, category, company, segment, brand, vendor})
+    End Function
+
+    Private Function GetStringValue(row As DataRow, columnName As String) As String
+        If row Is Nothing OrElse row.Table Is Nothing OrElse Not row.Table.Columns.Contains(columnName) OrElse row(columnName) Is DBNull.Value Then
+            Return ""
+        End If
+
+        Return row(columnName).ToString()
+    End Function
+
+    Private Function GetDecimalValue(row As DataRow, columnName As String) As Decimal
+        Dim value As Decimal = 0D
+        If row Is Nothing OrElse row.Table Is Nothing OrElse Not row.Table.Columns.Contains(columnName) OrElse row(columnName) Is DBNull.Value Then
+            Return value
+        End If
+
+        Decimal.TryParse(row(columnName).ToString(), value)
+        Return value
+    End Function
+
     Private Function GenerateHtmlApprovedTable(dt As DataTable) As String
         Dim sb As New StringBuilder()
 
@@ -602,7 +775,7 @@ Public Class DataOTBHandler
         Dim sb As New StringBuilder()
 
         If dt.Rows.Count = 0 Then
-            sb.Append("<tr><td colspan='30' class='text-center text-muted'>No switch OTB records found</td></tr>")
+            sb.Append("<tr><td colspan='27' class='text-center text-muted'>No switch OTB records found</td></tr>")
         Else
             For Each row As DataRow In dt.Rows
                 sb.Append("<tr>")
@@ -742,52 +915,22 @@ Public Class DataOTBHandler
         Return dt
     End Function
 
-    Private Function GetOTBDraftDataWithFilter(OTBtype As String, OTByear As String, OTBmonth As String, OTBCompany As String, OTBCategory As String, OTBSegment As String, OTBBrand As String, OTBVendor As String) As DataTable
+    Private Function GetOTBDraftDataWithFilter(OTBtype As String, OTByear As String, OTBmonth As String, OTBCompany As String, OTBCategory As String, OTBSegment As String, OTBBrand As String, OTBVendor As String, Optional OTBVersion As String = "") As DataTable
         Dim dt As New DataTable()
         Using conn As New SqlConnection(connectionString)
             conn.Open()
-            Dim query As String = "SELECT  [RunNo]
-                                          ,[OTBVendor]
-                                          ,[Vendor]
-                                          ,[OTBCompany]
-                                          ,[CompanyName]
-                                          ,[OTBMonth]
-                                          ,[month_name_sh]
-                                          ,[OTBCategory]
-                                          ,[CateName]
-                                          ,[OTBType]
-                                          ,[OTBYear]
-                                          ,[OTBBrand]
-                                          ,[BrandName]
-                                          ,[SegmentName]
-                                          ,[OTBSegment]
-                                          ,[Amount]
-                                          ,[Batch]
-                                          ,[CreateDT]
-                                          ,[UploadBy]
-                                          ,[Remark]
-                                          ,[Version]
-                                          ,[OTBStatus]
-                                      FROM [BMS].[dbo].[View_OTB_Draft]
-                                      WHERE (@OTBtype = '' OR OTBType = @OTBtype)
-                                      AND (@OTByear = '' OR OTBYear = @OTByear)
-                                      AND (@OTBmonth = '' OR OTBMonth = @OTBmonth)
-                                      AND (@OTBCompany = '' OR OTBCompany = @OTBCompany)
-                                      AND (@OTBCategory = '' OR OTBCategory = @OTBCategory)
-                                      AND (@OTBSegment = '' OR OTBSegment = @OTBSegment)
-                                      AND (@OTBBrand = '' OR OTBBrand = @OTBBrand)
-                                      AND (@OTBVendor = '' OR OTBVendor = @OTBVendor)
-                                      ORDER BY CreateDT DESC
-                                    "
-            Using cmd As New SqlCommand(query, conn)
-                cmd.Parameters.AddWithValue("@OTBtype", OTBtype)
-                cmd.Parameters.AddWithValue("@OTByear", OTByear)
-                cmd.Parameters.AddWithValue("@OTBmonth", OTBmonth)
-                cmd.Parameters.AddWithValue("@OTBCompany", OTBCompany)
-                cmd.Parameters.AddWithValue("@OTBCategory", OTBCategory)
-                cmd.Parameters.AddWithValue("@OTBSegment", OTBSegment)
-                cmd.Parameters.AddWithValue("@OTBBrand", OTBBrand)
-                cmd.Parameters.AddWithValue("@OTBVendor", OTBVendor)
+            Using cmd As New SqlCommand("dbo.SP_Get_Draft_OTB_Diff", conn)
+                cmd.CommandType = CommandType.StoredProcedure
+                AddOptionalNVarCharParameter(cmd, "@Version", OTBVersion, 20)
+                AddOptionalNVarCharParameter(cmd, "@Type", OTBtype, 20)
+                AddOptionalNVarCharParameter(cmd, "@Year", OTByear, 10)
+                AddOptionalNVarCharParameter(cmd, "@Month", OTBmonth, 10)
+                AddOptionalNVarCharParameter(cmd, "@Company", OTBCompany, 20)
+                AddOptionalNVarCharParameter(cmd, "@Category", OTBCategory, 20)
+                AddOptionalNVarCharParameter(cmd, "@Segment", OTBSegment, 20)
+                AddOptionalNVarCharParameter(cmd, "@Brand", OTBBrand, 30)
+                AddOptionalNVarCharParameter(cmd, "@Vendor", OTBVendor, 30)
+
                 Using reader As SqlDataReader = cmd.ExecuteReader()
                     dt.Load(reader)
                 End Using
@@ -814,9 +957,1186 @@ Public Class DataOTBHandler
     ' ===== START: REPLACEMENT LOGIC FOR ApproveDraftOTB (With MERGE) ===
     ' ===================================================================
 
-    Private Sub ApproveDraftOTB(context As HttpContext)
+    Private Sub GetApprovalPreview(context As HttpContext)
         context.Response.ContentType = "application/json"
-        Dim approvedBy As String = If(String.IsNullOrWhiteSpace(context.Request.Form("approvedBy")), "System", context.Request.Form("approvedBy").Trim())
+        Try
+            EnsureApprovalPermission(context, True)
+            Dim runNos As List(Of Integer) = ParseApprovalRunNos(context)
+            Dim snapshot As ApprovalPreviewSnapshot = BuildApprovalPreview(runNos)
+            context.Response.Write(JsonConvert.SerializeObject(New With {
+                .success = True,
+                .totalRows = runNos.Count,
+                .groups = snapshot.Groups,
+                .previewHash = snapshot.PreviewHash
+            }))
+        Catch ex As Exception
+            context.Response.StatusCode = 200
+            context.Response.Write(JsonConvert.SerializeObject(New With {
+                .success = False,
+                .message = ex.Message
+            }))
+        End Try
+    End Sub
+
+    Private Sub StartApprovalJob(context As HttpContext)
+        context.Response.ContentType = "application/json"
+        Try
+            EnsureAjaxMutationRequest(context)
+            Dim approvedBy As String = EnsureApprovalPermission(context, True)
+            Dim runNos As List(Of Integer) = ParseApprovalRunNos(context)
+            Dim previewHash As String = If(context.Request.Form("previewHash"), "").Trim().ToLowerInvariant()
+            If Not Regex.IsMatch(previewHash, "\A[0-9a-f]{64}\z", RegexOptions.CultureInvariant) Then
+                Throw New Exception("A valid approval preview hash is required. Please preview the selected rows again.")
+            End If
+            Dim clientRequestId As String = If(context.Request.Form("clientRequestId"), "").Trim()
+            If String.IsNullOrWhiteSpace(clientRequestId) Then
+                Throw New Exception("A client request ID is required. Please refresh the page and preview again.")
+            End If
+            If clientRequestId.Length > 100 Then
+                Throw New Exception("The client request ID is too long. Please refresh the page and preview again.")
+            End If
+            Dim payload As New DraftOtbApprovalJobPayload With {
+                .RunNos = runNos,
+                .ApprovedBy = approvedBy,
+                .PreviewHash = previewHash
+            }
+            Dim job As DraftOtbJobRecord = DraftOtbJobStore.CreateOrGet(
+                DraftOtbJobTypes.Approval,
+                approvedBy,
+                clientRequestId,
+                JsonConvert.SerializeObject(payload),
+                runNos.Count)
+
+            If String.Equals(job.Status, DraftOtbJobStatuses.Queued, StringComparison.OrdinalIgnoreCase) Then
+                QueueApprovalJob(job.JobId)
+            End If
+            WriteApprovalJobJson(context, DraftOtbJobStore.GetJobMetadata(job.JobId, approvedBy))
+        Catch ex As Exception
+            context.Response.StatusCode = 200
+            context.Response.Write(JsonConvert.SerializeObject(New With {
+                .success = False,
+                .message = ex.Message
+            }))
+        End Try
+    End Sub
+
+    Private Shared Sub EnsureAjaxMutationRequest(context As HttpContext)
+        If context Is Nothing OrElse Not String.Equals(context.Request.HttpMethod, "POST", StringComparison.OrdinalIgnoreCase) Then
+            Throw New UnauthorizedAccessException("This action must be submitted with a same-origin POST request.")
+        End If
+        If Not String.Equals(context.Request.Headers("X-Requested-With"), "XMLHttpRequest", StringComparison.OrdinalIgnoreCase) Then
+            Throw New UnauthorizedAccessException("The request could not be verified. Refresh the page and try again.")
+        End If
+    End Sub
+
+    Private Sub GetApprovalJobStatus(context As HttpContext)
+        context.Response.ContentType = "application/json"
+        SetJobResponseNoStore(context)
+        Try
+            Dim currentUser As String = EnsureApprovalPermission(context, False)
+            Dim jobId As Guid
+            If Not Guid.TryParse(If(context.Request("jobId"), ""), jobId) Then Throw New Exception("A valid approval Job ID is required.")
+            Dim job As DraftOtbJobRecord = DraftOtbJobStore.GetJobMetadata(jobId, currentUser)
+            If job Is Nothing Then Throw New Exception("Approval job was not found.")
+            If IsStalePostSapApproval(job) AndAlso
+               DraftOtbJobStore.TryMarkStaleApprovalReconciliation(job.JobId, currentUser, DateTime.UtcNow.AddMinutes(-PostSapStaleMinutes)) Then
+                job = DraftOtbJobStore.GetJobMetadata(jobId, currentUser)
+            End If
+            If DraftOtbJobStatuses.IsTerminal(job.Status) Then
+                job = DraftOtbJobStore.GetJob(jobId, currentUser)
+            End If
+            WriteApprovalJobJson(context, job)
+        Catch ex As Exception
+            context.Response.StatusCode = 200
+            context.Response.Write(JsonConvert.SerializeObject(New With {
+                .success = False,
+                .message = ex.Message,
+                .errorCode = GetApprovalJobErrorCode(ex),
+                .retryable = IsRetryableApprovalJobError(ex)
+            }))
+        End Try
+    End Sub
+
+    Private Sub GetLatestApprovalJob(context As HttpContext)
+        context.Response.ContentType = "application/json"
+        SetJobResponseNoStore(context)
+        Try
+            Dim currentUser As String = EnsureApprovalPermission(context, False)
+            Dim clientRequestId As String = If(context.Request("clientRequestId"), "").Trim()
+            If clientRequestId.Length > 100 Then Throw New Exception("The client request ID is too long.")
+            Dim job As DraftOtbJobRecord = Nothing
+            If Not String.IsNullOrWhiteSpace(clientRequestId) Then
+                job = DraftOtbJobStore.GetByClientRequestMetadata(DraftOtbJobTypes.Approval, currentUser, clientRequestId)
+            Else
+                job = DraftOtbJobStore.GetLatestActiveMetadata(DraftOtbJobTypes.Approval, currentUser)
+            End If
+            If job Is Nothing Then
+                context.Response.Write(JsonConvert.SerializeObject(New With {.success = True, .job = CType(Nothing, Object)}))
+                Return
+            End If
+            If IsStalePostSapApproval(job) AndAlso
+               DraftOtbJobStore.TryMarkStaleApprovalReconciliation(job.JobId, currentUser, DateTime.UtcNow.AddMinutes(-PostSapStaleMinutes)) Then
+                job = DraftOtbJobStore.GetJobMetadata(job.JobId, currentUser)
+            End If
+            If DraftOtbJobStatuses.IsTerminal(job.Status) Then
+                job = DraftOtbJobStore.GetJob(job.JobId, currentUser)
+            End If
+            WriteApprovalJobJson(context, job)
+        Catch ex As Exception
+            context.Response.StatusCode = 200
+            context.Response.Write(JsonConvert.SerializeObject(New With {
+                .success = False,
+                .message = ex.Message,
+                .errorCode = GetApprovalJobErrorCode(ex),
+                .retryable = IsRetryableApprovalJobError(ex)
+            }))
+        End Try
+    End Sub
+
+    Private Sub AcknowledgeApprovalJob(context As HttpContext)
+        context.Response.ContentType = "application/json"
+        SetJobResponseNoStore(context)
+        Try
+            EnsureAjaxMutationRequest(context)
+            Dim currentUser As String = EnsureApprovalPermission(context, False)
+            Dim jobId As Guid
+            If Not Guid.TryParse(If(context.Request.Form("jobId"), "").Trim(), jobId) Then
+                Throw New Exception("A valid approval Job ID is required.")
+            End If
+            If Not DraftOtbJobStore.Acknowledge(jobId, currentUser, DraftOtbJobTypes.Approval) Then
+                Throw New Exception("The approval job was not found or is not ready to acknowledge.")
+            End If
+            context.Response.Write(JsonConvert.SerializeObject(New With {
+                .success = True,
+                .jobId = jobId.ToString("D"),
+                .acknowledged = True
+            }))
+        Catch ex As Exception
+            context.Response.StatusCode = 200
+            context.Response.Write(JsonConvert.SerializeObject(New With {.success = False, .message = ex.Message}))
+        End Try
+    End Sub
+
+    Private Shared Sub SetJobResponseNoStore(context As HttpContext)
+        context.Response.Cache.SetCacheability(HttpCacheability.NoCache)
+        context.Response.Cache.SetNoStore()
+        context.Response.Cache.SetExpires(DateTime.UtcNow.AddYears(-1))
+        context.Response.AppendHeader("Pragma", "no-cache")
+    End Sub
+
+    Private Shared Function GetApprovalJobErrorCode(ex As Exception) As String
+        If TypeOf ex Is UnauthorizedAccessException Then Return "AUTH"
+        If ex IsNot Nothing AndAlso ex.Message.IndexOf("not found", StringComparison.OrdinalIgnoreCase) >= 0 Then Return "NOT_FOUND"
+        Return "TRANSIENT"
+    End Function
+
+    Private Shared Function IsRetryableApprovalJobError(ex As Exception) As Boolean
+        Dim code As String = GetApprovalJobErrorCode(ex)
+        Return code <> "AUTH" AndAlso code <> "NOT_FOUND"
+    End Function
+
+    Private Shared Function IsStalePostSapApproval(job As DraftOtbJobRecord) As Boolean
+        If job Is Nothing OrElse job.UpdatedAt >= DateTime.UtcNow.AddMinutes(-PostSapStaleMinutes) Then Return False
+        Return String.Equals(job.Status, DraftOtbJobStatuses.SendingToSap, StringComparison.OrdinalIgnoreCase) OrElse
+               String.Equals(job.Status, DraftOtbJobStatuses.SavingApproval, StringComparison.OrdinalIgnoreCase)
+    End Function
+
+    Private Sub WriteApprovalJobJson(context As HttpContext, job As DraftOtbJobRecord)
+        If job Is Nothing Then Throw New Exception("Approval job was not found.")
+        Dim detailedResults As Object = Nothing
+        If DraftOtbJobStatuses.IsTerminal(job.Status) AndAlso Not String.IsNullOrWhiteSpace(job.ResultJson) Then
+            detailedResults = JsonConvert.DeserializeObject(job.ResultJson)
+        End If
+        context.Response.Write(JsonConvert.SerializeObject(New With {
+            .success = True,
+            .jobId = job.JobId.ToString("D"),
+            .status = job.Status,
+            .stage = job.Stage,
+            .progress = job.ProgressPercent,
+            .totalRows = job.TotalRows,
+            .processedRows = job.ProcessedRows,
+            .successRows = job.SuccessRows,
+            .errorRows = job.ErrorRows,
+            .message = job.Message,
+            .detailedResults = detailedResults,
+            .acknowledged = job.AcknowledgedAt.HasValue,
+            .acknowledgedAt = job.AcknowledgedAt,
+            .updatedAt = job.UpdatedAt
+        }))
+    End Sub
+
+    Private Function ParseApprovalRunNos(context As HttpContext) As List(Of Integer)
+        Dim idsString As String = If(context.Request.Form("runNos"), context.Request("runNos"))
+        If String.IsNullOrWhiteSpace(idsString) Then Throw New Exception("No records selected for approval.")
+        Dim runNos As List(Of Integer) = ParseRunNos(idsString)
+        If runNos.Count = 0 Then Throw New Exception("No valid RunNos were provided.")
+        If runNos.Count > 15000 Then Throw New Exception($"A maximum of 15,000 rows can be approved in one job. Selected: {runNos.Count:N0}.")
+        Return runNos
+    End Function
+
+    Private Function GetApprovalRequestUser(context As HttpContext) As String
+        Dim value As String = Nothing
+        If context IsNot Nothing AndAlso context.Session IsNot Nothing Then
+            value = Convert.ToString(context.Session("user"))
+        End If
+        If String.IsNullOrWhiteSpace(value) Then
+            Throw New UnauthorizedAccessException("Your login session has expired. Please sign in again.")
+        End If
+        value = value.Trim()
+        If value.Length > 100 Then Throw New UnauthorizedAccessException("The signed-in user ID is invalid.")
+        Return value
+    End Function
+
+    Private Function EnsureApprovalPermission(context As HttpContext, requireApprove As Boolean) As String
+        Dim username As String = GetApprovalRequestUser(context)
+        Dim roleName As Object = If(context.Session Is Nothing, Nothing, context.Session("UserRole"))
+        Dim rights As PermissionHelper.UserRights = PermissionHelper.GetPermission(username, "draftOTB.aspx", roleName)
+        If Not rights.CanView OrElse (requireApprove AndAlso Not rights.CanApprove) Then
+            Throw New UnauthorizedAccessException(If(requireApprove,
+                "You do not have permission to approve Draft OTB.",
+                "You do not have permission to view Draft OTB approval jobs."))
+        End If
+        Return username
+    End Function
+
+    Private Shared Sub QueueApprovalJob(jobId As Guid)
+        HostingEnvironment.QueueBackgroundWorkItem(
+            Sub(cancellationToken)
+                Try
+                    Dim worker As New DataOTBHandler()
+                    worker.ProcessApprovalJob(jobId)
+                Catch ex As Exception
+                    Dim current As DraftOtbJobRecord = Nothing
+                    Try
+                        current = DraftOtbJobStore.GetJob(jobId)
+                    Catch
+                        ' A later status poll converts stale post-SAP stages to
+                        ' ReconciliationRequired once the database is available.
+                        Return
+                    End Try
+                    If current IsNot Nothing AndAlso DraftOtbJobStatuses.IsTerminal(current.Status) Then
+                        ' Never revive or release claims for a terminal state. In
+                        ' particular, ReconciliationRequired intentionally keeps
+                        ' its durable claims until an operator resolves the SAP outcome.
+                        Return
+                    End If
+                    Dim uncertainSapOutcome As Boolean = current IsNot Nothing AndAlso
+                        (String.Equals(current.Status, DraftOtbJobStatuses.SendingToSap, StringComparison.OrdinalIgnoreCase) OrElse
+                         String.Equals(current.Status, DraftOtbJobStatuses.SavingApproval, StringComparison.OrdinalIgnoreCase))
+                    If Not uncertainSapOutcome Then
+                        Try
+                            DraftOtbJobStore.ReleaseApprovalClaims(jobId)
+                        Catch
+                            ' Preserve the original failure. There should be no SAP side-effect in pre-SAP stages.
+                        End Try
+                    End If
+                    Try
+                        DraftOtbJobStore.Fail(jobId, "Approval failed: " & ex.Message, uncertainSapOutcome)
+                    Catch
+                        ' Preserve the original state/evidence. Stale post-SAP
+                        ' statuses are recovered by the status endpoint.
+                    End Try
+                End Try
+            End Sub)
+    End Sub
+
+    Private Function BuildApprovalPreview(runNos As List(Of Integer)) As ApprovalPreviewSnapshot
+        Dim draftData As DataTable = GetOTBDraftDataByRunNos(runNos)
+        EnsureEveryDraftWasLoaded(runNos, draftData)
+
+        Dim calculator As New OTBBudgetCalculator()
+        Dim groups As New Dictionary(Of String, ApprovalGroupAccumulator)(StringComparer.OrdinalIgnoreCase)
+        Dim selectedBudgetKeys As New HashSet(Of String)(StringComparer.OrdinalIgnoreCase)
+        Dim currentByDetail As New Dictionary(Of String, Decimal)(StringComparer.OrdinalIgnoreCase)
+        Dim currentByBusinessKey As New Dictionary(Of String, Decimal)(StringComparer.OrdinalIgnoreCase)
+
+        For Each row As DataRow In draftData.AsEnumerable().OrderBy(Function(item) Convert.ToInt32(item("RunNo")))
+            Dim company As String = GetRequiredDraftText(row, "OTBCompany", "Company")
+            Dim year As String = GetRequiredDraftText(row, "OTBYear", "Year")
+            Dim month As String = GetRequiredDraftText(row, "OTBMonth", "Month")
+            Dim category As String = GetRequiredDraftText(row, "OTBCategory", "Category")
+            Dim groupKey As String = BuildApprovalGroupKey(company, year, month, category)
+            Dim group As ApprovalGroupAccumulator = Nothing
+            If Not groups.TryGetValue(groupKey, group) Then
+                group = New ApprovalGroupAccumulator With {
+                    .Company = company, .Year = year, .Month = month, .Category = category
+                }
+                groups(groupKey) = group
+            End If
+
+            Dim revised As Decimal
+            If Not Decimal.TryParse(GetRequiredDraftText(row, "Amount", "Amount"), revised) Then
+                Throw New Exception($"RunNo {row("RunNo")}: Amount is not a valid number.")
+            End If
+            group.Revised += revised
+
+            Dim segment As String = GetRequiredDraftText(row, "OTBSegment", "Segment")
+            Dim brand As String = GetRequiredDraftText(row, "OTBBrand", "Brand")
+            Dim vendor As String = GetRequiredDraftText(row, "OTBVendor", "Vendor")
+            Dim detailKey As String = String.Join("|", New String() {year, month, category, company, segment, brand, vendor})
+            Dim currentApproved As Decimal
+            If Not currentByDetail.TryGetValue(detailKey, currentApproved) Then
+                currentApproved = calculator.CalculateCurrentApprovedBudget(year, month, category, company, segment, brand, vendor)
+                currentByDetail(detailKey) = currentApproved
+            End If
+            currentByBusinessKey(BuildApprovalBusinessKey(year, month, company, category, segment, brand, vendor)) = currentApproved
+            If selectedBudgetKeys.Add(detailKey) Then
+                group.SelectedCurrent += currentApproved
+            End If
+        Next
+
+        Dim groupTotals As Dictionary(Of String, Decimal) = GetCurrentApprovalGroupTotals(groups.Values.ToList())
+        Dim result As New List(Of DraftOtbApprovalPreviewRow)()
+        Dim canonical As New StringBuilder()
+        canonical.Append("approval-preview-v1|")
+        For Each row As DataRow In draftData.AsEnumerable().OrderBy(Function(item) Convert.ToInt32(item("RunNo")))
+            Dim detailKey As String = String.Join("|", New String() {
+                GetDraftText(row, "OTBYear"), GetDraftText(row, "OTBMonth"), GetDraftText(row, "OTBCategory"),
+                GetDraftText(row, "OTBCompany"), GetDraftText(row, "OTBSegment"), GetDraftText(row, "OTBBrand"), GetDraftText(row, "OTBVendor")})
+            Dim currentApproved As Decimal = If(currentByDetail.ContainsKey(detailKey), currentByDetail(detailKey), 0D)
+            AppendApprovalHashFields(canonical, New String() {
+                Convert.ToInt32(row("RunNo")).ToString(CultureInfo.InvariantCulture),
+                GetDraftText(row, "Version"), GetDraftText(row, "OTBType"),
+                GetDraftText(row, "OTBYear"), GetDraftText(row, "OTBMonth"),
+                GetDraftText(row, "OTBCompany"), GetDraftText(row, "OTBCategory"),
+                GetDraftText(row, "OTBSegment"), GetDraftText(row, "OTBBrand"), GetDraftText(row, "OTBVendor"),
+                CanonicalApprovalDecimal(GetDraftText(row, "Amount")), GetDraftText(row, "OTBStatus"),
+                GetDraftText(row, "Remark"), GetDraftText(row, "CateName"), GetDraftText(row, "CompanyName"),
+                GetDraftText(row, "SegmentName"), GetDraftText(row, "BrandName"), GetDraftText(row, "Vendor"),
+                currentApproved.ToString("0.00############################", CultureInfo.InvariantCulture)
+            })
+        Next
+        For Each pair In groups.OrderBy(Function(item) item.Value.Company).
+                                  ThenBy(Function(item) item.Value.Year).
+                                  ThenBy(Function(item) item.Value.Month).
+                                  ThenBy(Function(item) item.Value.Category)
+            Dim group As ApprovalGroupAccumulator = pair.Value
+            Dim oldTotal As Decimal = 0D
+            groupTotals.TryGetValue(pair.Key, oldTotal)
+            Dim unchangedOld As Decimal = oldTotal - group.SelectedCurrent
+            Dim previewRow As New DraftOtbApprovalPreviewRow With {
+                .Company = group.Company,
+                .Year = group.Year,
+                .Month = group.Month,
+                .Category = group.Category,
+                .Revised = group.Revised,
+                .Diff = oldTotal - group.Revised,
+                .TotalBudget = group.Revised + unchangedOld
+            }
+            result.Add(previewRow)
+            AppendApprovalHashFields(canonical, New String() {
+                previewRow.Company, previewRow.Year, previewRow.Month, previewRow.Category,
+                oldTotal.ToString("0.00############################", CultureInfo.InvariantCulture),
+                group.SelectedCurrent.ToString("0.00############################", CultureInfo.InvariantCulture),
+                previewRow.Revised.ToString("0.00############################", CultureInfo.InvariantCulture),
+                previewRow.Diff.ToString("0.00############################", CultureInfo.InvariantCulture),
+                previewRow.TotalBudget.ToString("0.00############################", CultureInfo.InvariantCulture)
+            })
+        Next
+        Return New ApprovalPreviewSnapshot With {
+            .Groups = result,
+            .PreviewHash = ComputeSha256Hex(canonical.ToString()),
+            .CurrentApprovedByBusinessKey = currentByBusinessKey
+        }
+    End Function
+
+    Private Shared Sub AppendApprovalHashFields(builder As StringBuilder, values As IEnumerable(Of String))
+        For Each value As String In values
+            Dim normalized As String = If(value, "").Trim()
+            builder.Append(normalized.Length.ToString(CultureInfo.InvariantCulture)).Append(":"c).Append(normalized).Append("|"c)
+        Next
+        builder.Append(ChrW(10))
+    End Sub
+
+    Private Shared Function CanonicalApprovalDecimal(value As String) As String
+        Dim parsed As Decimal
+        If TryParseApprovalDecimal(value, parsed) Then
+            Return parsed.ToString("0.00############################", CultureInfo.InvariantCulture)
+        End If
+        Return If(value, "").Trim()
+    End Function
+
+    Private Shared Function ComputeSha256Hex(value As String) As String
+        Using sha As SHA256 = SHA256.Create()
+            Dim bytes As Byte() = sha.ComputeHash(Encoding.UTF8.GetBytes(If(value, "")))
+            Return BitConverter.ToString(bytes).Replace("-", "").ToLowerInvariant()
+        End Using
+    End Function
+
+    Private Function GetCurrentApprovalGroupTotals(groups As List(Of ApprovalGroupAccumulator)) As Dictionary(Of String, Decimal)
+        Dim result As New Dictionary(Of String, Decimal)(StringComparer.OrdinalIgnoreCase)
+        If groups Is Nothing OrElse groups.Count = 0 Then Return result
+
+        Dim groupTable As New DataTable()
+        groupTable.Columns.Add("Company", GetType(String))
+        groupTable.Columns.Add("Year", GetType(Integer))
+        groupTable.Columns.Add("Month", GetType(Integer))
+        groupTable.Columns.Add("Category", GetType(String))
+        For Each group As ApprovalGroupAccumulator In groups
+            groupTable.Rows.Add(group.Company, ParseRequiredInteger(group.Year, "Year"), ParseRequiredInteger(group.Month, "Month"), group.Category)
+        Next
+
+        Using conn As New SqlConnection(connectionString)
+            conn.Open()
+            Using createCmd As New SqlCommand("
+                CREATE TABLE #ApprovalGroups
+                (
+                    Company nvarchar(20) NOT NULL,
+                    [Year] int NOT NULL,
+                    [Month] int NOT NULL,
+                    Category nvarchar(20) NOT NULL,
+                    PRIMARY KEY (Company, [Year], [Month], Category)
+                )", conn)
+                createCmd.ExecuteNonQuery()
+            End Using
+            Using bulk As New SqlBulkCopy(conn)
+                bulk.DestinationTableName = "#ApprovalGroups"
+                For Each col As DataColumn In groupTable.Columns
+                    bulk.ColumnMappings.Add(col.ColumnName, col.ColumnName)
+                Next
+                bulk.WriteToServer(groupTable)
+            End Using
+
+            Dim sql As String = "
+                ;WITH BudgetMovement AS
+                (
+                    SELECT t.Company, t.[Year], t.[Month], t.Category,
+                           SUM(CASE WHEN t.[Type] = N'Original' THEN ISNULL(t.Amount, 0)
+                                    WHEN t.[Type] = N'Revise' THEN ISNULL(t.RevisedDiff, 0)
+                                    ELSE 0 END) AS Amount
+                    FROM dbo.OTB_Transaction t
+                    INNER JOIN #ApprovalGroups g ON g.Company = t.Company AND g.[Year] = t.[Year]
+                        AND g.[Month] = t.[Month] AND g.Category = t.Category
+                    WHERE t.OTBStatus = N'Approved'
+                    GROUP BY t.Company, t.[Year], t.[Month], t.Category
+
+                    UNION ALL
+
+                    SELECT s.Company, s.[Year], s.[Month], s.Category,
+                           SUM(CASE WHEN s.[From] = N'E' THEN ISNULL(s.BudgetAmount, 0)
+                                    WHEN s.[From] IN (N'D', N'I', N'G') THEN -ISNULL(s.BudgetAmount, 0)
+                                    ELSE 0 END) AS Amount
+                    FROM dbo.OTB_Switching_Transaction s
+                    INNER JOIN #ApprovalGroups g ON g.Company = s.Company AND g.[Year] = s.[Year]
+                        AND g.[Month] = s.[Month] AND g.Category = s.Category
+                    WHERE s.OTBStatus = N'Approved'
+                    GROUP BY s.Company, s.[Year], s.[Month], s.Category
+
+                    UNION ALL
+
+                    SELECT s.SwitchCompany, s.SwitchYear, s.SwitchMonth, s.SwitchCategory,
+                           SUM(CASE WHEN s.[To] IN (N'C', N'F', N'H') THEN ISNULL(s.BudgetAmount, 0) ELSE 0 END) AS Amount
+                    FROM dbo.OTB_Switching_Transaction s
+                    INNER JOIN #ApprovalGroups g ON g.Company = s.SwitchCompany AND g.[Year] = s.SwitchYear
+                        AND g.[Month] = s.SwitchMonth AND g.Category = s.SwitchCategory
+                    WHERE s.OTBStatus = N'Approved'
+                    GROUP BY s.SwitchCompany, s.SwitchYear, s.SwitchMonth, s.SwitchCategory
+                )
+                SELECT Company, [Year], [Month], Category, SUM(Amount) AS TotalBudget
+                FROM BudgetMovement
+                GROUP BY Company, [Year], [Month], Category"
+            Using cmd As New SqlCommand(sql, conn)
+                cmd.CommandTimeout = 300
+                Using reader As SqlDataReader = cmd.ExecuteReader()
+                    While reader.Read()
+                        Dim key As String = BuildApprovalGroupKey(reader("Company").ToString(), reader("Year").ToString(), reader("Month").ToString(), reader("Category").ToString())
+                        result(key) = If(reader("TotalBudget") Is DBNull.Value, 0D, Convert.ToDecimal(reader("TotalBudget")))
+                    End While
+                End Using
+            End Using
+        End Using
+        Return result
+    End Function
+
+    Private Shared Function BuildApprovalGroupKey(company As String, year As String, month As String, category As String) As String
+        Return String.Join("|", New String() {company, year, month, category})
+    End Function
+
+    Public Shared Function CalculateApprovalPreviewValues(oldTotalBudget As Decimal,
+                                                           selectedCurrentBudget As Decimal,
+                                                           revisedTarget As Decimal) As DraftOtbApprovalPreviewRow
+        Return New DraftOtbApprovalPreviewRow With {
+            .Revised = revisedTarget,
+            .Diff = oldTotalBudget - revisedTarget,
+            .TotalBudget = revisedTarget + (oldTotalBudget - selectedCurrentBudget)
+        }
+    End Function
+
+    Private Sub ProcessApprovalJob(jobId As Guid)
+        If Not DraftOtbJobStore.TryStart(jobId, DraftOtbJobStatuses.Queued, DraftOtbJobStatuses.Validating, "Loading selected draft rows") Then Return
+        Dim job As DraftOtbJobRecord = DraftOtbJobStore.GetJob(jobId)
+        If job Is Nothing Then Throw New Exception("Approval job was not found.")
+        Dim payload As DraftOtbApprovalJobPayload = JsonConvert.DeserializeObject(Of DraftOtbApprovalJobPayload)(job.PayloadJson)
+        If payload Is Nothing OrElse payload.RunNos Is Nothing Then Throw New Exception("Approval payload is missing.")
+        If payload.RunNos.Count = 0 OrElse payload.RunNos.Count > 15000 Then Throw New Exception("Approval jobs must contain between 1 and 15,000 rows.")
+        If Not Regex.IsMatch(If(payload.PreviewHash, ""), "\A[0-9a-f]{64}\z", RegexOptions.CultureInvariant Or RegexOptions.IgnoreCase) Then
+            Throw New Exception("Approval preview hash is missing or invalid. SAP was not called.")
+        End If
+
+        Dim draftData As DataTable = GetOTBDraftDataByRunNos(payload.RunNos)
+        Dim validationResults As New List(Of Dictionary(Of String, Object))()
+        Dim loadedIds As New HashSet(Of Integer)(draftData.AsEnumerable().Select(Function(row) Convert.ToInt32(row("RunNo"))))
+        For Each requestedId As Integer In payload.RunNos
+            If Not loadedIds.Contains(requestedId) Then
+                validationResults.Add(CreateApprovalErrorResult(requestedId, Nothing, "Draft row was not found."))
+            End If
+        Next
+
+        Dim calculator As New OTBBudgetCalculator()
+        Dim validator As New OTBValidate()
+        Dim preparedByKey As New Dictionary(Of String, ApprovalPreparedRow)(StringComparer.OrdinalIgnoreCase)
+        Dim preparedByRunNo As New Dictionary(Of Integer, ApprovalPreparedRow)()
+        Dim preparedByBusinessKey As New Dictionary(Of String, ApprovalPreparedRow)(StringComparer.OrdinalIgnoreCase)
+        For i As Integer = 0 To draftData.Rows.Count - 1
+            Dim row As DataRow = draftData.Rows(i)
+            Dim currentRunNo As Integer = Convert.ToInt32(row("RunNo"))
+            Dim rowErrors As List(Of String) = ValidateApprovalDraftRow(row, validator)
+            Dim prepared As ApprovalPreparedRow = Nothing
+            If rowErrors.Count = 0 Then
+                Try
+                    prepared = PrepareApprovalRow(row, calculator)
+                    If preparedByBusinessKey.ContainsKey(prepared.BusinessKey) Then
+                        rowErrors.Add("Another selected row has the same approval budget dimensions. Amount and version do not make it a separate approval key.")
+                    Else
+                        preparedByBusinessKey(prepared.BusinessKey) = prepared
+                        preparedByKey(prepared.SapKey) = prepared
+                        preparedByRunNo(currentRunNo) = prepared
+                    End If
+                Catch ex As Exception
+                    rowErrors.Add(ex.Message)
+                End Try
+            End If
+            If rowErrors.Count > 0 Then
+                validationResults.Add(CreateApprovalErrorResult(currentRunNo, row, String.Join(" | ", rowErrors)))
+            End If
+
+            If (i + 1) Mod 100 = 0 OrElse i = draftData.Rows.Count - 1 Then
+                Dim progress As Integer = 5 + CInt(Math.Floor((i + 1) * 35.0 / Math.Max(1, draftData.Rows.Count)))
+                ' Success/error counts represent committed business results. Keep both
+                ' at zero until a terminal validation result or the atomic DB commit.
+                DraftOtbJobStore.UpdateProgress(jobId, DraftOtbJobStatuses.Validating, "Validating every selected row", progress, i + 1, 0, 0,
+                                                expectedStatus:=DraftOtbJobStatuses.Validating)
+            End If
+        Next
+
+        If validationResults.Count > 0 Then
+            DraftOtbJobStore.Complete(jobId,
+                DraftOtbJobStatuses.ValidationFailed,
+                "Validation failed",
+                $"Validation failed for {validationResults.Count:N0} rows. SAP was not called and no business data was changed.",
+                payload.RunNos.Count,
+                0,
+                validationResults.Count,
+                JsonConvert.SerializeObject(validationResults))
+            Return
+        End If
+
+        Dim approvalDimensions As New List(Of OTBSwitchBudgetGuard.BudgetDimension)()
+        Dim claims As New List(Of DraftOtbApprovalClaim)()
+        For Each runNo As Integer In payload.RunNos
+            Dim prepared As ApprovalPreparedRow = preparedByRunNo(runNo)
+            Dim dimension As OTBSwitchBudgetGuard.BudgetDimension = OTBSwitchBudgetGuard.CreateDimension(
+                GetRequiredDraftText(prepared.Data, "OTBYear", "Year"),
+                GetRequiredDraftText(prepared.Data, "OTBMonth", "Month"),
+                GetRequiredDraftText(prepared.Data, "OTBCompany", "Company"),
+                GetRequiredDraftText(prepared.Data, "OTBCategory", "Category"),
+                GetRequiredDraftText(prepared.Data, "OTBSegment", "Segment"),
+                GetRequiredDraftText(prepared.Data, "OTBBrand", "Brand"),
+                GetRequiredDraftText(prepared.Data, "OTBVendor", "Vendor"))
+            approvalDimensions.Add(dimension)
+            claims.Add(New DraftOtbApprovalClaim With {
+                .RunNo = runNo,
+                .BusinessKey = prepared.BusinessKey,
+                .BusinessKeyHash = ComputeSha256Hex(prepared.BusinessKey),
+                .OtbType = GetRequiredDraftText(prepared.Data, "OTBType", "Type"),
+                .Year = dimension.Year,
+                .Month = dimension.Month,
+                .Category = dimension.Category,
+                .Company = dimension.Company,
+                .Segment = dimension.Segment,
+                .Brand = dimension.Brand,
+                .Vendor = dimension.Vendor
+            })
+        Next
+
+        ' A canonical group lock serializes approval preview calculation with all
+        ' approved-budget movement flows. Durable detail claims protect every RunNo.
+        Using approvalLockConn As New SqlConnection(connectionString)
+            approvalLockConn.Open()
+            Using approvalLockHandle As IDisposable = OTBSwitchBudgetGuard.AcquireBudgetLocks(
+                approvalLockConn, OTBSwitchBudgetGuard.BuildGroupLockResources(approvalDimensions))
+                Dim claimConflict As String = Nothing
+                If Not DraftOtbJobStore.TryAcquireApprovalClaims(jobId, claims, claimConflict) Then
+                    DraftOtbJobStore.Complete(jobId,
+                        DraftOtbJobStatuses.ValidationFailed,
+                        "Approval already in progress or no longer Draft",
+                        claimConflict,
+                        payload.RunNos.Count, 0, payload.RunNos.Count)
+                    Return
+                End If
+
+                ' Recompute only after both interlocks are held so the hash covers the
+                ' exact Draft rows and live group totals that will be sent to SAP.
+                Dim currentSnapshot As ApprovalPreviewSnapshot = BuildApprovalPreview(payload.RunNos)
+                If Not String.Equals(currentSnapshot.PreviewHash, payload.PreviewHash, StringComparison.OrdinalIgnoreCase) Then
+                    DraftOtbJobStore.ReleaseApprovalClaims(jobId)
+                    DraftOtbJobStore.Complete(jobId,
+                        DraftOtbJobStatuses.ValidationFailed,
+                        "Approval preview is stale",
+                        "The selected Draft OTB or current approved budget changed after preview. Please preview and confirm again. SAP was not called.",
+                        payload.RunNos.Count, 0, payload.RunNos.Count)
+                    Return
+                End If
+
+        ' Use the exact current-approved values that participated in the matched hash
+        ' for both the SAP revision delta and the later database RevisedDiff.
+        preparedByKey.Clear()
+        For Each runNo As Integer In payload.RunNos
+            Dim prepared As ApprovalPreparedRow = preparedByRunNo(runNo)
+            Dim currentApproved As Decimal
+            If Not currentSnapshot.CurrentApprovedByBusinessKey.TryGetValue(prepared.BusinessKey, currentApproved) Then
+                Throw New Exception($"RunNo {runNo}: current approved budget snapshot is missing.")
+            End If
+            prepared.CurrentApproved = currentApproved
+            Dim target As Decimal
+            If Not TryParseApprovalDecimal(GetRequiredDraftText(prepared.Data, "Amount", "Amount"), target) Then
+                Throw New Exception($"RunNo {runNo}: Amount must be numeric.")
+            End If
+            Dim typeValue As String = GetRequiredDraftText(prepared.Data, "OTBType", "Type")
+            Dim versionValue As String = GetRequiredDraftText(prepared.Data, "Version", "Version")
+            Dim sapAmount As Decimal = If(versionValue.StartsWith("R", StringComparison.OrdinalIgnoreCase) OrElse
+                                             typeValue.Equals("Revise", StringComparison.OrdinalIgnoreCase),
+                                             target - currentApproved, target)
+            prepared.SapItem.Amount = sapAmount.ToString("F2", CultureInfo.InvariantCulture)
+            prepared.SapKey = BuildSapApprovalKey(versionValue,
+                GetRequiredDraftText(prepared.Data, "OTBCompany", "Company"),
+                GetRequiredDraftText(prepared.Data, "OTBCategory", "Category"),
+                GetRequiredDraftText(prepared.Data, "OTBVendor", "Vendor"),
+                GetRequiredDraftText(prepared.Data, "OTBSegment", "Segment"),
+                GetRequiredDraftText(prepared.Data, "OTBBrand", "Brand"),
+                prepared.SapItem.Amount,
+                GetRequiredDraftText(prepared.Data, "OTBYear", "Year"),
+                GetRequiredDraftText(prepared.Data, "OTBMonth", "Month"))
+            preparedByKey.Add(prepared.SapKey, prepared)
+        Next
+
+                Dim plans As List(Of OtbPlanUploadItem) = payload.RunNos.Select(Function(runNo) preparedByRunNo(runNo).SapItem).ToList()
+                DraftOtbJobStore.UpdateProgress(jobId, DraftOtbJobStatuses.PreparingSap, "Preparing one all-or-nothing SAP request", 48, payload.RunNos.Count, 0, 0,
+                                                expectedStatus:=DraftOtbJobStatuses.Validating)
+                DraftOtbJobStore.UpdateProgress(jobId, DraftOtbJobStatuses.SendingToSap, "Waiting for SAP", 55, payload.RunNos.Count, 0, 0,
+                                                expectedStatus:=DraftOtbJobStatuses.PreparingSap)
+
+        Dim sapResponse As SapApiResponse(Of SapUploadResultItem) = Task.Run(Async Function()
+                                                                                 Return Await SapApiHelper.UploadOtbPlanAsync(plans)
+                                                                             End Function).Result
+        If sapResponse Is Nothing OrElse sapResponse.Status Is Nothing OrElse sapResponse.Results Is Nothing Then
+            Throw New Exception("SAP returned an incomplete response. The outcome must be reconciled before retrying.")
+        End If
+
+        Dim detailedResults As New List(Of Dictionary(Of String, Object))()
+        Dim mappedSuccess As New List(Of ApprovalMappedResult)()
+        Dim mappingErrors As Integer = 0
+        For i As Integer = 0 To sapResponse.Results.Count - 1
+            Dim sapResult As SapUploadResultItem = sapResponse.Results(i)
+            Dim prepared As ApprovalPreparedRow = FindPreparedRow(sapResult, preparedByKey)
+            If prepared Is Nothing Then
+                mappingErrors += 1
+                detailedResults.Add(CreateSapUnmappedResult(sapResult))
+            Else
+                detailedResults.Add(CreateApprovalSapResult(prepared.Data, sapResult))
+                If String.Equals(sapResult.MessageType, "S", StringComparison.OrdinalIgnoreCase) Then
+                    mappedSuccess.Add(New ApprovalMappedResult With {.RunNo = prepared.RunNo, .SapResult = sapResult})
+                End If
+            End If
+            If (i + 1) Mod 100 = 0 OrElse i = sapResponse.Results.Count - 1 Then
+                Dim progress As Integer = 58 + CInt(Math.Floor((i + 1) * 14.0 / Math.Max(1, sapResponse.Results.Count)))
+                DraftOtbJobStore.UpdateProgress(jobId, DraftOtbJobStatuses.SendingToSap, "Checking SAP response", progress, i + 1, 0, 0,
+                                                expectedStatus:=DraftOtbJobStatuses.SendingToSap)
+            End If
+        Next
+
+        Dim fullSuccess As Boolean = sapResponse.Status.Total = payload.RunNos.Count AndAlso
+                                     sapResponse.Status.Success = payload.RunNos.Count AndAlso
+                                     sapResponse.Status.ErrorCount = 0 AndAlso
+                                     sapResponse.Results.Count = payload.RunNos.Count AndAlso
+                                     mappedSuccess.Count = payload.RunNos.Count AndAlso
+                                     mappingErrors = 0
+        If Not fullSuccess Then
+            Dim sapAcceptedWholeBatch As Boolean = sapResponse.Status.Total = payload.RunNos.Count AndAlso
+                                                   sapResponse.Status.Success = payload.RunNos.Count AndAlso
+                                                   sapResponse.Status.ErrorCount = 0
+            Dim explicitlyRejectedWholeBatch As Boolean = SapExplicitlyRejectedWholeApprovalBatch(sapResponse, payload.RunNos.Count)
+            If explicitlyRejectedWholeBatch Then
+                DraftOtbJobStore.ReleaseApprovalClaims(jobId)
+            End If
+            Dim failureStatus As String = If(explicitlyRejectedWholeBatch,
+                                             DraftOtbJobStatuses.Failed,
+                                             DraftOtbJobStatuses.ReconciliationRequired)
+            Dim failureStage As String = If(explicitlyRejectedWholeBatch,
+                                            "SAP rejected the approval batch",
+                                            "Manual reconciliation required")
+            Dim failureMessage As String
+            If sapAcceptedWholeBatch Then
+                failureMessage = "SAP accepted the complete batch, but one or more response rows could not be mapped safely. Do not retry; reconcile this Job ID before changing database data."
+            ElseIf explicitlyRejectedWholeBatch Then
+                failureMessage = $"SAP explicitly rejected the complete batch. Total: {sapResponse.Status.Total}, success: {sapResponse.Status.Success}, errors: {sapResponse.Status.ErrorCount}. Claims were released and no database rows were approved."
+            Else
+                failureMessage = $"SAP returned a partial or ambiguous result. Total: {sapResponse.Status.Total}, success: {sapResponse.Status.Success}, errors: {sapResponse.Status.ErrorCount}. Do not retry; reconcile this Job ID."
+            End If
+            DraftOtbJobStore.Complete(jobId,
+                failureStatus,
+                failureStage,
+                failureMessage,
+                payload.RunNos.Count,
+                0,
+                Math.Max(1, payload.RunNos.Count - mappedSuccess.Count),
+                JsonConvert.SerializeObject(detailedResults),
+                expectedStatus:=DraftOtbJobStatuses.SendingToSap)
+            Return
+        End If
+
+        ' Persist the complete row-level SAP evidence before the business-data
+        ' transaction. If the DB save later fails, ReconciliationRequired still
+        ' has the response needed to compare SAP against BMS safely.
+        Dim detailedResultsJson As String = JsonConvert.SerializeObject(detailedResults)
+        DraftOtbJobStore.SetResult(jobId, detailedResultsJson, DraftOtbJobStatuses.SendingToSap)
+        DraftOtbJobStore.UpdateProgress(jobId, DraftOtbJobStatuses.SavingApproval, "SAP accepted all rows; saving one database transaction", 75, payload.RunNos.Count, 0, 0,
+                                        expectedStatus:=DraftOtbJobStatuses.SendingToSap)
+        SaveApprovedRows(jobId, mappedSuccess, preparedByRunNo, payload.ApprovedBy,
+                         detailedResultsJson)
+            End Using
+        End Using
+    End Sub
+
+    Private Shared Function SapExplicitlyRejectedWholeApprovalBatch(response As SapApiResponse(Of SapUploadResultItem), expectedRows As Integer) As Boolean
+        If response Is Nothing OrElse response.Status Is Nothing OrElse response.Results Is Nothing Then Return False
+        If response.Status.Total <> expectedRows OrElse response.Status.Success <> 0 OrElse response.Status.ErrorCount <> expectedRows Then Return False
+        If response.Results.Count <> expectedRows Then Return False
+        Return response.Results.All(Function(item) item IsNot Nothing AndAlso Not String.Equals(item.MessageType, "S", StringComparison.OrdinalIgnoreCase))
+    End Function
+
+    Private Sub EnsureEveryDraftWasLoaded(runNos As List(Of Integer), draftData As DataTable)
+        Dim loaded As New HashSet(Of Integer)(draftData.AsEnumerable().Select(Function(row) Convert.ToInt32(row("RunNo"))))
+        Dim missing As List(Of Integer) = runNos.Where(Function(runNo) Not loaded.Contains(runNo)).ToList()
+        If missing.Count > 0 Then
+            Throw New Exception($"{missing.Count:N0} selected draft row(s) were not found or are no longer available.")
+        End If
+    End Sub
+
+    Private Function ValidateApprovalDraftRow(row As DataRow, validator As OTBValidate) As List(Of String)
+        Dim errors As New List(Of String)()
+        Dim status As String = GetDraftText(row, "OTBStatus")
+        If Not status.Equals("Draft", StringComparison.OrdinalIgnoreCase) Then
+            errors.Add("Status must be Draft.")
+        End If
+        For Each field As String In New String() {"Version", "OTBCompany", "OTBCategory", "OTBVendor", "OTBSegment", "OTBBrand", "OTBYear", "OTBMonth", "Amount", "OTBType"}
+            If String.IsNullOrWhiteSpace(GetDraftText(row, field)) Then errors.Add(field & " is required.")
+        Next
+
+        Dim typeValue As String = GetDraftText(row, "OTBType")
+        AddApprovalValidationError(errors, validator.ValidateType(typeValue))
+        Dim versionValue As String = GetDraftText(row, "Version")
+        If Not Regex.IsMatch(versionValue, "\A(?:A1|R(?:[1-9]|1[0-5]))\z", RegexOptions.CultureInvariant) Then
+            errors.Add("Version must be A1 or R1 through R15.")
+        End If
+
+        Dim yearValue As Integer
+        If Not Integer.TryParse(GetDraftText(row, "OTBYear"), NumberStyles.Integer, CultureInfo.InvariantCulture, yearValue) Then
+            errors.Add("Year must be numeric.")
+        Else
+            AddApprovalValidationError(errors, validator.ValidateYear(yearValue))
+        End If
+        Dim monthValue As Short
+        If Not Short.TryParse(GetDraftText(row, "OTBMonth"), NumberStyles.Integer, CultureInfo.InvariantCulture, monthValue) Then
+            errors.Add("Month must be numeric.")
+        Else
+            AddApprovalValidationError(errors, validator.ValidateMonth(monthValue))
+        End If
+        Dim amountValue As Decimal
+        If Not TryParseApprovalDecimal(GetDraftText(row, "Amount"), amountValue) Then
+            errors.Add("Amount must be numeric.")
+        Else
+            AddApprovalValidationError(errors, validator.ValidateAmount(amountValue))
+            If amountValue > 9999999999999999.99D OrElse amountValue < -9999999999999999.99D Then
+                errors.Add("Amount exceeds the database decimal(18,2) range.")
+            ElseIf Decimal.Round(amountValue, 2, MidpointRounding.AwayFromZero) <> amountValue Then
+                errors.Add("Amount must not contain more than 2 decimal places.")
+            End If
+        End If
+        AddApprovalValidationError(errors, validator.ValidateCategory(GetDraftText(row, "OTBCategory")))
+        AddApprovalValidationError(errors, validator.ValidateCompany(GetDraftText(row, "OTBCompany")))
+        AddApprovalValidationError(errors, validator.ValidateSegment(GetDraftText(row, "OTBSegment")))
+        AddApprovalValidationError(errors, validator.ValidateBrand(GetDraftText(row, "OTBBrand")))
+        AddApprovalValidationError(errors, validator.ValidateVendor(GetDraftText(row, "OTBVendor")))
+        ValidateApprovalTextLength(errors, row, "OTBCompany", 20, "Company")
+        ValidateApprovalTextLength(errors, row, "OTBCategory", 20, "Category")
+        ValidateApprovalTextLength(errors, row, "OTBSegment", 20, "Segment")
+        ValidateApprovalTextLength(errors, row, "OTBBrand", 30, "Brand")
+        ValidateApprovalTextLength(errors, row, "OTBVendor", 30, "Vendor")
+        ValidateApprovalTextLength(errors, row, "Version", 20, "Version")
+        ValidateApprovalTextLength(errors, row, "OTBType", 20, "Type")
+        ValidateApprovalTextLength(errors, row, "Remark", 500, "Remark")
+        ValidateApprovalTextLength(errors, row, "CateName", 200, "Category name")
+        ValidateApprovalTextLength(errors, row, "SegmentName", 200, "Segment name")
+        ValidateApprovalTextLength(errors, row, "BrandName", 200, "Brand name")
+        ValidateApprovalTextLength(errors, row, "Vendor", 200, "Vendor name")
+        Return errors.Distinct(StringComparer.OrdinalIgnoreCase).ToList()
+    End Function
+
+    Private Shared Sub ValidateApprovalTextLength(errors As List(Of String), row As DataRow,
+                                                   fieldName As String, maxLength As Integer,
+                                                   displayName As String)
+        Dim value As String = GetDraftText(row, fieldName)
+        If value.Length > maxLength Then errors.Add($"{displayName} is too long ({value.Length}/{maxLength} characters).")
+    End Sub
+
+    Private Shared Sub AddApprovalValidationError(errors As List(Of String), validationText As String)
+        If Not String.IsNullOrWhiteSpace(validationText) Then errors.Add(validationText.Trim())
+    End Sub
+
+    Private Shared Function TryParseApprovalDecimal(value As String, ByRef parsed As Decimal) As Boolean
+        Return Decimal.TryParse(value, NumberStyles.Number, CultureInfo.InvariantCulture, parsed) OrElse
+               Decimal.TryParse(value, NumberStyles.Number, CultureInfo.CurrentCulture, parsed)
+    End Function
+
+    Private Function PrepareApprovalRow(row As DataRow, calculator As OTBBudgetCalculator) As ApprovalPreparedRow
+        Dim runNo As Integer = Convert.ToInt32(row("RunNo"))
+        Dim version As String = GetRequiredDraftText(row, "Version", "Version")
+        Dim company As String = GetRequiredDraftText(row, "OTBCompany", "Company")
+        Dim category As String = GetRequiredDraftText(row, "OTBCategory", "Category")
+        Dim vendor As String = GetRequiredDraftText(row, "OTBVendor", "Vendor")
+        Dim segment As String = GetRequiredDraftText(row, "OTBSegment", "Segment")
+        Dim brand As String = GetRequiredDraftText(row, "OTBBrand", "Brand")
+        Dim year As String = GetRequiredDraftText(row, "OTBYear", "Year")
+        Dim month As String = GetRequiredDraftText(row, "OTBMonth", "Month")
+        Dim type As String = GetRequiredDraftText(row, "OTBType", "Type")
+        Dim target As Decimal
+        If Not TryParseApprovalDecimal(GetRequiredDraftText(row, "Amount", "Amount"), target) Then Throw New Exception("Amount must be numeric.")
+        Dim currentApproved As Decimal = calculator.CalculateCurrentApprovedBudget(year, month, category, company, segment, brand, vendor)
+        Dim amountToSap As Decimal = target
+        If version.StartsWith("R", StringComparison.OrdinalIgnoreCase) OrElse type.Equals("Revise", StringComparison.OrdinalIgnoreCase) Then
+            amountToSap = target - currentApproved
+        End If
+        Dim amount As String = amountToSap.ToString("F2", CultureInfo.InvariantCulture)
+        Dim item As New OtbPlanUploadItem With {
+            .Version = version, .CompCode = company, .Category = category,
+            .VendorCode = vendor, .SegmentCode = segment, .BrandCode = brand,
+            .Amount = amount, .Year = year, .Month = month,
+            .Remark = GetDraftText(row, "Remark")
+        }
+        Return New ApprovalPreparedRow With {
+            .RunNo = runNo,
+            .Data = row,
+            .SapItem = item,
+            .SapKey = BuildSapApprovalKey(version, company, category, vendor, segment, brand, amount, year, month),
+            .BusinessKey = BuildApprovalBusinessKey(year, month, company, category, segment, brand, vendor),
+            .CurrentApproved = currentApproved
+        }
+    End Function
+
+    Private Shared Function BuildApprovalBusinessKey(year As String, month As String, company As String,
+                                                     category As String, segment As String, brand As String,
+                                                     vendor As String) As String
+        Dim yearValue As Integer
+        Dim monthValue As Integer
+        Integer.TryParse(year, NumberStyles.Integer, CultureInfo.InvariantCulture, yearValue)
+        Integer.TryParse(month, NumberStyles.Integer, CultureInfo.InvariantCulture, monthValue)
+        Dim canonical As New StringBuilder("approval-business-v1|")
+        AppendApprovalHashFields(canonical, New String() {
+            yearValue.ToString(CultureInfo.InvariantCulture),
+            monthValue.ToString(CultureInfo.InvariantCulture),
+            If(company, "").Trim().ToUpperInvariant(),
+            If(category, "").Trim().ToUpperInvariant(),
+            If(segment, "").Trim().ToUpperInvariant(),
+            If(brand, "").Trim().ToUpperInvariant(),
+            If(vendor, "").Trim().ToUpperInvariant()
+        })
+        Return canonical.ToString()
+    End Function
+
+    Private Function FindPreparedRow(result As SapUploadResultItem, preparedByKey As Dictionary(Of String, ApprovalPreparedRow)) As ApprovalPreparedRow
+        Dim candidates As New List(Of String) From {
+            BuildSapApprovalKey(result.Version, result.CompCode, result.Category, result.VendorCode, result.SegmentCode, result.BrandCode, result.Amount, result.Year, result.Month),
+            BuildSapApprovalKey(result.Version, result.CompCode, result.Category, result.VendorMap, result.SegmentCodeMap, result.BrandCode, result.Amount, result.Year, result.Month)
+        }
+        For Each key As String In candidates.Distinct(StringComparer.OrdinalIgnoreCase)
+            Dim prepared As ApprovalPreparedRow = Nothing
+            If preparedByKey.TryGetValue(key, prepared) Then Return prepared
+        Next
+        Return Nothing
+    End Function
+
+    Private Shared Function BuildSapApprovalKey(version As String, company As String, category As String,
+                                                 vendor As String, segment As String, brand As String,
+                                                 amount As String, year As String, month As String) As String
+        Dim numericAmount As Decimal
+        Dim canonicalAmount As String = If(Decimal.TryParse(amount, NumberStyles.Any, CultureInfo.InvariantCulture, numericAmount),
+                                           numericAmount.ToString("F2", CultureInfo.InvariantCulture), If(amount, "").Trim())
+        Return String.Join("|", New String() {version, company, category, vendor, segment, brand, canonicalAmount, year, month})
+    End Function
+
+    Private Function CreateApprovalErrorResult(runNo As Integer, row As DataRow, message As String) As Dictionary(Of String, Object)
+        Dim result As Dictionary(Of String, Object) = CreateApprovalResultBase(row)
+        result("RunNo") = runNo
+        result("SAP_MessageType") = "E"
+        result("SAP_Message") = message
+        Return result
+    End Function
+
+    Private Function CreateApprovalSapResult(row As DataRow, sapResult As SapUploadResultItem) As Dictionary(Of String, Object)
+        Dim result As Dictionary(Of String, Object) = CreateApprovalResultBase(row)
+        result("SAP_MessageType") = sapResult.MessageType
+        result("SAP_Message") = sapResult.Message
+        Return result
+    End Function
+
+    Private Function CreateApprovalResultBase(row As DataRow) As Dictionary(Of String, Object)
+        Dim result As New Dictionary(Of String, Object)()
+        For Each name As String In New String() {"OTBYear", "OTBMonth", "OTBCategory", "CateName", "CompanyName", "OTBSegment", "SegmentName", "OTBBrand", "BrandName", "OTBVendor", "Vendor", "Amount", "Remark"}
+            result(name) = If(row Is Nothing OrElse Not row.Table.Columns.Contains(name) OrElse row(name) Is DBNull.Value, "", row(name))
+        Next
+        Return result
+    End Function
+
+    Private Function CreateSapUnmappedResult(sapResult As SapUploadResultItem) As Dictionary(Of String, Object)
+        Return New Dictionary(Of String, Object) From {
+            {"OTBYear", sapResult.Year}, {"OTBMonth", sapResult.Month}, {"OTBCategory", sapResult.Category},
+            {"OTBSegment", sapResult.SegmentCode}, {"OTBBrand", sapResult.BrandCode}, {"OTBVendor", sapResult.VendorCode},
+            {"Amount", sapResult.Amount}, {"Remark", sapResult.Remark}, {"SAP_MessageType", "E"},
+            {"SAP_Message", "SAP response could not be mapped back to a selected Draft OTB row. " & If(sapResult.Message, "")}
+        }
+    End Function
+
+    Private Shared Function GetDraftText(row As DataRow, name As String) As String
+        If row Is Nothing OrElse row.Table Is Nothing OrElse Not row.Table.Columns.Contains(name) OrElse row(name) Is DBNull.Value Then Return ""
+        Return row(name).ToString().Trim()
+    End Function
+
+    Private Function GetRequiredDraftText(row As DataRow, name As String, displayName As String) As String
+        Dim value As String = GetDraftText(row, name)
+        If String.IsNullOrWhiteSpace(value) Then Throw New Exception(displayName & " is required.")
+        Return value
+    End Function
+
+    Private Function SaveApprovedRows(jobId As Guid,
+                                      mappedResults As List(Of ApprovalMappedResult),
+                                      preparedByRunNo As Dictionary(Of Integer, ApprovalPreparedRow),
+                                      approvedBy As String,
+                                      resultJson As String) As Integer
+        If mappedResults Is Nothing OrElse mappedResults.Count = 0 Then Return 0
+        Dim stage As New DataTable()
+        stage.Columns.Add("RunNo", GetType(Integer))
+        stage.Columns.Add("Type", GetType(String))
+        stage.Columns.Add("Year", GetType(Integer))
+        stage.Columns.Add("Month", GetType(Integer))
+        stage.Columns.Add("Category", GetType(String))
+        stage.Columns.Add("Company", GetType(String))
+        stage.Columns.Add("Segment", GetType(String))
+        stage.Columns.Add("Brand", GetType(String))
+        stage.Columns.Add("Vendor", GetType(String))
+        stage.Columns.Add("Version", GetType(String))
+        stage.Columns.Add("Amount", GetType(Decimal))
+        stage.Columns.Add("RevisedDiff", GetType(Decimal))
+        stage.Columns.Add("Remark", GetType(String))
+        stage.Columns.Add("CategoryName", GetType(String))
+        stage.Columns.Add("SegmentName", GetType(String))
+        stage.Columns.Add("BrandName", GetType(String))
+        stage.Columns.Add("VendorName", GetType(String))
+        stage.Columns.Add("SAPStatus", GetType(String))
+        stage.Columns.Add("SAPErrorMessage", GetType(String))
+
+        For Each mapped As ApprovalMappedResult In mappedResults
+            Dim prepared As ApprovalPreparedRow = Nothing
+            If Not preparedByRunNo.TryGetValue(mapped.RunNo, prepared) Then
+                Throw New Exception($"Could not map approved RunNo {mapped.RunNo} to its source row.")
+            End If
+            Dim source As DataRow = prepared.Data
+            Dim amount As Decimal
+            If Not TryParseApprovalDecimal(GetRequiredDraftText(source, "Amount", "Amount"), amount) Then
+                Throw New Exception($"RunNo {mapped.RunNo}: Amount must be numeric.")
+            End If
+            Dim typeValue As String = GetRequiredDraftText(source, "OTBType", "Type")
+            Dim revisedDiff As Decimal = If(typeValue.Equals("Revise", StringComparison.OrdinalIgnoreCase),
+                                               amount - prepared.CurrentApproved, 0D)
+            stage.Rows.Add(
+                mapped.RunNo,
+                ApprovalStageText(typeValue, 20, "Type"),
+                ParseRequiredInteger(GetRequiredDraftText(source, "OTBYear", "Year"), "Year"),
+                ParseRequiredInteger(GetRequiredDraftText(source, "OTBMonth", "Month"), "Month"),
+                ApprovalStageText(GetRequiredDraftText(source, "OTBCategory", "Category"), 20, "Category"),
+                ApprovalStageText(GetRequiredDraftText(source, "OTBCompany", "Company"), 20, "Company"),
+                ApprovalStageText(GetRequiredDraftText(source, "OTBSegment", "Segment"), 20, "Segment"),
+                ApprovalStageText(GetRequiredDraftText(source, "OTBBrand", "Brand"), 30, "Brand"),
+                ApprovalStageText(GetRequiredDraftText(source, "OTBVendor", "Vendor"), 30, "Vendor"),
+                ApprovalStageText(GetRequiredDraftText(source, "Version", "Version"), 20, "Version"),
+                amount, revisedDiff,
+                ApprovalStageNullableText(GetDraftText(source, "Remark"), 500, "Remark"),
+                ApprovalStageNullableText(GetDraftText(source, "CateName"), 200, "CategoryName"),
+                ApprovalStageNullableText(GetDraftText(source, "SegmentName"), 200, "SegmentName"),
+                ApprovalStageNullableText(GetDraftText(source, "BrandName"), 200, "BrandName"),
+                ApprovalStageNullableText(GetDraftText(source, "Vendor"), 200, "VendorName"),
+                ApprovalStageText(mapped.SapResult.MessageType, 10, "SAPStatus"),
+                ApprovalStageTruncatedNullableText(mapped.SapResult.Message, 1000))
+        Next
+
+        DraftOtbJobStore.UpdateProgress(jobId, DraftOtbJobStatuses.SavingApproval,
+                                        "Staging approval rows for one database transaction", 82,
+                                        mappedResults.Count, 0, 0,
+                                        expectedStatus:=DraftOtbJobStatuses.SavingApproval)
+        Using conn As New SqlConnection(connectionString)
+            conn.Open()
+            Using transaction As SqlTransaction = conn.BeginTransaction(IsolationLevel.Serializable)
+                Try
+                    Using createCmd As New SqlCommand("
+                        CREATE TABLE #ApprovalStage
+                        (
+                            RunNo int NOT NULL PRIMARY KEY,
+                            [Type] nvarchar(20) NOT NULL,
+                            [Year] int NOT NULL,
+                            [Month] int NOT NULL,
+                            Category nvarchar(20) NOT NULL,
+                            Company nvarchar(20) NOT NULL,
+                            Segment nvarchar(20) NOT NULL,
+                            Brand nvarchar(30) NOT NULL,
+                            Vendor nvarchar(30) NOT NULL,
+                            [Version] nvarchar(20) NOT NULL,
+                            Amount decimal(18,2) NOT NULL,
+                            RevisedDiff decimal(18,2) NOT NULL,
+                            Remark nvarchar(500) NULL,
+                            CategoryName nvarchar(200) NULL,
+                            SegmentName nvarchar(200) NULL,
+                            BrandName nvarchar(200) NULL,
+                            VendorName nvarchar(200) NULL,
+                            SAPStatus nvarchar(10) NOT NULL,
+                            SAPErrorMessage nvarchar(1000) NULL,
+                            UNIQUE ([Type], [Year], [Month], Category, Company, Segment, Brand, Vendor, [Version])
+                        )", conn, transaction)
+                        createCmd.CommandTimeout = 600
+                        createCmd.ExecuteNonQuery()
+                    End Using
+                    Using bulk As New SqlBulkCopy(conn, SqlBulkCopyOptions.CheckConstraints Or SqlBulkCopyOptions.KeepNulls, transaction)
+                        bulk.DestinationTableName = "#ApprovalStage"
+                        bulk.BulkCopyTimeout = 600
+                        bulk.BatchSize = 2000
+                        For Each column As DataColumn In stage.Columns
+                            bulk.ColumnMappings.Add(column.ColumnName, column.ColumnName)
+                        Next
+                        bulk.WriteToServer(stage)
+                    End Using
+
+                    Dim updateCount As Integer
+                    Using updateCmd As New SqlCommand("
+                        UPDATE d WITH (UPDLOCK, HOLDLOCK)
+                        SET d.OTBStatus = N'Approved', d.UpdateBy = @ApprovedBy, d.UpdateDT = GETDATE(),
+                            d.SAPStatus = s.SAPStatus, d.SAPErrorMessage = s.SAPErrorMessage
+                        FROM dbo.Template_Upload_Draft_OTB d
+                        INNER JOIN #ApprovalStage s ON s.RunNo = d.RunNo
+                        WHERE d.OTBStatus IS NULL OR d.OTBStatus = N'Draft'", conn, transaction)
+                        updateCmd.CommandTimeout = 600
+                        AddNVarCharParameter(updateCmd, "@ApprovedBy", approvedBy, 100, "ApprovedBy")
+                        updateCount = updateCmd.ExecuteNonQuery()
+                    End Using
+                    If updateCount <> mappedResults.Count Then
+                        Throw New Exception($"Only {updateCount:N0} of {mappedResults.Count:N0} rows were still Draft. The entire database transaction was rolled back.")
+                    End If
+
+                    Dim mergeCount As Integer
+                    Using mergeCmd As New SqlCommand("
+                        DECLARE @MergeActions TABLE (ActionName nvarchar(10) NOT NULL);
+                        MERGE dbo.OTB_Transaction WITH (HOLDLOCK) AS T
+                        USING #ApprovalStage AS S
+                        ON T.[Type] = S.[Type] AND T.[Year] = S.[Year] AND T.[Month] = S.[Month]
+                           AND T.Category = S.Category AND T.Company = S.Company AND T.Segment = S.Segment
+                           AND T.Brand = S.Brand AND T.Vendor = S.Vendor AND T.[Version] = S.[Version]
+                        WHEN MATCHED THEN UPDATE SET
+                            T.Amount = S.Amount, T.RevisedDiff = S.RevisedDiff, T.Remark = S.Remark,
+                            T.ApprovedDate = GETDATE(), T.SAPDate = GETDATE(), T.ActionBy = @ApprovedBy,
+                            T.DraftID = S.RunNo, T.SAPStatus = S.SAPStatus, T.SAPErrorMessage = S.SAPErrorMessage,
+                            T.CategoryName = S.CategoryName, T.SegmentName = S.SegmentName,
+                            T.BrandName = S.BrandName, T.VendorName = S.VendorName, T.OTBStatus = N'Approved'
+                        WHEN NOT MATCHED THEN INSERT
+                            (CreateDate, [Type], [Year], [Month], Category, CategoryName, Company,
+                             Segment, SegmentName, Brand, BrandName, Vendor, VendorName, Amount,
+                             RevisedDiff, Remark, OTBStatus, ApprovedDate, SAPDate, ActionBy, DraftID,
+                             SAPStatus, SAPErrorMessage, [Version])
+                        VALUES
+                            (GETDATE(), S.[Type], S.[Year], S.[Month], S.Category, S.CategoryName, S.Company,
+                             S.Segment, S.SegmentName, S.Brand, S.BrandName, S.Vendor, S.VendorName, S.Amount,
+                             S.RevisedDiff, S.Remark, N'Approved', GETDATE(), GETDATE(), @ApprovedBy, S.RunNo,
+                             S.SAPStatus, S.SAPErrorMessage, S.[Version])
+                        OUTPUT $action INTO @MergeActions;
+                        SELECT COUNT_BIG(*) FROM @MergeActions;", conn, transaction)
+                        mergeCmd.CommandTimeout = 600
+                        AddNVarCharParameter(mergeCmd, "@ApprovedBy", approvedBy, 100, "ApprovedBy")
+                        mergeCount = Convert.ToInt32(mergeCmd.ExecuteScalar())
+                    End Using
+                    If mergeCount <> mappedResults.Count Then
+                        Throw New Exception($"Expected to save {mappedResults.Count:N0} approved transactions but SQL affected {mergeCount:N0}. The entire database transaction was rolled back.")
+                    End If
+
+                    Using completeCmd As New SqlCommand("
+                        UPDATE dbo.Draft_OTB_Background_Job
+                        SET Status = @Status, Stage = @Stage, ProgressPercent = 100,
+                            TotalRows = @TotalRows, ProcessedRows = @TotalRows,
+                            SuccessRows = @TotalRows, ErrorRows = 0,
+                            Message = @Message, ResultJson = @ResultJson,
+                            FinishedAt = SYSUTCDATETIME(), UpdatedAt = SYSUTCDATETIME()
+                        WHERE JobID = @JobID AND Status = @ExpectedStatus", conn, transaction)
+                        completeCmd.CommandTimeout = 600
+                        completeCmd.Parameters.Add("@JobID", SqlDbType.UniqueIdentifier).Value = jobId
+                        AddNVarCharParameter(completeCmd, "@Status", DraftOtbJobStatuses.Completed, 30, "Job status")
+                        AddNVarCharParameter(completeCmd, "@Stage", "Approval complete", 100, "Job stage")
+                        completeCmd.Parameters.Add("@TotalRows", SqlDbType.Int).Value = mappedResults.Count
+                        AddNVarCharParameter(completeCmd, "@ExpectedStatus", DraftOtbJobStatuses.SavingApproval, 30, "Expected job status")
+                        Dim messageParameter As SqlParameter = completeCmd.Parameters.Add("@Message", SqlDbType.NVarChar, -1)
+                        messageParameter.Value = $"SAP and database approval completed for all {mappedResults.Count:N0} rows."
+                        Dim resultParameter As SqlParameter = completeCmd.Parameters.Add("@ResultJson", SqlDbType.NVarChar, -1)
+                        resultParameter.Value = If(resultJson Is Nothing, CType(DBNull.Value, Object), resultJson)
+                        If completeCmd.ExecuteNonQuery() <> 1 Then
+                            Throw New Exception("The approval job status changed before commit. The entire database transaction was rolled back.")
+                        End If
+                    End Using
+
+                    Using releaseCmd As New SqlCommand("DELETE FROM dbo.Draft_OTB_Approval_Claim WHERE JobID = @JobID", conn, transaction)
+                        releaseCmd.CommandTimeout = 600
+                        releaseCmd.Parameters.Add("@JobID", SqlDbType.UniqueIdentifier).Value = jobId
+                        If releaseCmd.ExecuteNonQuery() <> mappedResults.Count Then
+                            Throw New Exception("Not every approval claim could be released. The entire database transaction was rolled back.")
+                        End If
+                    End Using
+                    transaction.Commit()
+                    Return updateCount
+                Catch
+                    transaction.Rollback()
+                    Throw
+                End Try
+            End Using
+        End Using
+    End Function
+
+    Private Shared Function ApprovalStageText(value As String, maxLength As Integer, fieldName As String) As String
+        Dim result As String = If(value, "").Trim()
+        If String.IsNullOrEmpty(result) Then Throw New Exception(fieldName & " is required.")
+        If result.Length > maxLength Then Throw New Exception($"{fieldName} is too long for database column ({result.Length}/{maxLength} characters).")
+        Return result
+    End Function
+
+    Private Shared Function ApprovalStageNullableText(value As String, maxLength As Integer, fieldName As String) As Object
+        Dim result As String = If(value, "").Trim()
+        If result.Length = 0 Then Return DBNull.Value
+        If result.Length > maxLength Then Throw New Exception($"{fieldName} is too long for database column ({result.Length}/{maxLength} characters).")
+        Return result
+    End Function
+
+    Private Shared Function ApprovalStageTruncatedNullableText(value As String, maxLength As Integer) As Object
+        Dim result As String = If(value, "").Trim()
+        If result.Length = 0 Then Return DBNull.Value
+        Return If(result.Length <= maxLength, result, result.Substring(0, maxLength))
+    End Function
+
+    Private Sub LegacyApproveDraftOTB(context As HttpContext)
+        context.Response.ContentType = "application/json"
+        Dim approvedBy As String = EnsureApprovalPermission(context, True)
         Dim remark As String = If(String.IsNullOrWhiteSpace(context.Request.Form("remark")), Nothing, context.Request.Form("remark").Trim())
         Dim responseJson As New Dictionary(Of String, Object)
         Dim masterinstance As New MasterDataUtil
@@ -828,24 +2148,8 @@ Public Class DataOTBHandler
                 Throw New Exception("No records selected for approval.")
             End If
 
-            ' 2. Convert IDs to List(Of Integer) (Same as original code)
-            Dim runNos As New List(Of Integer)
-            Try
-                Dim jsonArray As List(Of String) = JsonConvert.DeserializeObject(Of List(Of String))(idsString)
-                For Each idStr As String In jsonArray
-                    Dim id As Integer
-                    If Integer.TryParse(idStr.Trim(), id) Then
-                        runNos.Add(id)
-                    End If
-                Next
-            Catch jsonEx As Exception
-                For Each idStr As String In idsString.Split(","c)
-                    Dim id As Integer
-                    If Integer.TryParse(idStr.Trim().Replace("""", ""), id) Then
-                        runNos.Add(id)
-                    End If
-                Next
-            End Try
+            ' 2. Convert IDs to List(Of Integer)
+            Dim runNos As List(Of Integer) = ParseRunNos(idsString)
 
             If runNos.Count = 0 Then
                 Throw New Exception("No valid RunNos provided.")
@@ -1045,11 +2349,11 @@ Public Class DataOTBHandler
                                     "
 
                                     Using cmdUpdate As New SqlCommand(updateQuery, conn, transaction)
-                                        cmdUpdate.Parameters.AddWithValue("@OTBStatus", "Approved")
-                                        cmdUpdate.Parameters.AddWithValue("@ApprovedBy", approvedBy)
-                                        cmdUpdate.Parameters.AddWithValue("@SAPStatus", successResult.MessageType)
-                                        cmdUpdate.Parameters.AddWithValue("@SAPErrorMessage", If(String.IsNullOrEmpty(successResult.Message), DBNull.Value, successResult.Message))
-                                        cmdUpdate.Parameters.AddWithValue("@RunNo", runNoToUpdate)
+                                        AddNVarCharParameter(cmdUpdate, "@OTBStatus", "Approved", 30, "OTBStatus")
+                                        AddNVarCharParameter(cmdUpdate, "@ApprovedBy", approvedBy, 100, "ApprovedBy")
+                                        AddNVarCharParameter(cmdUpdate, "@SAPStatus", successResult.MessageType, 10, "SAPStatus")
+                                        AddNVarCharParameter(cmdUpdate, "@SAPErrorMessage", If(String.IsNullOrEmpty(successResult.Message), DBNull.Value, successResult.Message), 1000, "SAPErrorMessage")
+                                        cmdUpdate.Parameters.Add("@RunNo", SqlDbType.Int).Value = runNoToUpdate
                                         updateCount += cmdUpdate.ExecuteNonQuery()
                                     End Using
 
@@ -1068,6 +2372,8 @@ Public Class DataOTBHandler
                                         Dim calc_Amount As Decimal = Convert.ToDecimal(approvedRow("Amount"))
                                         Dim calc_Type As String = approvedRow("OTBType").ToString()
                                         Dim calc_Version As String = approvedRow("Version").ToString()
+                                        Dim calc_YearNumber As Integer = ParseRequiredInteger(calc_Year, "Year")
+                                        Dim calc_MonthNumber As Integer = ParseRequiredInteger(calc_Month, "Month")
 
                                         Dim revisedDiffValue As Decimal = 0
                                         If calc_Type.Equals("Revise", StringComparison.OrdinalIgnoreCase) Then
@@ -1131,31 +2437,35 @@ Public Class DataOTBHandler
 
                                         Using cmdMerge As New SqlCommand(mergeQuery, conn, transaction)
                                             ' Key Parameters (for ON clause)
-                                            cmdMerge.Parameters.AddWithValue("@Type", approvedRow("OTBType"))
-                                            cmdMerge.Parameters.AddWithValue("@Year", approvedRow("OTBYear"))
-                                            cmdMerge.Parameters.AddWithValue("@Month", approvedRow("OTBMonth"))
-                                            cmdMerge.Parameters.AddWithValue("@Category", approvedRow("OTBCategory"))
-                                            cmdMerge.Parameters.AddWithValue("@Company", approvedRow("OTBCompany"))
-                                            cmdMerge.Parameters.AddWithValue("@Segment", approvedRow("OTBSegment"))
-                                            cmdMerge.Parameters.AddWithValue("@Brand", approvedRow("OTBBrand"))
-                                            cmdMerge.Parameters.AddWithValue("@Vendor", approvedRow("OTBVendor"))
-                                            cmdMerge.Parameters.AddWithValue("@Version", approvedRow("Version"))
+                                            AddNVarCharParameter(cmdMerge, "@Type", calc_Type, 20, "Type")
+                                            cmdMerge.Parameters.Add("@Year", SqlDbType.Int).Value = calc_YearNumber
+                                            cmdMerge.Parameters.Add("@Month", SqlDbType.Int).Value = calc_MonthNumber
+                                            AddNVarCharParameter(cmdMerge, "@Category", calc_Category, 20, "Category")
+                                            AddNVarCharParameter(cmdMerge, "@Company", calc_Company, 20, "Company")
+                                            AddNVarCharParameter(cmdMerge, "@Segment", calc_Segment, 20, "Segment")
+                                            AddNVarCharParameter(cmdMerge, "@Brand", calc_Brand, 30, "Brand")
+                                            AddNVarCharParameter(cmdMerge, "@Vendor", calc_Vendor, 30, "Vendor")
+                                            AddNVarCharParameter(cmdMerge, "@Version", calc_Version, 20, "Version")
 
                                             ' Data Parameters (for INSERT/UPDATE)
-                                            cmdMerge.Parameters.AddWithValue("@Amount", calc_Amount)
-                                            cmdMerge.Parameters.AddWithValue("@RevisedDiff", revisedDiffValue)
-                                            cmdMerge.Parameters.AddWithValue("@Remark", approvedRow("Remark"))
-                                            cmdMerge.Parameters.AddWithValue("@ActionBy", approvedBy)
-                                            cmdMerge.Parameters.AddWithValue("@DraftID", runNoToUpdate)
-                                            cmdMerge.Parameters.AddWithValue("@SAPStatus", successResult.MessageType)
-                                            cmdMerge.Parameters.AddWithValue("@SAPErrorMessage", If(String.IsNullOrEmpty(successResult.Message), DBNull.Value, successResult.Message))
+                                            cmdMerge.Parameters.Add("@Amount", SqlDbType.Decimal).Value = calc_Amount
+                                            cmdMerge.Parameters("@Amount").Precision = 18
+                                            cmdMerge.Parameters("@Amount").Scale = 2
+                                            cmdMerge.Parameters.Add("@RevisedDiff", SqlDbType.Decimal).Value = revisedDiffValue
+                                            cmdMerge.Parameters("@RevisedDiff").Precision = 18
+                                            cmdMerge.Parameters("@RevisedDiff").Scale = 2
+                                            AddNVarCharParameter(cmdMerge, "@Remark", approvedRow("Remark"), 500, "Remark")
+                                            AddNVarCharParameter(cmdMerge, "@ActionBy", approvedBy, 100, "ActionBy")
+                                            cmdMerge.Parameters.Add("@DraftID", SqlDbType.Int).Value = runNoToUpdate
+                                            AddNVarCharParameter(cmdMerge, "@SAPStatus", successResult.MessageType, 10, "SAPStatus")
+                                            AddNVarCharParameter(cmdMerge, "@SAPErrorMessage", If(String.IsNullOrEmpty(successResult.Message), DBNull.Value, successResult.Message), 1000, "SAPErrorMessage")
 
 
                                             ' Parameters for UPDATE/INSERT (Names)
-                                            cmdMerge.Parameters.AddWithValue("@CategoryName", approvedRow("CateName"))
-                                            cmdMerge.Parameters.AddWithValue("@SegmentName", approvedRow("SegmentName"))
-                                            cmdMerge.Parameters.AddWithValue("@BrandName", approvedRow("BrandName"))
-                                            cmdMerge.Parameters.AddWithValue("@VendorName", approvedRow("Vendor"))
+                                            AddNVarCharParameter(cmdMerge, "@CategoryName", approvedRow("CateName"), 200, "CategoryName")
+                                            AddNVarCharParameter(cmdMerge, "@SegmentName", approvedRow("SegmentName"), 200, "SegmentName")
+                                            AddNVarCharParameter(cmdMerge, "@BrandName", approvedRow("BrandName"), 200, "BrandName")
+                                            AddNVarCharParameter(cmdMerge, "@VendorName", approvedRow("Vendor"), 200, "VendorName")
 
                                             cmdMerge.ExecuteNonQuery()
                                         End Using
@@ -1202,75 +2512,191 @@ Public Class DataOTBHandler
             context.Response.Write(JsonConvert.SerializeObject(responseJson))
         End Try
     End Sub
+
+    Private Function ParseRunNos(idsString As String) As List(Of Integer)
+        Dim runNos As New List(Of Integer)()
+        Dim seen As New HashSet(Of Integer)()
+        Dim jsonArray As List(Of Object) = Nothing
+        Try
+            jsonArray = JsonConvert.DeserializeObject(Of List(Of Object))(idsString)
+        Catch jsonEx As Exception
+            jsonArray = Nothing
+        End Try
+
+        If jsonArray IsNot Nothing Then
+            For Each idValue As Object In jsonArray
+                AddRunNo(If(idValue, "").ToString(), runNos, seen)
+            Next
+        Else
+            For Each idStr As String In idsString.Split(","c)
+                AddRunNo(idStr.Replace("""", ""), runNos, seen)
+            Next
+        End If
+
+        Return runNos
+    End Function
+
+    Private Sub AddRunNo(idText As String, runNos As List(Of Integer), seen As HashSet(Of Integer))
+        Dim id As Integer
+        If Not Integer.TryParse(If(idText, "").Trim(), id) OrElse id <= 0 Then
+            Throw New InvalidOperationException("Every RunNo must be a positive whole number. Nothing was changed.")
+        End If
+        If Not seen.Contains(id) Then
+            seen.Add(id)
+            runNos.Add(id)
+        End If
+    End Sub
+
+    Private Function ParseRequiredInteger(value As String, fieldName As String) As Integer
+        Dim parsed As Integer
+        If Integer.TryParse(If(value, "").Trim(), parsed) Then
+            Return parsed
+        End If
+
+        Throw New Exception(fieldName & " must be a valid number.")
+    End Function
+
+    Private Sub AddNVarCharParameter(cmd As SqlCommand, parameterName As String, value As Object, size As Integer, displayName As String)
+        Dim parameter As SqlParameter = cmd.Parameters.Add(parameterName, SqlDbType.NVarChar, size)
+        If value Is Nothing OrElse value Is DBNull.Value Then
+            parameter.Value = DBNull.Value
+            Return
+        End If
+
+        Dim text As String = value.ToString()
+        If text.Length > size Then
+            Throw New Exception($"{displayName} is too long for database column ({text.Length}/{size} characters).")
+        End If
+
+        parameter.Value = text
+    End Sub
+
+    Private Sub MarkDownloadReady(context As HttpContext)
+        Dim token As String = If(context.Request.QueryString("_downloadToken"), "")
+        If String.IsNullOrWhiteSpace(token) Then Return
+
+        Dim cookie As New HttpCookie("BMSDownloadToken", token.Trim()) With {
+            .HttpOnly = False,
+            .Path = "/",
+            .Expires = DateTime.Now.AddMinutes(5)
+        }
+        context.Response.Cookies.Set(cookie)
+    End Sub
+
     ' ===================================================================
     ' ===== END: REPLACEMENT LOGIC ======================================
     ' ===================================================================
 
     Private Sub DeleteDraftOTB(context As HttpContext)
+        context.Response.ContentType = "application/json"
         Try
-
-            context.Response.ContentType = "application/json"
-            Dim runNoJson As String = If(String.IsNullOrWhiteSpace(context.Request.Form("runNos")), "", context.Request.Form("runNos").Trim())
-
-            If String.IsNullOrEmpty(runNoJson) Then
-                Dim errorResponse As New With {
-                .success = False,
-                .message = "No records selected for approval"
-            }
-                context.Response.Write(JsonConvert.SerializeObject(errorResponse))
-                Return
+            EnsureAjaxMutationRequest(context)
+            Dim currentUser As String = GetApprovalRequestUser(context)
+            Dim roleName As Object = If(context.Session Is Nothing, Nothing, context.Session("UserRole"))
+            Dim rights As PermissionHelper.UserRights = PermissionHelper.GetPermission(currentUser, "draftOTB.aspx", roleName)
+            If Not rights.CanView OrElse Not rights.CanDelete Then
+                Throw New UnauthorizedAccessException("You do not have permission to cancel Draft OTB rows.")
             End If
 
-            Dim runNos As New List(Of Integer)
-            Try
+            Dim runNoText As String = If(context.Request.Form("runNos"), context.Request("runNos"))
+            If String.IsNullOrWhiteSpace(runNoText) Then runNoText = If(context.Request.Form("runNo"), context.Request("runNo"))
+            If String.IsNullOrWhiteSpace(runNoText) Then Throw New Exception("No Draft OTB rows were selected.")
+            Dim runNos As List(Of Integer) = ParseRunNos(runNoText)
+            If runNos.Count = 0 Then Throw New Exception("No valid RunNos were provided.")
+            If runNos.Count > 15000 Then Throw New Exception($"A maximum of 15,000 Draft OTB rows can be cancelled at once. Selected: {runNos.Count:N0}.")
 
-                Dim jsonArray As List(Of String) = JsonConvert.DeserializeObject(Of List(Of String))(runNoJson)
+            Dim stage As New DataTable()
+            stage.Columns.Add("RunNo", GetType(Integer))
+            For Each runNo As Integer In runNos
+                stage.Rows.Add(runNo)
+            Next
 
-                For Each idStr As String In jsonArray
-                    Dim id As Integer
-                    If Integer.TryParse(idStr.Trim(), id) Then
-                        runNos.Add(id)
-                    End If
-                Next
-            Catch jsonEx As Exception
-                For Each idStr As String In runNoJson.Split(","c)
-                    Dim id As Integer
-                    If Integer.TryParse(idStr.Trim().Replace("""", ""), id) Then
-                        runNos.Add(id)
-                    End If
-                Next
-            End Try
+            Dim cancelledCount As Integer = 0
+            Using conn As New SqlConnection(connectionString)
+                conn.Open()
+                Using transaction As SqlTransaction = conn.BeginTransaction(IsolationLevel.Serializable)
+                    Try
+                        Using timeoutCmd As New SqlCommand("SET LOCK_TIMEOUT 30000", conn, transaction)
+                            timeoutCmd.ExecuteNonQuery()
+                        End Using
+                        Using createCmd As New SqlCommand("CREATE TABLE #DeleteDraftRunNos (RunNo int NOT NULL PRIMARY KEY);", conn, transaction)
+                            createCmd.ExecuteNonQuery()
+                        End Using
+                        Using bulk As New SqlBulkCopy(conn, SqlBulkCopyOptions.CheckConstraints, transaction)
+                            bulk.DestinationTableName = "#DeleteDraftRunNos"
+                            bulk.BatchSize = Math.Min(runNos.Count, 2000)
+                            bulk.BulkCopyTimeout = 300
+                            bulk.ColumnMappings.Add("RunNo", "RunNo")
+                            bulk.WriteToServer(stage)
+                        End Using
 
-            If runNos.Count = 0 Then
-                Dim errorResponse As New With {
-                .success = False,
-                .message = "No valid records to delete"
-            }
-                context.Response.Write(JsonConvert.SerializeObject(errorResponse))
-                Return
-            End If
+                        ' Global lock order: durable approval claim before Draft rows.
+                        Using claimCmd As New SqlCommand("
+                            SELECT TOP (1) c.RunNo
+                            FROM dbo.Draft_OTB_Approval_Claim c WITH (UPDLOCK, HOLDLOCK)
+                            INNER JOIN #DeleteDraftRunNos s ON s.RunNo = c.RunNo;", conn, transaction)
+                            claimCmd.CommandTimeout = 300
+                            Dim claimed As Object = claimCmd.ExecuteScalar()
+                            If claimed IsNot Nothing AndAlso claimed IsNot DBNull.Value Then
+                                Throw New InvalidOperationException("One or more selected rows are claimed by an approval or reconciliation job. Nothing was cancelled.")
+                            End If
+                        End Using
 
-            Dim result As Dictionary(Of String, Object) = ApprovedOTBManager.DeleteDraftOTB(runNos)
-            Dim response As New With {
-                   .success = If(result("Status").ToString() = "Success", True, False),
-                   .message = If(result.ContainsKey("Message"), result("Message").ToString(), $"Successfully approved {result("DeletedCount")} records"),
-                   .deletedCount = result("DeletedCount")
-            }
-            context.Response.Write(JsonConvert.SerializeObject(response))
+                        Using eligibleCmd As New SqlCommand("
+                            SELECT COUNT_BIG(*)
+                            FROM dbo.Template_Upload_Draft_OTB d WITH (UPDLOCK, HOLDLOCK)
+                            INNER JOIN #DeleteDraftRunNos s ON s.RunNo = d.RunNo
+                            WHERE ISNULL(d.OTBStatus, N'Draft') IN (N'Draft', N'Waiting', N'Edited');", conn, transaction)
+                            eligibleCmd.CommandTimeout = 300
+                            If Convert.ToInt64(eligibleCmd.ExecuteScalar()) <> runNos.Count Then
+                                Throw New InvalidOperationException("One or more selected rows do not exist or can no longer be cancelled. Nothing was changed.")
+                            End If
+                        End Using
+
+                        Using cancelCmd As New SqlCommand("
+                            UPDATE d
+                            SET d.OTBStatus = N'Cancelled', d.UpdateBy = @CurrentUser, d.UpdateDT = GETDATE()
+                            FROM dbo.Template_Upload_Draft_OTB d
+                            INNER JOIN #DeleteDraftRunNos s ON s.RunNo = d.RunNo
+                            WHERE ISNULL(d.OTBStatus, N'Draft') IN (N'Draft', N'Waiting', N'Edited');", conn, transaction)
+                            AddNVarCharParameter(cancelCmd, "@CurrentUser", currentUser, 100, "CurrentUser")
+                            cancelCmd.CommandTimeout = 300
+                            cancelledCount = cancelCmd.ExecuteNonQuery()
+                        End Using
+                        If cancelledCount <> runNos.Count Then
+                            Throw New InvalidOperationException("Not every selected row could be cancelled. The entire change was rolled back.")
+                        End If
+                        transaction.Commit()
+                    Catch
+                        Try
+                            transaction.Rollback()
+                        Catch
+                            ' Preserve the original SQL failure/commit acknowledgement error.
+                        End Try
+                        Throw
+                    End Try
+                End Using
+            End Using
+            context.Response.Write(JsonConvert.SerializeObject(New With {
+                .success = True,
+                .message = $"Successfully cancelled {cancelledCount:N0} Draft OTB rows.",
+                .deletedCount = cancelledCount
+            }))
         Catch ex As Exception
-            Dim errorResponse As New With {
+            context.Response.StatusCode = 200
+            context.Response.Write(JsonConvert.SerializeObject(New With {
                 .success = False,
-                .message = "Error deleting draft OTB: " + ex.Message
-            }
-            context.Response.Write(JsonConvert.SerializeObject(errorResponse))
-
+                .message = ex.Message
+            }))
         End Try
     End Sub
 
     Private Function GetMonthName(month As Object) As String
-        If month Is DBNull.Value Then Return ""
+        If month Is Nothing OrElse month Is DBNull.Value Then Return ""
 
-        Dim monthInt As Integer = Convert.ToInt32(month)
+        Dim monthInt As Integer
+        If Not Integer.TryParse(month.ToString(), monthInt) Then Return ""
+
         Select Case monthInt
             Case 1 : Return "Jan"
             Case 2 : Return "Feb"
@@ -1300,43 +2726,47 @@ Public Class DataOTBHandler
             Return dt
         End If
 
-        Dim paramNames As New List(Of String)()
-        For i As Integer = 0 To runNos.Count - 1
-            paramNames.Add($"@p{i}")
-        Next
-
-        ' ===== MODIFIED QUERY (เพิ่ม [RunNo] และ Join Master Data เพื่อ Preview) =====
-        Dim query As String = $"
-            SELECT DISTINCT
-                d.RunNo, d.Version, d.OTBCompany, d.OTBCategory, d.OTBVendor, 
-                d.OTBSegment, d.OTBBrand, d.Amount, d.OTBYear, 
-                d.OTBMonth, d.Remark, d.OTBType,
-                c.Category AS CateName,
-                co.CompanyNameShort AS CompanyName,
-                s.SegmentName,
-                b.[Brand Name] AS BrandName,
-                v.Vendor
-            FROM [BMS].[dbo].[View_OTB_Draft] d
-            LEFT JOIN [dbo].[MS_Category] c ON d.OTBCategory = c.Cate
-            LEFT JOIN [dbo].[MS_Company] co ON d.OTBCompany = co.CompanyCode
-            LEFT JOIN [dbo].[MS_Segment] s ON d.OTBSegment = s.SegmentCode
-            LEFT JOIN [dbo].[MS_Brand] b ON d.OTBBrand = b.[Brand Code]
-            LEFT JOIN [dbo].[MS_Vendor] v ON d.OTBVendor = v.VendorCode AND d.OTBSegment = v.SegmentCode
-            WHERE d.RunNo IN ({String.Join(",", paramNames)})"
-        ' ===== END: MODIFIED QUERY =====
-
         Using conn As New SqlConnection(connectionString)
             conn.Open()
-            Using cmd As New SqlCommand(query, conn)
-                For i As Integer = 0 To runNos.Count - 1
-                    cmd.Parameters.AddWithValue(paramNames(i), runNos(i))
+
+            For batchStart As Integer = 0 To runNos.Count - 1 Step MaxRunNoQueryBatchSize
+                Dim batchCount As Integer = Math.Min(MaxRunNoQueryBatchSize, runNos.Count - batchStart)
+                Dim paramNames As New List(Of String)()
+                For i As Integer = 0 To batchCount - 1
+                    paramNames.Add("@p" & i.ToString())
                 Next
 
-                Using reader As SqlDataReader = cmd.ExecuteReader()
-                    dt.Load(reader)
+                ' Keep each SELECT well below SQL Server's 2,100 parameter limit.
+                Dim query As String = $"
+                    SELECT DISTINCT
+                        d.RunNo, d.Version, d.OTBCompany, d.OTBCategory, d.OTBVendor,
+                        d.OTBSegment, d.OTBBrand, d.Amount, d.OTBYear,
+                        d.OTBMonth, d.Remark, d.OTBType, d.OTBStatus,
+                        c.Category AS CateName,
+                        co.CompanyNameShort AS CompanyName,
+                        s.SegmentName,
+                        b.[Brand Name] AS BrandName,
+                        v.Vendor
+                    FROM [BMS].[dbo].[View_OTB_Draft] d
+                    LEFT JOIN [dbo].[MS_Category] c ON d.OTBCategory = c.Cate
+                    LEFT JOIN [dbo].[MS_Company] co ON d.OTBCompany = co.CompanyCode
+                    LEFT JOIN [dbo].[MS_Segment] s ON d.OTBSegment = s.SegmentCode
+                    LEFT JOIN [dbo].[MS_Brand] b ON d.OTBBrand = b.[Brand Code]
+                    LEFT JOIN [dbo].[MS_Vendor] v ON d.OTBVendor = v.VendorCode AND d.OTBSegment = v.SegmentCode
+                    WHERE d.RunNo IN ({String.Join(",", paramNames)})"
+
+                Using cmd As New SqlCommand(query, conn)
+                    For i As Integer = 0 To batchCount - 1
+                        cmd.Parameters.Add(paramNames(i), SqlDbType.Int).Value = runNos(batchStart + i)
+                    Next
+
+                    Using adapter As New SqlDataAdapter(cmd)
+                        adapter.Fill(dt)
+                    End Using
                 End Using
-            End Using
+            Next
         End Using
+
         Return dt
     End Function
     ' ===================================================================
@@ -1344,32 +2774,21 @@ Public Class DataOTBHandler
     ' ===================================================================
 
     Private Sub HandleExportOTBMovement(context As HttpContext)
-        ' 1. รับ Parameters
-        Dim year As String = context.Request.QueryString("OTByear")
-        Dim month As String = context.Request.QueryString("OTBmonth")
-        Dim company As String = context.Request.QueryString("OTBCompany")
-        Dim category As String = context.Request.QueryString("OTBCategory")
-        Dim segment As String = context.Request.QueryString("OTBSegment")
-        Dim brand As String = context.Request.QueryString("OTBBrand")
-        Dim vendor As String = context.Request.QueryString("OTBVendor")
+        Dim year As String = NormalizeReportFilter(context.Request.QueryString("OTByear"))
+        Dim month As String = NormalizeReportFilter(context.Request.QueryString("OTBmonth"))
+        Dim company As String = NormalizeReportFilter(context.Request.QueryString("OTBCompany"))
+        Dim category As String = NormalizeReportFilter(context.Request.QueryString("OTBCategory"))
+        Dim segment As String = NormalizeReportFilter(context.Request.QueryString("OTBSegment"))
+        Dim brand As String = NormalizeReportFilter(context.Request.QueryString("OTBBrand"))
+        Dim vendor As String = NormalizeReportFilter(context.Request.QueryString("OTBVendor"))
         Dim masterinstance As New MasterDataUtil
+
         If String.IsNullOrEmpty(year) Then Throw New Exception("Year is required.")
 
-        ' 2. เตรียมข้อมูล
-        ' 2.1 เรียก Calculator (ซึ่งจะโหลด Approved Transaction ทั้งหมดเข้า Memory)
-        Dim budgetCalc As New OTBBudgetCalculator()
+        Dim budgetByKey As Dictionary(Of String, ReportBudgetRow) = LoadBudgetBreakdownForReport(year, month, company, category, segment, brand, vendor)
+        Dim usageByKey As Dictionary(Of String, ReportUsageRow) = LoadPOUsageForReport(year, month, company, category, segment, brand, vendor)
+        Dim reportKeys As List(Of String) = BuildSortedReportKeys(budgetByKey, usageByKey)
 
-        ' 2.2 โหลด Draft PO และ Actual PO เข้า Memory เพื่อความเร็วในการ Lookup
-        Dim dtDraftPO As DataTable = LoadDraftPOForReport(year, month, company, category, segment, brand, vendor)
-        Dim dtActualPO As DataTable = LoadActualPOForReport(year, month, company, category, segment, brand, vendor)
-
-        '
-
-        ' 2.3 หา Distinct Keys ทั้งหมดที่มีการเคลื่อนไหว (จาก OTB Transaction, Draft PO, Actual PO)
-        ' เพื่อให้มั่นใจว่าแสดงครบทุกบรรทัดที่มีข้อมูล แม้จะไม่มี Budget แต่มี PO
-        Dim dtKeys As DataTable = GetDistinctKeysForReport(year, month, company, category, segment, brand, vendor)
-
-        ' 3. สร้าง DataTable ผลลัพธ์
         Dim dtExport As New DataTable("OTBMovement")
         dtExport.Columns.Add("Year")
         dtExport.Columns.Add("Month")
@@ -1402,40 +2821,42 @@ Public Class DataOTBHandler
         dtExport.Columns.Add("Total Actual + Draft PO", GetType(Decimal))
         dtExport.Columns.Add("Remaining", GetType(Decimal))
 
-        ' 4. Loop คำนวณ
-        For Each rowKey As DataRow In dtKeys.Rows
-            Dim kYear As String = rowKey("Year").ToString()
-            Dim kMonth As String = rowKey("Month").ToString() ' เป็นตัวเลข
-            Dim kCate As String = rowKey("Category").ToString()
-            Dim kCateName As String = masterinstance.GetCategoryName(rowKey("Category").ToString())
-            Dim kComp As String = rowKey("Company").ToString()
-            Dim kCompName As String = masterinstance.GetCompanyName(rowKey("Company").ToString())
-            Dim kSeg As String = rowKey("Segment").ToString()
-            Dim kSegName As String = masterinstance.GetSegmentName(rowKey("Segment").ToString())
-            Dim kBrand As String = rowKey("Brand").ToString()
-            Dim kBrandName As String = masterinstance.GetBrandName(rowKey("Brand").ToString())
-            Dim kVendor As String = rowKey("Vendor").ToString()
-            Dim kVendorName As String = masterinstance.GetVendorName(rowKey("Vendor").ToString())
+        For Each reportKey As String In reportKeys
+            Dim budget As ReportBudgetRow = Nothing
+            Dim usage As ReportUsageRow = Nothing
+            Dim hasBudget As Boolean = budgetByKey.TryGetValue(reportKey, budget)
+            Dim hasUsage As Boolean = usageByKey.TryGetValue(reportKey, usage)
+
+            Dim kYear As String = If(hasBudget, budget.Year, usage.Year)
+            Dim kMonth As String = If(hasBudget, budget.Month, usage.Month)
+            Dim kCate As String = If(hasBudget, budget.Category, usage.Category)
+            Dim kComp As String = If(hasBudget, budget.Company, usage.Company)
+            Dim kSeg As String = If(hasBudget, budget.Segment, usage.Segment)
+            Dim kBrand As String = If(hasBudget, budget.Brand, usage.Brand)
+            Dim kVendor As String = If(hasBudget, budget.Vendor, usage.Vendor)
+
+            Dim kCateName As String = masterinstance.GetCategoryName(kCate)
+            Dim kCompName As String = masterinstance.GetCompanyName(kComp)
+            Dim kSegName As String = masterinstance.GetSegmentName(kSeg)
+            Dim kBrandName As String = masterinstance.GetBrandName(kBrand)
+            Dim kVendorName As String = masterinstance.GetVendorName(kVendor)
             Dim kMonthName As String = GetMonthName(kMonth)
 
-            ' 4.1 คำนวณ Budget (ใช้ Logic ของ OTBBudgetCalculator ที่มีอยู่แล้ว)
-            Dim budgetBreakdown = budgetCalc.GetBudgetBreakdown(kYear, kMonth, kCate, kComp, kSeg, kBrand, kVendor)
-
-            ' 4.2 คำนวณ PO (ใช้ Compute จาก DataTable ใน Memory)
-            Dim filterPO As String = $"Year = '{kYear}' AND Month = '{kMonth}' AND Category = '{kCate}' AND Company = '{kComp}' AND Segment = '{kSeg}' AND Brand = '{kBrand}' AND Vendor = '{kVendor}'"
-
-            Dim sumDraftObj As Object = dtDraftPO.Compute("SUM(Amount)", filterPO)
-            Dim sumActualObj As Object = dtActualPO.Compute("SUM(Amount)", filterPO)
-
-            Dim sumDraft As Decimal = If(IsDBNull(sumDraftObj), 0, Convert.ToDecimal(sumDraftObj))
-            Dim sumActual As Decimal = If(IsDBNull(sumActualObj), 0, Convert.ToDecimal(sumActualObj))
-
-            Dim totalBudget As Decimal = budgetBreakdown("Total")
+            Dim original As Decimal = If(hasBudget, budget.Original, 0D)
+            Dim revDiff As Decimal = If(hasBudget, budget.RevDiff, 0D)
+            Dim extra As Decimal = If(hasBudget, budget.Extra, 0D)
+            Dim switchIn As Decimal = If(hasBudget, budget.SwitchIn, 0D)
+            Dim balanceIn As Decimal = If(hasBudget, budget.BalanceIn, 0D)
+            Dim carryIn As Decimal = If(hasBudget, budget.CarryIn, 0D)
+            Dim switchOut As Decimal = If(hasBudget, budget.SignedSwitchOut, 0D)
+            Dim balanceOut As Decimal = If(hasBudget, budget.SignedBalanceOut, 0D)
+            Dim carryOut As Decimal = If(hasBudget, budget.SignedCarryOut, 0D)
+            Dim totalBudget As Decimal = If(hasBudget, budget.Total, 0D)
+            Dim sumDraft As Decimal = If(hasUsage, usage.DraftPO, 0D)
+            Dim sumActual As Decimal = If(hasUsage, usage.ActualPO, 0D)
             Dim totalUsage As Decimal = sumDraft + sumActual
             Dim remaining As Decimal = totalBudget - totalUsage
 
-            ' 4.3 Add Row (เฉพาะแถวที่มีค่าอย่างน้อย 1 อย่าง)
-            'If totalBudget <> 0 OrElse totalUsage <> 0 Then
             dtExport.Rows.Add(
                     kYear,
                     kMonthName,
@@ -1449,186 +2870,356 @@ Public Class DataOTBHandler
                     kBrandName,
                     kVendor,
                     kVendorName,
-                    budgetBreakdown("Original"),
-                    budgetBreakdown("RevDiff"),
-                    budgetBreakdown("Extra"),
-                    budgetBreakdown("SwitchIn"),
-                    budgetBreakdown("BalanceIn"),
-                    budgetBreakdown("CarryIn"),
-                    budgetBreakdown("SwitchOut"),
-                    budgetBreakdown("BalanceOut"),
-                    budgetBreakdown("CarryOut"),
+                    original,
+                    revDiff,
+                    extra,
+                    switchIn,
+                    balanceIn,
+                    carryIn,
+                    switchOut,
+                    balanceOut,
+                    carryOut,
                     totalBudget,
                     sumActual,
                     sumDraft,
                     totalUsage,
                     remaining
                 )
-            'End If
         Next
 
-        ' 5. สร้าง Excel File
         GenerateExcelOTBMovement(context, dtExport, $"OTB_Movement_{DateTime.Now:yyyyMMdd_HHmmss}.xlsx")
     End Sub
 
-    ' --- Helper Methods for Data Loading ---
-    Private Function LoadDraftPOForReport(year As String, month As String, company As String, category As String, segment As String, brand As String, vendor As String) As DataTable
-        Dim dt As New DataTable()
+    Private Function NormalizeReportFilter(value As String) As String
+        If String.IsNullOrWhiteSpace(value) Then Return Nothing
+        Return value.Trim()
+    End Function
+
+    Private Function NormalizeReportKeyPart(value As String) As String
+        Return If(value, "").Trim().ToUpperInvariant()
+    End Function
+
+    Private Function BuildReportKey(year As String, month As String, category As String, company As String,
+                                    segment As String, brand As String, vendor As String) As String
+        Return String.Join("|", New String() {
+            NormalizeReportKeyPart(year),
+            NormalizeReportKeyPart(month),
+            NormalizeReportKeyPart(category),
+            NormalizeReportKeyPart(company),
+            NormalizeReportKeyPart(segment),
+            NormalizeReportKeyPart(brand),
+            NormalizeReportKeyPart(vendor)
+        })
+    End Function
+
+    Private Function GetReportString(reader As SqlDataReader, columnName As String) As String
+        Dim value As Object = reader(columnName)
+        If value Is DBNull.Value Then Return ""
+        Return value.ToString().Trim()
+    End Function
+
+    Private Function GetReportDecimal(reader As SqlDataReader, columnName As String) As Decimal
+        Dim value As Object = reader(columnName)
+        If value Is DBNull.Value Then Return 0D
+        Return Convert.ToDecimal(value)
+    End Function
+
+    Private Sub AddReportFilterParameters(cmd As SqlCommand, year As String, month As String, company As String,
+                                          category As String, segment As String, brand As String, vendor As String)
+        AddOptionalIntParameter(cmd, "@Year", year, "Year")
+        AddOptionalIntParameter(cmd, "@Month", month, "Month")
+        AddOptionalNVarCharParameter(cmd, "@Company", company, 20)
+        AddOptionalNVarCharParameter(cmd, "@Category", category, 20)
+        AddOptionalNVarCharParameter(cmd, "@Segment", segment, 20)
+        AddOptionalNVarCharParameter(cmd, "@Brand", brand, 30)
+        AddOptionalNVarCharParameter(cmd, "@Vendor", vendor, 30)
+    End Sub
+
+    Private Sub AddOptionalIntParameter(cmd As SqlCommand, name As String, value As String, label As String)
+        Dim parsedValue As Integer
+        Dim parameter As SqlParameter = cmd.Parameters.Add(name, SqlDbType.Int)
+        If String.IsNullOrWhiteSpace(value) Then
+            parameter.Value = DBNull.Value
+        ElseIf Integer.TryParse(value, parsedValue) Then
+            parameter.Value = parsedValue
+        Else
+            Throw New Exception(label & " is invalid.")
+        End If
+    End Sub
+
+    Private Sub AddOptionalNVarCharParameter(cmd As SqlCommand, name As String, value As String, size As Integer)
+        Dim parameter As SqlParameter = cmd.Parameters.Add(name, SqlDbType.NVarChar, size)
+        If String.IsNullOrWhiteSpace(value) Then
+            parameter.Value = DBNull.Value
+        Else
+            parameter.Value = value.Trim()
+        End If
+    End Sub
+
+    Private Function BuildSortedReportKeys(budgetByKey As Dictionary(Of String, ReportBudgetRow),
+                                           usageByKey As Dictionary(Of String, ReportUsageRow)) As List(Of String)
+        Dim allKeys As New Dictionary(Of String, Boolean)(StringComparer.OrdinalIgnoreCase)
+
+        For Each key As String In budgetByKey.Keys
+            If Not allKeys.ContainsKey(key) Then allKeys.Add(key, True)
+        Next
+
+        For Each key As String In usageByKey.Keys
+            If Not allKeys.ContainsKey(key) Then allKeys.Add(key, True)
+        Next
+
+        Dim sortedKeys As New List(Of String)(allKeys.Keys)
+        sortedKeys.Sort()
+        Return sortedKeys
+    End Function
+
+    Private Function LoadBudgetBreakdownForReport(year As String, month As String, company As String, category As String,
+                                                  segment As String, brand As String, vendor As String) As Dictionary(Of String, ReportBudgetRow)
+        Dim result As New Dictionary(Of String, ReportBudgetRow)(StringComparer.OrdinalIgnoreCase)
+
+        Dim query As String = "
+            WITH BudgetRows AS (
+                SELECT
+                    CONVERT(nvarchar(10), [Year]) AS [Year],
+                    CONVERT(nvarchar(10), [Month]) AS [Month],
+                    Category,
+                    Company,
+                    Segment,
+                    Brand,
+                    Vendor,
+                    CASE WHEN [Type] = 'Original' THEN ISNULL(Amount, 0) ELSE 0 END AS Original,
+                    CASE WHEN [Type] = 'Revise' THEN ISNULL(RevisedDiff, 0) ELSE 0 END AS RevDiff,
+                    CAST(0 AS decimal(18,2)) AS Extra,
+                    CAST(0 AS decimal(18,2)) AS SwitchIn,
+                    CAST(0 AS decimal(18,2)) AS BalanceIn,
+                    CAST(0 AS decimal(18,2)) AS CarryIn,
+                    CAST(0 AS decimal(18,2)) AS SwitchOut,
+                    CAST(0 AS decimal(18,2)) AS BalanceOut,
+                    CAST(0 AS decimal(18,2)) AS CarryOut
+                FROM [BMS].[dbo].[OTB_Transaction]
+                WHERE OTBStatus = 'Approved'
+                  AND (@Year IS NULL OR [Year] = @Year)
+                  AND (@Month IS NULL OR [Month] = @Month)
+                  AND (@Company IS NULL OR Company = @Company)
+                  AND (@Category IS NULL OR Category = @Category)
+                  AND (@Segment IS NULL OR Segment = @Segment)
+                  AND (@Brand IS NULL OR Brand = @Brand)
+                  AND (@Vendor IS NULL OR Vendor = @Vendor)
+
+                UNION ALL
+
+                SELECT
+                    CONVERT(nvarchar(10), [Year]) AS [Year],
+                    CONVERT(nvarchar(10), [Month]) AS [Month],
+                    Category,
+                    Company,
+                    Segment,
+                    Brand,
+                    Vendor,
+                    CAST(0 AS decimal(18,2)) AS Original,
+                    CAST(0 AS decimal(18,2)) AS RevDiff,
+                    CASE WHEN [From] = 'E' THEN ISNULL(BudgetAmount, 0) ELSE 0 END AS Extra,
+                    CAST(0 AS decimal(18,2)) AS SwitchIn,
+                    CAST(0 AS decimal(18,2)) AS BalanceIn,
+                    CAST(0 AS decimal(18,2)) AS CarryIn,
+                    CASE WHEN [From] = 'D' THEN ISNULL(BudgetAmount, 0) ELSE 0 END AS SwitchOut,
+                    CASE WHEN [From] = 'I' THEN ISNULL(BudgetAmount, 0) ELSE 0 END AS BalanceOut,
+                    CASE WHEN [From] = 'G' THEN ISNULL(BudgetAmount, 0) ELSE 0 END AS CarryOut
+                FROM [BMS].[dbo].[OTB_Switching_Transaction]
+                WHERE OTBStatus = 'Approved'
+                  AND (@Year IS NULL OR [Year] = @Year)
+                  AND (@Month IS NULL OR [Month] = @Month)
+                  AND (@Company IS NULL OR Company = @Company)
+                  AND (@Category IS NULL OR Category = @Category)
+                  AND (@Segment IS NULL OR Segment = @Segment)
+                  AND (@Brand IS NULL OR Brand = @Brand)
+                  AND (@Vendor IS NULL OR Vendor = @Vendor)
+
+                UNION ALL
+
+                SELECT
+                    CONVERT(nvarchar(10), SwitchYear) AS [Year],
+                    CONVERT(nvarchar(10), SwitchMonth) AS [Month],
+                    SwitchCategory AS Category,
+                    SwitchCompany AS Company,
+                    SwitchSegment AS Segment,
+                    SwitchBrand AS Brand,
+                    SwitchVendor AS Vendor,
+                    CAST(0 AS decimal(18,2)) AS Original,
+                    CAST(0 AS decimal(18,2)) AS RevDiff,
+                    CAST(0 AS decimal(18,2)) AS Extra,
+                    CASE WHEN [To] = 'C' THEN ISNULL(BudgetAmount, 0) ELSE 0 END AS SwitchIn,
+                    CASE WHEN [To] = 'H' THEN ISNULL(BudgetAmount, 0) ELSE 0 END AS BalanceIn,
+                    CASE WHEN [To] = 'F' THEN ISNULL(BudgetAmount, 0) ELSE 0 END AS CarryIn,
+                    CAST(0 AS decimal(18,2)) AS SwitchOut,
+                    CAST(0 AS decimal(18,2)) AS BalanceOut,
+                    CAST(0 AS decimal(18,2)) AS CarryOut
+                FROM [BMS].[dbo].[OTB_Switching_Transaction]
+                WHERE OTBStatus = 'Approved'
+                  AND [To] IS NOT NULL
+                  AND SwitchYear IS NOT NULL
+                  AND SwitchMonth IS NOT NULL
+                  AND NULLIF(LTRIM(RTRIM(SwitchCompany)), '') IS NOT NULL
+                  AND NULLIF(LTRIM(RTRIM(SwitchCategory)), '') IS NOT NULL
+                  AND NULLIF(LTRIM(RTRIM(SwitchSegment)), '') IS NOT NULL
+                  AND NULLIF(LTRIM(RTRIM(SwitchBrand)), '') IS NOT NULL
+                  AND NULLIF(LTRIM(RTRIM(SwitchVendor)), '') IS NOT NULL
+                  AND (@Year IS NULL OR SwitchYear = @Year)
+                  AND (@Month IS NULL OR SwitchMonth = @Month)
+                  AND (@Company IS NULL OR SwitchCompany = @Company)
+                  AND (@Category IS NULL OR SwitchCategory = @Category)
+                  AND (@Segment IS NULL OR SwitchSegment = @Segment)
+                  AND (@Brand IS NULL OR SwitchBrand = @Brand)
+                  AND (@Vendor IS NULL OR SwitchVendor = @Vendor)
+            )
+            SELECT
+                [Year],
+                [Month],
+                Category,
+                Company,
+                Segment,
+                Brand,
+                Vendor,
+                SUM(Original) AS Original,
+                SUM(RevDiff) AS RevDiff,
+                SUM(Extra) AS Extra,
+                SUM(SwitchIn) AS SwitchIn,
+                SUM(BalanceIn) AS BalanceIn,
+                SUM(CarryIn) AS CarryIn,
+                SUM(SwitchOut) AS SwitchOut,
+                SUM(BalanceOut) AS BalanceOut,
+                SUM(CarryOut) AS CarryOut
+            FROM BudgetRows
+            GROUP BY [Year], [Month], Category, Company, Segment, Brand, Vendor"
+
         Using conn As New SqlConnection(connectionString)
             conn.Open()
+            Using cmd As New SqlCommand(query, conn)
+                AddReportFilterParameters(cmd, year, month, company, category, segment, brand, vendor)
+                Using reader As SqlDataReader = cmd.ExecuteReader()
+                    While reader.Read()
+                        Dim item As New ReportBudgetRow With {
+                            .Year = GetReportString(reader, "Year"),
+                            .Month = GetReportString(reader, "Month"),
+                            .Category = GetReportString(reader, "Category"),
+                            .Company = GetReportString(reader, "Company"),
+                            .Segment = GetReportString(reader, "Segment"),
+                            .Brand = GetReportString(reader, "Brand"),
+                            .Vendor = GetReportString(reader, "Vendor"),
+                            .Original = GetReportDecimal(reader, "Original"),
+                            .RevDiff = GetReportDecimal(reader, "RevDiff"),
+                            .Extra = GetReportDecimal(reader, "Extra"),
+                            .SwitchIn = GetReportDecimal(reader, "SwitchIn"),
+                            .BalanceIn = GetReportDecimal(reader, "BalanceIn"),
+                            .CarryIn = GetReportDecimal(reader, "CarryIn"),
+                            .SwitchOut = GetReportDecimal(reader, "SwitchOut"),
+                            .BalanceOut = GetReportDecimal(reader, "BalanceOut"),
+                            .CarryOut = GetReportDecimal(reader, "CarryOut")
+                        }
+                        result(BuildReportKey(item.Year, item.Month, item.Category, item.Company, item.Segment, item.Brand, item.Vendor)) = item
+                    End While
+                End Using
+            End Using
+        End Using
 
+        Return result
+    End Function
 
-            Dim query As String = "
-                SELECT PO_Year AS Year, PO_Month AS Month, Company_Code AS Company, Category_Code AS Category, 
-                       Segment_Code AS Segment, Brand_Code AS Brand, Vendor_Code AS Vendor, Amount_THB AS Amount
+    Private Function LoadPOUsageForReport(year As String, month As String, company As String, category As String,
+                                          segment As String, brand As String, vendor As String) As Dictionary(Of String, ReportUsageRow)
+        Dim result As New Dictionary(Of String, ReportUsageRow)(StringComparer.OrdinalIgnoreCase)
+
+        Dim actualSegmentExpression As String = "COALESCE(NULLIF(a.Clean_Segment, ''), CASE WHEN LEFT(ISNULL(a.Segment_Code, ''), 1) = 'O' AND RIGHT(ISNULL(a.Segment_Code, ''), 1) = '0' AND LEN(ISNULL(a.Segment_Code, '')) > 2 THEN SUBSTRING(a.Segment_Code, 2, LEN(a.Segment_Code) - 2) ELSE ISNULL(a.Segment_Code, '') END)"
+        Dim query As String = "
+            WITH UsageRows AS (
+                SELECT
+                    CONVERT(nvarchar(10), d.PO_Year) AS [Year],
+                    CONVERT(nvarchar(10), d.PO_Month) AS [Month],
+                    d.Category_Code AS Category,
+                    d.Company_Code AS Company,
+                    d.Segment_Code AS Segment,
+                    d.Brand_Code AS Brand,
+                    d.Vendor_Code AS Vendor,
+                    SUM(ISNULL(d.Amount_THB, 0)) AS DraftPO,
+                    CAST(0 AS decimal(18,2)) AS ActualPO
                 FROM [BMS].[dbo].[Draft_PO_Transaction] d
-                WHERE ISNULL([Status], 'Draft') NOT IN ('Matched', 'ForceMatching', 'Matching', 'Cancelled')
-                 AND NOT EXISTS (
-                          SELECT 1 FROM [dbo].[Actual_PO_Summary] a 
-                          WHERE a.[Status] = 'Matched' AND (a.Draft_PO_Ref = d.DraftPO_No OR a.PO_No = d.Actual_PO_No)
-                      )
-                AND (@Year IS NULL OR PO_Year = @Year)
-                AND (@Month IS NULL OR PO_Month = @Month)
-                AND (@Company IS NULL OR Company_Code = @Company)
-                AND (@Category IS NULL OR Category_Code = @Category)
-                AND (@Segment IS NULL OR Segment_Code = @Segment)
-                AND (@Brand IS NULL OR Brand_Code = @Brand)
-                AND (@Vendor IS NULL OR Vendor_Code = @Vendor)
-                "
-            ' (Add filters parameters as needed logic similar to other functions)
-            Using cmd As New SqlCommand(query, conn)
-                cmd.Parameters.AddWithValue("@Year", If(String.IsNullOrEmpty(year), DBNull.Value, year))
-                cmd.Parameters.AddWithValue("@Month", If(String.IsNullOrEmpty(month), DBNull.Value, month))
-                cmd.Parameters.AddWithValue("@Company", If(String.IsNullOrEmpty(company), DBNull.Value, company))
-                cmd.Parameters.AddWithValue("@Category", If(String.IsNullOrEmpty(category), DBNull.Value, category))
-                cmd.Parameters.AddWithValue("@Segment", If(String.IsNullOrEmpty(segment), DBNull.Value, segment))
-                cmd.Parameters.AddWithValue("@Brand", If(String.IsNullOrEmpty(brand), DBNull.Value, brand))
-                cmd.Parameters.AddWithValue("@Vendor", If(String.IsNullOrEmpty(vendor), DBNull.Value, vendor))
-                Using da As New SqlDataAdapter(cmd)
-                    da.Fill(dt)
-                End Using
-            End Using
-        End Using
-        Return dt
-    End Function
+                WHERE ISNULL(d.[Status], 'Draft') NOT IN ('Matched', 'Cancelled', 'Canceled')
+                  AND (@Year IS NULL OR d.PO_Year = @Year)
+                  AND (@Month IS NULL OR d.PO_Month = @Month)
+                  AND (@Company IS NULL OR d.Company_Code = @Company)
+                  AND (@Category IS NULL OR d.Category_Code = @Category)
+                  AND (@Segment IS NULL OR d.Segment_Code = @Segment)
+                  AND (@Brand IS NULL OR d.Brand_Code = @Brand)
+                  AND (@Vendor IS NULL OR d.Vendor_Code = @Vendor)
+                GROUP BY d.PO_Year, d.PO_Month, d.Category_Code, d.Company_Code, d.Segment_Code, d.Brand_Code, d.Vendor_Code
 
-    Private Function LoadActualPOForReport(year As String, month As String, company As String, category As String, segment As String, brand As String, vendor As String) As DataTable
-        Dim dt As New DataTable()
+                UNION ALL
+
+                SELECT
+                    CONVERT(nvarchar(10), a.OTB_Year) AS [Year],
+                    CONVERT(nvarchar(10), a.OTB_Month) AS [Month],
+                    a.Category_Code AS Category,
+                    a.Company_Code AS Company,
+                    " & actualSegmentExpression & " AS Segment,
+                    a.Brand_Code AS Brand,
+                    a.Vendor_Code AS Vendor,
+                    CAST(0 AS decimal(18,2)) AS DraftPO,
+                    SUM(ISNULL(a.Amount_THB, 0)) AS ActualPO
+                FROM [BMS].[dbo].[Actual_PO_Summary] a
+                WHERE ISNULL(a.[Status], '') = 'Matched'
+                  AND a.OTB_Year IS NOT NULL
+                  AND a.OTB_Month IS NOT NULL
+                  AND NULLIF(LTRIM(RTRIM(a.Company_Code)), '') IS NOT NULL
+                  AND NULLIF(LTRIM(RTRIM(a.Category_Code)), '') IS NOT NULL
+                  AND NULLIF(LTRIM(RTRIM(" & actualSegmentExpression & ")), '') IS NOT NULL
+                  AND NULLIF(LTRIM(RTRIM(a.Brand_Code)), '') IS NOT NULL
+                  AND NULLIF(LTRIM(RTRIM(a.Vendor_Code)), '') IS NOT NULL
+                  AND (@Year IS NULL OR a.OTB_Year = @Year)
+                  AND (@Month IS NULL OR a.OTB_Month = @Month)
+                  AND (@Company IS NULL OR a.Company_Code = @Company)
+                  AND (@Category IS NULL OR a.Category_Code = @Category)
+                  AND (@Segment IS NULL OR " & actualSegmentExpression & " = @Segment)
+                  AND (@Brand IS NULL OR a.Brand_Code = @Brand)
+                  AND (@Vendor IS NULL OR a.Vendor_Code = @Vendor)
+                GROUP BY a.OTB_Year, a.OTB_Month, a.Category_Code, a.Company_Code, " & actualSegmentExpression & ", a.Brand_Code, a.Vendor_Code
+            )
+            SELECT
+                [Year],
+                [Month],
+                Category,
+                Company,
+                Segment,
+                Brand,
+                Vendor,
+                SUM(DraftPO) AS DraftPO,
+                SUM(ActualPO) AS ActualPO
+            FROM UsageRows
+            GROUP BY [Year], [Month], Category, Company, Segment, Brand, Vendor"
+
         Using conn As New SqlConnection(connectionString)
             conn.Open()
-            ' ดึง Actual PO (จาก Staging หรือ View)
-            Dim query As String = "
-                SELECT Otb_Year AS Year, Otb_Month AS Month, Company_Code AS Company, Category_Code As Category, 
-                       SUBSTRING(Segment_Code, 2, CASE WHEN LEN(ISNULL(Segment_Code, '')) > 2 THEN LEN(Segment_Code) - 2 ELSE 0 END) As Segment,Brand_Code As Brand,Vendor_Code As Vendor, Amount_THB AS Amount
-                FROM [BMS].[dbo].[Actual_PO_Summary]
-                WHERE ISNULL(Status, '') IN ('Matching','ForceMatching','Matched' )
-                AND (@Year IS NULL OR Otb_Year = @Year)
-                AND (@Month IS NULL OR Otb_Month = @Month)
-                AND (@Company IS NULL OR Company_Code = @Company)
-                AND (@Category IS NULL OR Category_Code = @Category)
-                AND (@Segment IS NULL OR SUBSTRING(Segment_Code, 2, CASE WHEN LEN(ISNULL(Segment_Code, '')) > 2 THEN LEN(Segment_Code) - 2 ELSE 0 END) = @Segment)
-                AND (@Brand IS NULL OR Brand_Code = @Brand)
-                AND (@Vendor IS NULL OR Vendor_Code = @Vendor)
-                "
             Using cmd As New SqlCommand(query, conn)
-                cmd.Parameters.AddWithValue("@Year", If(String.IsNullOrEmpty(year), DBNull.Value, year))
-                cmd.Parameters.AddWithValue("@Month", If(String.IsNullOrEmpty(month), DBNull.Value, month))
-                cmd.Parameters.AddWithValue("@Company", If(String.IsNullOrEmpty(company), DBNull.Value, company))
-                cmd.Parameters.AddWithValue("@Category", If(String.IsNullOrEmpty(category), DBNull.Value, category))
-                cmd.Parameters.AddWithValue("@Segment", If(String.IsNullOrEmpty(segment), DBNull.Value, segment))
-                cmd.Parameters.AddWithValue("@Brand", If(String.IsNullOrEmpty(brand), DBNull.Value, brand))
-                cmd.Parameters.AddWithValue("@Vendor", If(String.IsNullOrEmpty(vendor), DBNull.Value, vendor))
-                Using da As New SqlDataAdapter(cmd)
-                    da.Fill(dt)
+                AddReportFilterParameters(cmd, year, month, company, category, segment, brand, vendor)
+                Using reader As SqlDataReader = cmd.ExecuteReader()
+                    While reader.Read()
+                        Dim item As New ReportUsageRow With {
+                            .Year = GetReportString(reader, "Year"),
+                            .Month = GetReportString(reader, "Month"),
+                            .Category = GetReportString(reader, "Category"),
+                            .Company = GetReportString(reader, "Company"),
+                            .Segment = GetReportString(reader, "Segment"),
+                            .Brand = GetReportString(reader, "Brand"),
+                            .Vendor = GetReportString(reader, "Vendor"),
+                            .DraftPO = GetReportDecimal(reader, "DraftPO"),
+                            .ActualPO = GetReportDecimal(reader, "ActualPO")
+                        }
+                        result(BuildReportKey(item.Year, item.Month, item.Category, item.Company, item.Segment, item.Brand, item.Vendor)) = item
+                    End While
                 End Using
             End Using
         End Using
-        Return dt
-    End Function
 
-    Private Function GetDistinctKeysForReport(year As String, month As String, company As String, category As String, segment As String, brand As String, vendor As String) As DataTable
-        ' รวม Key จากทุกตารางเพื่อให้ได้รายการครบถ้วน
-        Dim dt As New DataTable()
-        Using conn As New SqlConnection(connectionString)
-            conn.Open()
-            Dim query As String = "
-                SELECT DISTINCT Year, Month, Category, Company, Segment, Brand, Vendor 
-                FROM [dbo].[OTB_Transaction] 
-                WHERE OTBStatus='Approved' 
-                AND (@Year IS NULL OR Year = @Year)
-                AND (@Month IS NULL OR Month = @Month)
-                AND (@Company IS NULL OR Company = @Company)
-                AND (@Category IS NULL OR Category = @Category)
-                AND (@Segment IS NULL OR Segment = @Segment)
-                AND (@Brand IS NULL OR Brand = @Brand)
-                AND (@Vendor IS NULL OR Vendor = @Vendor)
-
-                UNION
-
-                SELECT DISTINCT Year, Month, Category, Company, Segment, Brand, Vendor 
-                FROM [dbo].[OTB_Switching_Transaction] 
-                WHERE OTBStatus='Approved' 
-                AND (@Year IS NULL OR Year = @Year)
-                AND (@Month IS NULL OR Month = @Month)
-                AND (@Company IS NULL OR Company = @Company)
-                AND (@Category IS NULL OR Category = @Category)
-                AND (@Segment IS NULL OR Segment = @Segment)
-                AND (@Brand IS NULL OR Brand = @Brand)
-                AND (@Vendor IS NULL OR Vendor = @Vendor)
-
-                UNION
-
-                SELECT DISTINCT SwitchYear AS Year, SwitchMonth AS Month, SwitchCategory AS Category, SwitchCompany AS Company, SwitchSegment AS Segment, SwitchBrand AS Brand, SwitchVendor AS Vendor 
-                FROM [dbo].[OTB_Switching_Transaction] 
-                WHERE OTBStatus='Approved' AND [To] IS NOT NULL 
-                AND (@Year IS NULL OR SwitchYear = @Year)
-                AND (@Month IS NULL OR SwitchMonth = @Month)
-                AND (@Company IS NULL OR SwitchCompany = @Company)
-                AND (@Category IS NULL OR SwitchCategory = @Category)
-                AND (@Segment IS NULL OR SwitchSegment = @Segment)
-                AND (@Brand IS NULL OR SwitchBrand = @Brand)
-                AND (@Vendor IS NULL OR SwitchVendor = @Vendor)
-
-                UNION
-
-                SELECT DISTINCT PO_Year AS Year, PO_Month AS Month, Category_Code AS Category, Company_Code AS Company, Segment_Code AS Segment, Brand_Code AS Brand, Vendor_Code AS Vendor 
-                FROM [dbo].[Draft_PO_Transaction] 
-                WHERE ISNULL(Status,'')<>'Cancelled' 
-                AND (@Year IS NULL OR PO_Year = @Year)
-                AND (@Month IS NULL OR PO_Month = @Month)
-                AND (@Company IS NULL OR Company_Code = @Company)
-                AND (@Category IS NULL OR Category_Code = @Category)
-                AND (@Segment IS NULL OR Segment_Code = @Segment)
-                AND (@Brand IS NULL OR Brand_Code = @Brand)
-                AND (@Vendor IS NULL OR Vendor_Code = @Vendor)
-
-                UNION
-
-                SELECT DISTINCT Otb_Year, Otb_Month, Category, Company_Code, Fund, Brand, Supplier 
-                FROM [dbo].[Actual_PO_Staging] 
-                WHERE ISNULL(Deletion_Flag,'')<>'L' 
-                AND (@Year IS NULL OR Otb_Year = @Year)
-                AND (@Month IS NULL OR Otb_Month = @Month)
-                AND (@Company IS NULL OR Company_Code = @Company)
-                AND (@Category IS NULL OR Category = @Category)
-                AND (@Segment IS NULL OR Fund = @Segment)
-                AND (@Brand IS NULL OR Brand = @Brand)
-                AND (@Vendor IS NULL OR Supplier = @Vendor)
-            "
-            Using cmd As New SqlCommand(query, conn)
-                cmd.Parameters.AddWithValue("@Year", If(String.IsNullOrEmpty(year), DBNull.Value, year))
-                cmd.Parameters.AddWithValue("@Month", If(String.IsNullOrEmpty(month), DBNull.Value, month))
-                cmd.Parameters.AddWithValue("@Company", If(String.IsNullOrEmpty(company), DBNull.Value, company))
-                cmd.Parameters.AddWithValue("@Category", If(String.IsNullOrEmpty(category), DBNull.Value, category))
-                cmd.Parameters.AddWithValue("@Segment", If(String.IsNullOrEmpty(segment), DBNull.Value, segment))
-                cmd.Parameters.AddWithValue("@Brand", If(String.IsNullOrEmpty(brand), DBNull.Value, brand))
-                cmd.Parameters.AddWithValue("@Vendor", If(String.IsNullOrEmpty(vendor), DBNull.Value, vendor))
-                Using da As New SqlDataAdapter(cmd)
-                    da.Fill(dt)
-                End Using
-            End Using
-        End Using
-        Return dt
+        Return result
     End Function
 
     ' --- Excel Generation ---
@@ -1709,7 +3300,9 @@ Public Class DataOTBHandler
             ws.Cells(2, 23, 2, 24).Style.Fill.BackgroundColor.SetColor(Color.FromArgb(0, 90, 160))
 
             ' Number Format
-            ws.Cells(3, 13, dt.Rows.Count + 2, 26).Style.Numberformat.Format = "#,##0.00"
+            If dt.Rows.Count > 0 Then
+                ws.Cells(3, 13, dt.Rows.Count + 2, 26).Style.Numberformat.Format = "#,##0.00"
+            End If
 
             ' AutoFit
             ws.Cells.AutoFitColumns()
@@ -1718,6 +3311,7 @@ Public Class DataOTBHandler
             context.Response.Clear()
             context.Response.ContentType = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
             context.Response.AddHeader("content-disposition", $"attachment; filename={filename}")
+            MarkDownloadReady(context)
             context.Response.BinaryWrite(package.GetAsByteArray())
             context.Response.Flush()
             context.ApplicationInstance.CompleteRequest()
@@ -1728,93 +3322,62 @@ Public Class DataOTBHandler
     ' ===== NEW: SUMMARY OTB BY CATEGORY REPORT ========================
     ' ==================================================================
     Private Sub HandleExportSummaryCategory(context As HttpContext)
-        ' 1. รับ Parameters
-        Dim year As String = context.Request.QueryString("OTByear")
-        Dim month As String = context.Request.QueryString("OTBmonth")
-        Dim company As String = context.Request.QueryString("OTBCompany")
-        Dim category As String = context.Request.QueryString("OTBCategory")
-        Dim segment As String = context.Request.QueryString("OTBSegment")
+        Dim year As String = NormalizeReportFilter(context.Request.QueryString("OTByear"))
+        Dim month As String = NormalizeReportFilter(context.Request.QueryString("OTBmonth"))
+        Dim company As String = NormalizeReportFilter(context.Request.QueryString("OTBCompany"))
+        Dim category As String = NormalizeReportFilter(context.Request.QueryString("OTBCategory"))
+        Dim segment As String = NormalizeReportFilter(context.Request.QueryString("OTBSegment"))
         Dim masterinstance As New MasterDataUtil
-        ' *สำคัญ* เราต้องดึงข้อมูลระดับ Brand/Vendor ทั้งหมดภายใต้ Filter นี้มาคำนวณก่อน แล้วค่อย Group รวม
-        Dim brand As String = context.Request.QueryString("OTBBrand")
-        Dim vendor As String = context.Request.QueryString("OTBVendor")
-
+        Dim brand As String = NormalizeReportFilter(context.Request.QueryString("OTBBrand"))
+        Dim vendor As String = NormalizeReportFilter(context.Request.QueryString("OTBVendor"))
 
         If String.IsNullOrEmpty(year) Then Throw New Exception("Year is required.")
 
-        ' 2. เตรียม Calculator และโหลดข้อมูลดิบ
-        Dim budgetCalc As New OTBBudgetCalculator()
-        Dim dtDraftPO As DataTable = LoadDraftPOForReport(year, month, company, category, segment, brand, vendor)
-        Dim dtActualPO As DataTable = LoadActualPOForReport(year, month, company, category, segment, brand, vendor)
+        Dim budgetByKey As Dictionary(Of String, ReportBudgetRow) = LoadBudgetBreakdownForReport(year, month, company, category, segment, brand, vendor)
+        Dim usageByKey As Dictionary(Of String, ReportUsageRow) = LoadPOUsageForReport(year, month, company, category, segment, brand, vendor)
+        Dim reportKeys As List(Of String) = BuildSortedReportKeys(budgetByKey, usageByKey)
+        Dim summaryByKey As New Dictionary(Of String, SummaryRawItem)(StringComparer.OrdinalIgnoreCase)
 
-        ' ดึง Key ทั้งหมดที่มีข้อมูล (ระดับละเอียด)
-        Dim dtKeys As DataTable = GetDistinctKeysForReport(year, month, company, category, segment, brand, vendor)
+        For Each reportKey As String In reportKeys
+            Dim budget As ReportBudgetRow = Nothing
+            Dim usage As ReportUsageRow = Nothing
+            Dim hasBudget As Boolean = budgetByKey.TryGetValue(reportKey, budget)
+            Dim hasUsage As Boolean = usageByKey.TryGetValue(reportKey, usage)
 
-        ' 3. สร้าง List ชั่วคราวเพื่อเก็บข้อมูลระดับละเอียดก่อน Group
-        Dim rawList As New List(Of SummaryRawItem)
-
-        For Each rowKey As DataRow In dtKeys.Rows
-            Dim kYear As String = rowKey("Year").ToString()
-            Dim kMonth As String = rowKey("Month").ToString()
-            Dim kCate As String = rowKey("Category").ToString()
-            Dim kCateName As String = masterinstance.GetCategoryName(rowKey("Category").ToString())
-            Dim kComp As String = rowKey("Company").ToString()
-            Dim kCompName As String = masterinstance.GetCompanyName(rowKey("Company").ToString())
-            Dim kSeg As String = rowKey("Segment").ToString()
-            Dim kSegName As String = masterinstance.GetSegmentName(rowKey("Segment").ToString())
-            Dim kBrand As String = rowKey("Brand").ToString()
-            Dim kBrandName As String = masterinstance.GetBrandName(rowKey("Brand").ToString())
-            Dim kVendor As String = rowKey("Vendor").ToString()
-            Dim kVendorName As String = masterinstance.GetVendorName(rowKey("Vendor").ToString())
+            Dim kYear As String = If(hasBudget, budget.Year, usage.Year)
+            Dim kMonth As String = If(hasBudget, budget.Month, usage.Month)
+            Dim kCate As String = If(hasBudget, budget.Category, usage.Category)
+            Dim kComp As String = If(hasBudget, budget.Company, usage.Company)
+            Dim kSeg As String = If(hasBudget, budget.Segment, usage.Segment)
             Dim kMonthName As String = GetMonthName(kMonth)
 
-            ' 3.1 คำนวณ Budget (ระดับละเอียด)
-            Dim budgetBreakdown = budgetCalc.GetBudgetBreakdown(kYear, kMonth, kCate, kComp, kSeg, kBrand, kVendor)
-            Dim totalBudgetApproved As Decimal = budgetBreakdown("Total")
-
-            ' 3.2 คำนวณ PO (ระดับละเอียด)
-            Dim filterPO As String = $"Year = '{kYear}' AND Month = '{kMonth}' AND Category = '{kCate}' AND Company = '{kComp}' AND Segment = '{kSeg}' AND Brand = '{kBrand}' AND Vendor = '{kVendor}'"
-            Dim sumDraft As Decimal = If(IsDBNull(dtDraftPO.Compute("SUM(Amount)", filterPO)), 0, Convert.ToDecimal(dtDraftPO.Compute("SUM(Amount)", filterPO)))
-            Dim sumActual As Decimal = If(IsDBNull(dtActualPO.Compute("SUM(Amount)", filterPO)), 0, Convert.ToDecimal(dtActualPO.Compute("SUM(Amount)", filterPO)))
-
-            ' เก็บลง List
-            rawList.Add(New SummaryRawItem With {
-                .Year = kYear,
-                .Month = kMonth,
-                .MonthName = kMonthName,
-                .Category = kCate,
-                .CategoryName = kCateName,
-                .Company = kComp,
-                .CompanyName = kCompName,
-                .Segment = kSeg,
-                .SegmentName = kSegName,
-                .TotalBudget = totalBudgetApproved,
-                .TotalActualDraft = sumDraft + sumActual
+            Dim summaryKey As String = String.Join("|", New String() {
+                NormalizeReportKeyPart(kComp),
+                NormalizeReportKeyPart(kYear),
+                NormalizeReportKeyPart(kMonth),
+                NormalizeReportKeyPart(kCate),
+                NormalizeReportKeyPart(kSeg)
             })
+
+            If Not summaryByKey.ContainsKey(summaryKey) Then
+                summaryByKey.Add(summaryKey, New SummaryRawItem With {
+                    .Year = kYear,
+                    .Month = kMonth,
+                    .MonthName = kMonthName,
+                    .Category = kCate,
+                    .Company = kComp,
+                    .Segment = kSeg,
+                    .TotalBudget = 0D,
+                    .TotalActualPO = 0D,
+                    .TotalDraftPO = 0D
+                })
+            End If
+
+            summaryByKey(summaryKey).TotalBudget += If(hasBudget, budget.Total, 0D)
+            summaryByKey(summaryKey).TotalActualPO += If(hasUsage, usage.ActualPO, 0D)
+            summaryByKey(summaryKey).TotalDraftPO += If(hasUsage, usage.DraftPO, 0D)
         Next
 
-        ' 4. (สำคัญ) Group By Category & Segment ด้วย LINQ
-        ' *** FIXED: Group.Sum จะใช้ Decimal overload อัตโนมัติเพราะ rawList เป็น Strongly Typed ***
-        Dim groupedQuery = From item In rawList
-                           Group item By Key = New With {
-                               Key .Company = item.Company,
-                               Key .Year = item.Year,
-                               Key .MonthName = item.MonthName,
-                               Key .Category = item.Category,
-                               Key .Segment = item.Segment
-                           } Into Group
-                           Select New With {
-                               .Company = Key.Company,
-                               .Year = Key.Year,
-                               .Month = Key.MonthName,
-                               .Category = Key.Category,
-                               .Segment = Key.Segment,
-                               .TotalBudgetApproved = Group.Sum(Function(x) x.TotalBudget),
-                               .TotalActualDraft = Group.Sum(Function(x) x.TotalActualDraft),
-                               .Remaining = Group.Sum(Function(x) x.TotalBudget) - Group.Sum(Function(x) x.TotalActualDraft)
-                           }
-
-        ' 5. สร้าง DataTable สำหรับ Export
         Dim dtExport As New DataTable("SummaryOTB")
         dtExport.Columns.Add("Company")
         dtExport.Columns.Add("CompanyName")
@@ -1825,29 +3388,35 @@ Public Class DataOTBHandler
         dtExport.Columns.Add("Segment")
         dtExport.Columns.Add("SegmentName")
         dtExport.Columns.Add("Total Budget Approved", GetType(Decimal))
+        dtExport.Columns.Add("Actual PO", GetType(Decimal))
+        dtExport.Columns.Add("Draft PO", GetType(Decimal))
         dtExport.Columns.Add("Total Actual + Draft PO", GetType(Decimal))
         dtExport.Columns.Add("Remaining", GetType(Decimal))
 
-        For Each row In groupedQuery
-            ' Filter out rows with zero values everywhere if desired, or keep all
-            If row.TotalBudgetApproved <> 0 OrElse row.TotalActualDraft <> 0 Then
+        Dim summaryKeys As New List(Of String)(summaryByKey.Keys)
+        summaryKeys.Sort()
+
+        For Each summaryKey As String In summaryKeys
+            Dim row As SummaryRawItem = summaryByKey(summaryKey)
+            If row.TotalBudget <> 0 OrElse row.TotalActualDraft <> 0 Then
                 dtExport.Rows.Add(
                     row.Company,
                     masterinstance.GetCompanyName(row.Company),
                     row.Year,
-                    row.Month,
+                    row.MonthName,
                     row.Category,
                     masterinstance.GetCategoryName(row.Category),
                     row.Segment,
                     masterinstance.GetSegmentName(row.Segment),
-                    row.TotalBudgetApproved,
+                    row.TotalBudget,
+                    row.TotalActualPO,
+                    row.TotalDraftPO,
                     row.TotalActualDraft,
-                    row.Remaining
+                    row.TotalBudget - row.TotalActualDraft
                 )
             End If
         Next
 
-        ' 6. Generate Excel
         GenerateExcelSummaryCategory(context, dtExport, $"Summary_OTB_Category_{DateTime.Now:yyyyMMdd_HHmmss}.xlsx")
     End Sub
 
@@ -1874,26 +3443,29 @@ Public Class DataOTBHandler
                 rng.Style.HorizontalAlignment = ExcelHorizontalAlignment.Center
             End Using
 
-            ' Style Specific Headers (Budget, Actual, Remaining) - Green Header based on image
-            Using rng = ws.Cells(3, 9, 3, 10) ' Total Budget, Total Actual
+            ' Highlight the calculated total columns to match the movement report.
+            Using rng = ws.Cells(3, 9, 3, 9) ' Total Budget Approved
                 rng.Style.Fill.BackgroundColor.SetColor(Color.FromArgb(146, 208, 80)) ' Light Green
                 rng.Style.Font.Color.SetColor(Color.White)
             End Using
-            Using rng = ws.Cells(3, 11, 3, 11) ' Remaining
-                rng.Style.Fill.BackgroundColor.SetColor(Color.FromArgb(0, 90, 160)) ' Blue
+            Using rng = ws.Cells(3, 12, 3, 12) ' Total Actual + Draft PO
+                rng.Style.Fill.BackgroundColor.SetColor(Color.FromArgb(146, 208, 80)) ' Light Green
                 rng.Style.Font.Color.SetColor(Color.White)
             End Using
 
             ' Format Numbers
-            Using rng = ws.Cells(4, 9, dt.Rows.Count + 3, 11)
-                rng.Style.Numberformat.Format = "#,##0.00"
-            End Using
+            If dt.Rows.Count > 0 Then
+                Using rng = ws.Cells(4, 9, dt.Rows.Count + 3, 13)
+                    rng.Style.Numberformat.Format = "#,##0.00"
+                End Using
+            End If
 
             ws.Cells.AutoFitColumns()
 
             context.Response.Clear()
             context.Response.ContentType = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
             context.Response.AddHeader("content-disposition", $"attachment; filename={filename}")
+            MarkDownloadReady(context)
             context.Response.BinaryWrite(package.GetAsByteArray())
             context.Response.Flush()
             context.ApplicationInstance.CompleteRequest()
