@@ -51,9 +51,20 @@ pipeline {
             }
             agent { label 'built-in' }
             stages {
+                            stages {
                 stage('Checkout') {
                     steps {
-                        checkout scm
+                        script {
+                            // เช็คว่าถ้าเลือก PROD ให้ดึง branch PROD ถ้าไม่ใช่ให้ดึง branch QAS (หรือ UAT ตามที่คุณใช้)
+                            def targetBranch = (params.ENVIRONMENT == 'PROD') ? 'PROD' : 'QAS'
+                            
+                            echo "Checking out code from branch: ${targetBranch} for ${params.ENVIRONMENT}..."
+                            
+                            checkout([$class: 'GitSCM', 
+                                branches: [[name: "*/${targetBranch}"]], 
+                                userRemoteConfigs: [[url: 'git@github.com:methee60893/BMS', credentialsId: 'Github']]
+                            ])
+                        }
                     }
                 }
                 stage('Build') {
