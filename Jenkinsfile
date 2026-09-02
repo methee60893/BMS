@@ -1,5 +1,4 @@
 pipeline {
-
     agent none 
 
     options {
@@ -10,7 +9,6 @@ pipeline {
 
     parameters {
         choice(name: 'ENVIRONMENT', choices: ['UAT', 'PROD'], description: 'เลือก Environment ที่ต้องการ Deploy')
-        
         choice(name: 'ROLLBACK_VERSION', choices: [
             'None', 
             'Latest (1)', 
@@ -22,29 +20,14 @@ pipeline {
     }
 
     environment {
-        IIS_SITE_PATH = "E:\\www\\ฺBMS_Test"
-        IIS_BACKUP_PATH = "E:\\www\\BMS_backup"
+        IIS_SITE_PATH = "E:\\www\\BMS_Test" 
+        IIS_BACKUP_PATH = "E:\\www\\BMS_backup" 
         APP_POOL_NAME = "BMS_Test" 
         TARGET_NODE = "${params.ENVIRONMENT == 'PROD' ? 'otb-prod' : 'otb-uat'}"
-        
-
-        APP_URL = "${params.ENVIRONMENT == 'PROD' ? 'https://bms.kingpower.com/BMS_Test' : 'https://dev-cie.kingpower.com/BMS/'}"
+        APP_URL = "${params.ENVIRONMENT == 'PROD' ? 'https://bms.kingpower.com' : 'https://dev-cie.kingpower.com/bms'}" 
     }
 
     stages {
-        stage('Approval PROD') {
-            when { expression { params.ENVIRONMENT == 'PROD' } }
-            steps {
-                timeout(time: 15, unit: 'MINUTES') {
-                    input message: '⚠️ คุณกำลังจะแก้ไขระบบ Production (PROD) ยืนยันหรือไม่?', ok: '✅ ยืนยันการ Deploy'
-                }
-            }
-        }
-
-        // ===================================================
-        // 1. SOURCE & COMPILE
-        // ===================================================
-        stages {
         stage('Approval PROD') {
             when { expression { params.ENVIRONMENT == 'PROD' } }
             steps {
@@ -130,7 +113,6 @@ pipeline {
                 script {
                     node(env.TARGET_NODE) { 
                         try {
-                            // 1. สำรองไฟล์ Web.config เดิมเก็บไว้ชั่วคราวก่อนลบของเก่า
                             powershell '''
                             $tempConfig = "$env:TEMP\\Web_backup.config"
                             if (Test-Path "$env:IIS_SITE_PATH\\Web.config") {
@@ -148,15 +130,8 @@ pipeline {
                             
                             unstash 'compiled-app'
                             
-                            // 2. Copy ไฟล์ใหม่ทั้งหมดลง IIS ยกเว้น Web.config แล้วดึง Web.config ตัวจริงกลับมาวางทับ
                             powershell '''
-                            Write-Host "Copying new compiled files to IIS (Excluding Web.config)..."
-                            Get-ChildItem -Path ".\\obj\\Release\\Package\\PackageTmp" -Recurse | Where-Object { $_.Name -ne "Web.config" } | ForEach-Object {
-                                $destinationPath = $_.FullName.Replace("$PagingRoot\\obj\\Release\\Package\\PackageTmp", "").TrimStart('\\')
-                                # ใช้ Copy แบบข้าม Web.config
-                            }
-                            
-                            # คำสั่ง Copy แบบง่าย: ก๊อปปี้มาทั้งหมดก่อน แล้วเอา Web.config เดิมแปะทับทันที
+                            Write-Host "Copying new compiled files to IIS..."
                             Copy-Item -Path ".\\obj\\Release\\Package\\PackageTmp\\*" -Destination "$env:IIS_SITE_PATH" -Recurse -Force -ErrorAction SilentlyContinue
                             
                             $tempConfig = "$env:TEMP\\Web_backup.config"
@@ -311,5 +286,4 @@ pipeline {
             }
         }
     }
-}
 }
